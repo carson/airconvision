@@ -3,15 +3,8 @@
 # OpenCV build of PTAMM by carson 15-FEB-2012
 
 #3DS modelling game dependencies
-3DSLIB = -l3ds
-3DSFILES =	ModelsGame.o\
-		ModelBrowser.o\
-		ModelControls.o\
-		MGButton.o\
-		Model3ds.o\
-		ModelsGameData.o
 
-EXTRA_CFLAGS:= -DENABLE_MODELS_GAME
+EXTRA_CFLAGS:= 
 
 ## For Gstreamer
 #MY_CUSTOM_INCLUDE_PATH=`pkg-config gstreamer-0.10 --cflags`
@@ -20,7 +13,7 @@ EXTRA_CFLAGS:= -DENABLE_MODELS_GAME
 # Edit the lines below to point to any needed include and link paths
 # Or to change the compiler's optimization flags
 CC = g++-4.4
-LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd $(3DSLIB) -lgstapp-0.10 -lglut -lGLU -llapack -lblas -g # -lcxcore -lhighgui
+LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd -lgstapp-0.10 -lglut -lGLU -llapack -lblas -g
 COMPILEFLAGS = $(MY_CUSTOM_INCLUDE_PATH) -D_LINUX -D_REENTRANT -Wall -O3 -fno-strict-aliasing -g
 
 # Edit this line to change video source
@@ -49,7 +42,6 @@ OBJECTS=	main.o\
 		MiniPatch.o\
 		MapViewer.o\
 		ARDriver.o\
-		EyeGame.o\
 		Tracker.o\
 		tinyxml.o\
 		tinyxmlerror.o\
@@ -58,11 +50,7 @@ OBJECTS=	main.o\
 		MD5.o\
 		MD5Wrapper.o\
 		MapSerializer.o\
-		Games.o\
 		Utils.o\
-		ShooterGame.o\
-		ShooterGameTarget.o\
-		$(3DSFILES)\
 		TakFrame.h
 
 CALIB_OBJECTS=	GLWindow2.o\
@@ -73,10 +61,10 @@ CALIB_OBJECTS=	GLWindow2.o\
 		ATANCamera.o \
 		CameraCalibrator.o
 
-All: PTAMM CameraCalibrator
+All: PTAML CameraCalibrator
 
-PTAMM: $(OBJECTS)
-	$(CC) -o PTAMM $(OBJECTS) $(LINKFLAGS) -g 
+PTAML: $(OBJECTS)
+	$(CC) -o PTAML $(OBJECTS) $(LINKFLAGS) -g 
 
 CameraCalibrator:$(CALIB_OBJECTS)
 	$(CC) -o CameraCalibrator $(CALIB_OBJECTS) $(LINKFLAGS)

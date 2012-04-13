@@ -2,7 +2,6 @@
 #define GL_GLEXT_PROTOTYPES 1
 #include "ARDriver.h"
 #include "Map.h"
-#include "Games.h"
 
 #include <cvd/image_io.h>
 
@@ -59,10 +58,6 @@ void ARDriver::Init()
  */
 void ARDriver::Reset()
 {
-  if(mpMap->pGame) {
-    mpMap->pGame->Reset();
-  }
-
   mnCounter = 0;
 }
 
@@ -112,10 +107,6 @@ void ARDriver::Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CfromW, bool bLo
     glMultMatrix(se3CfromW);
 
     DrawFadingGrid();
-
-    if(mpMap->pGame) {
-      mpMap->pGame->Draw3D( mGLWindow, *mpMap, se3CfromW);
-    }
   }
 
   glDisable(GL_DEPTH_TEST);
@@ -138,13 +129,7 @@ void ARDriver::Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CfromW, bool bLo
 
 
   //2d drawing
-  if(!bLost)
-  {
-    if(mpMap->pGame) {
-      mpMap->pGame->Draw2D(mGLWindow, *mpMap);
-    }
-  }
-  else
+  if(bLost)
   {
     //draw the lost ar overlays
     glEnable(GL_BLEND);
@@ -405,12 +390,7 @@ void ARDriver::HandleClick(int nButton, ImageRef irWin )
   // Ray dirn:
   v3RayDirn_W = v4W.slice<0,3>() - se3CamInv.get_translation();
   normalize(v3RayDirn_W);
-
-  if(mpMap->pGame) {
-    mpMap->pGame->HandleClick(v2VidCoords, v2UFBCoords, v3RayDirn_W, v2PlaneCoords, nButton);
-  }
 }
-
 
 
 /**
@@ -419,42 +399,13 @@ void ARDriver::HandleClick(int nButton, ImageRef irWin )
  */
 void ARDriver::HandleKeyPress( std::string sKey )
 {
-  if(mpMap && mpMap->pGame ) {
-    mpMap->pGame->HandleKeyPress( sKey );
-  }
-
 }
-
-
-/**
- * Load a game by name.
- * @param sName Name of the game
- */
-void ARDriver::LoadGame(std::string sName)
-{
-  if(mpMap->pGame)
-  {
-    delete mpMap->pGame;
-    mpMap->pGame = NULL;
-  }
-
-  mpMap->pGame = LoadAGame( sName, "");
-  if( mpMap->pGame ) {
-    mpMap->pGame->Init();
-  }
-
-}
-
-
 
 /**
  * Advance the game logic
  */
 void ARDriver::AdvanceLogic()
 {
-  if(mpMap->pGame) {
-    mpMap->pGame->Advance();
-  }
 }
 
 

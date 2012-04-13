@@ -2,7 +2,6 @@
 #include "Map.h"
 #include "MapPoint.h"
 #include "KeyFrame.h"
-#include "Game.h"
 
 namespace PTAMM {
 
@@ -10,8 +9,7 @@ namespace PTAMM {
  * Constructor. Calls reset and sets the map ID
  */
 Map::Map()
-  : pGame( NULL ),
-    N(10000),
+  : N(10000),
     nTex(0)
 {
   static int nMapCounter = 0;
@@ -66,12 +64,6 @@ void Map::Reset()
   {
 //     delete qNewQueue.front();
     qNewQueue.pop_front();
-  }
-
-  //remove any associated game
-  if( pGame != NULL )  {
-    delete pGame;
-    pGame = NULL;
   }
 
   bBundleConverged_Full = true;

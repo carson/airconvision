@@ -14,6 +14,7 @@
 
 #ifndef __MAP_H
 #define __MAP_H
+
 #include <vector>
 #include <TooN/se3.h>
 #include <cvd/image.h>
@@ -27,7 +28,6 @@ namespace PTAMM {
 
 struct MapPoint;
 class KeyFrame;
-class Game;
 
 class Map
 {
@@ -61,8 +61,6 @@ class Map
     bool bEditLocked;                                // Is the map locked from being edited?
 
     //PTAMM Additions
-    Game * pGame;                                    // The AR Game for this map
-
     MapLockManager mapLockManager;                   // All threads must register to this and
                                                      // use when need complete control of a map
 

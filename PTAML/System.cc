@@ -9,7 +9,6 @@
 #include "ARDriver.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
-#include "Games.h"
 
 // hack to print camera coordinates to coord-log.txt
 // FEB-17-2012
@@ -93,7 +92,6 @@ System::System()
   GUI.RegisterCommand("PrevMap", GUICommandCallBack, mpMapViewer);
   GUI.RegisterCommand("CurrentMap", GUICommandCallBack, mpMapViewer);
 
-  GUI.RegisterCommand("LoadGame", GUICommandCallBack, mpARDriver);
   GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, mpARDriver);
 
   //create the menus
@@ -106,9 +104,6 @@ System::System()
   GUI.ParseLine("DrawAR=0");
   GUI.ParseLine("DrawMap=0");
   GUI.ParseLine("Menu.AddMenuToggle Root \"Draw AR\" DrawAR Root");
-
-  //Games. This function can be found in Games.cc. Add your games to it.
-  InitializeGameMenu();
 
   GUI.ParseLine("GLWindow.AddMenu MapsMenu Maps");
   GUI.ParseLine("MapsMenu.AddMenuButton Root \"New Map\" NewMap Root");
@@ -301,10 +296,6 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   }
   else if( sCommand == "SaveMap" || sCommand == "SaveMaps" || sCommand == "LoadMap")  {
     static_cast<System*>(ptr)->StartMapSerialization( sCommand, sParams );
-  }
-  else if( sCommand == "LoadGame" )
-  {
-    static_cast<ARDriver*>(ptr)->LoadGame(sParams);
   }
   else if( sCommand == "Mouse.Click" ) {
     vector<string> vs = ChopAndUnquoteString(sParams);

@@ -17,7 +17,6 @@
 #include <gvars3/GStringUtil.h>
 #include "LevelHelpers.h"
 #include "MD5Wrapper.h"
-#include "Games.h"
 #include "Utils.h"
 
 #include <iostream>
@@ -268,14 +267,6 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
   }
 
 
-  ////////////  load the game data  ////////////
-  string sGame = hRoot.FirstChild( "Game" ).Element()->Attribute("type");
-  cout << "Game = " << sGame << endl;
-  if( sGame != "None" )
-  {
-    string sGameDataFile = hRoot.FirstChild( "Game" ).Element()->Attribute("path");
-    mpMap->pGame = LoadAGame(sGame, sDirName + "/" + sGameDataFile);
-  }
 
   //all loaded so set map as good.
   mpMap->bGood = true;
@@ -887,25 +878,6 @@ MapSerializer::MapStatus MapSerializer::_SaveMap( std::string sPath )
         kmElem->SetAttribute( "mp", m );
       }
     }
-  }
-
-
-
-  ////////////  save the game data  ////////////
-  TiXmlElement * game = new TiXmlElement( "Game" );
-  rootNode->LinkEndChild( game );
-
-  if( mpMap->pGame )
-  {
-    game->SetAttribute("type", mpMap->pGame->Name() );
-    string sFile = mpMap->pGame->Save( sPath );
-
-    if( !sFile.empty() ) {
-      game->SetAttribute("path", sFile );
-    }
-  }
-  else  {
-    game->SetAttribute("type", "None");
   }
 
   ////////////  relase map lock  ////////////

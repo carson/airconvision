@@ -40,7 +40,6 @@ class ARDriver
     void HandleClick(int nButton, ImageRef irWin );
     void HandleKeyPress( std::string sKey );
     void AdvanceLogic();
-    void LoadGame(std::string sName);
 
     void SetCurrentMap(Map &map) { mpMap = &map; mnCounter = 0; }
 
