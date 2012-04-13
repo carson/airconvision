@@ -15,10 +15,8 @@ VideoSource::VideoSource()
 {
   cout << "  VideoSource_Linux: Opening video source..." << endl;
   string QuickCamFile = GV3::get<string>("VideoSource.V4LDevice", "/dev/video0");
-  //ImageRef irSize = GV3::get<ImageRef>("VideoSource.Resolution", ImageRef(640,480));
-  ImageRef irSize = GV3::get<ImageRef>("VideoSource.Resolution", ImageRef(320,240));
-  int nFrameRate = GV3::get<int>("VideoSource.Framerate", 125);
-  //int nFrameRate = GV3::get<int>("VideoSource.Framerate", 60);
+  ImageRef irSize = GV3::get<ImageRef>("VideoSource.Resolution", ImageRef(640,480));
+  int nFrameRate = GV3::get<int>("VideoSource.Framerate", 60);
   V4LBuffer<yuv422>* pvb = new V4LBuffer<yuv422>(QuickCamFile, irSize, -1, false, nFrameRate);
   mirSize = pvb->size();
   mptr = pvb;
@@ -26,7 +24,7 @@ VideoSource::VideoSource()
 };
 
 ImageRef VideoSource::Size()
-{ 
+{
   return mirSize;
 };
 
