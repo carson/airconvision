@@ -214,8 +214,8 @@ void System::Run()
       TooN::Vector<3, double> xyz = mpTracker->GetCurrentPose().inverse().get_translation();
       const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
       if (xyz != origin) {
-	cout << mpTracker->GetCurrentPose().inverse().get_translation() << endl;
-	coordfile << mpTracker->GetCurrentPose().inverse().get_translation() << endl;
+	// cout << mpTracker->GetCurrentPose().inverse().get_translation() << endl;
+	// coordfile << mpTracker->GetCurrentPose().inverse().get_translation() << endl;
       }
       
       if(bDrawMap) {
