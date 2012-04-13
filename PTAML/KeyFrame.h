@@ -91,9 +91,9 @@ class KeyFrame
 
     void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im);   // This takes an image and calculates pyramid levels etc to fill the
                                                             // keyframe data structures with everything that's needed by the tracker..
-  void AddRgbToKeyFrame(CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
-  //void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im, CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
-  
+    void AddRgbToKeyFrame(CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
+    //void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im, CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
+
     void MakeKeyFrame_Rest();                                 // ... while this calculates the rest of the data which the mapmaker needs.
 
   public:
@@ -108,8 +108,8 @@ class KeyFrame
     SmallBlurryImage *pSBI; // The relocaliser uses this
 
     ATANCamera Camera;                                        // The camera model which this KF came from
-  CVD::Image< CVD::Rgb < CVD::byte> > im_cl; //@hack by camparijet for pixel and Keyframe
-  int tIndex; //@hack by camaparijet for texture indexing...
+    CVD::Image< CVD::Rgb < CVD::byte> > im_cl; //@hack by camparijet for pixel and Keyframe
+    int tIndex; //@hack by camaparijet for texture indexing...
 };
 
 typedef std::map<MapPoint*, Measurement>::iterator meas_it;  // For convenience, and to work around an emacs paren-matching bug

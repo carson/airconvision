@@ -27,7 +27,6 @@ ARDriver::ARDriver(const ATANCamera &cam, ImageRef irFrameSize, GLWindow2 &glw, 
   mirFrameSize = irFrameSize;
   mCamera.SetImageSize(mirFrameSize);
   mbInitialised = false;
-  
 }
 
 
@@ -41,8 +40,8 @@ void ARDriver::Init()
   glGenTextures(1, &mnFrameTex);
   glBindTexture(GL_TEXTURE_RECTANGLE_ARB,mnFrameTex);
   glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0,
-	       GL_RGBA, mirFrameSize.x, mirFrameSize.y, 0,
-	       GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+               GL_RGBA, mirFrameSize.x, mirFrameSize.y, 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, NULL);
   MakeFrameBuffer();
 
   try {
@@ -50,8 +49,8 @@ void ARDriver::Init()
   }
   catch(CVD::Exceptions::All err) {
     cerr << "Failed to load searching image " << "\"ARData/Overlays/searching.png\"" << ": " << err.what << endl;
-  }  
-  
+  }
+
 }
 
 
@@ -88,11 +87,11 @@ void ARDriver::Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CfromW, bool bLo
   // Upload the image to our frame texture
   glBindTexture(GL_TEXTURE_RECTANGLE_ARB, mnFrameTex);
   glTexSubImage2D(GL_TEXTURE_RECTANGLE_ARB,
-		  0, 0, 0,
-		  mirFrameSize.x, mirFrameSize.y,
-		  GL_RGB,
-		  GL_UNSIGNED_BYTE,
-		  imFrame.data());
+                  0, 0, 0,
+                  mirFrameSize.x, mirFrameSize.y,
+                  GL_RGB,
+                  GL_UNSIGNED_BYTE,
+                  imFrame.data());
 
   // Set up rendering to go the FBO, draw undistorted video frame into BG
   glBindFramebufferEXT(GL_FRAMEBUFFER_EXT,mnFrameBuffer);
@@ -130,17 +129,17 @@ void ARDriver::Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CfromW, bool bLo
   glBindFramebufferEXT(GL_FRAMEBUFFER_EXT,0);
 
   DrawDistortedFB();
-  
+
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
   mGLWindow.SetupViewport();
   mGLWindow.SetupVideoOrtho();
   mGLWindow.SetupVideoRasterPosAndZoom();
 
-  
+
   //2d drawing
   if(!bLost)
-  {   
+  {
     if(mpMap->pGame) {
       mpMap->pGame->Draw2D(mGLWindow, *mpMap);
     }
@@ -169,8 +168,8 @@ void ARDriver::MakeFrameBuffer()
   glGenTextures(1, &mnFrameBufferTex);
   glBindTexture(GL_TEXTURE_RECTANGLE_ARB,mnFrameBufferTex);
   glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0,
-	       GL_RGBA, mirFBSize.x, mirFBSize.y, 0,
-	       GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+               GL_RGBA, mirFBSize.x, mirFBSize.y, 0,
+               GL_RGBA, GL_UNSIGNED_BYTE, NULL);
   glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -182,9 +181,9 @@ void ARDriver::MakeFrameBuffer()
   glGenFramebuffersEXT(1, &mnFrameBuffer);
   glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, mnFrameBuffer);
   glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-			    GL_TEXTURE_RECTANGLE_ARB, mnFrameBufferTex, 0);
+                            GL_TEXTURE_RECTANGLE_ARB, mnFrameBufferTex, 0);
   glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
-  			       GL_RENDERBUFFER_EXT, DepthBuffer);
+                               GL_RENDERBUFFER_EXT, DepthBuffer);
 
   CheckFramebufferStatus();
   cout << " .. created FBO." << endl;
@@ -201,7 +200,7 @@ static bool CheckFramebufferStatus()
   n = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
   if(n == GL_FRAMEBUFFER_COMPLETE_EXT)
     return true; // All good
-  
+
   cout << "glCheckFrameBufferStatusExt returned an error." << endl;
   return false;
 }
@@ -233,29 +232,29 @@ void ARDriver::DrawFBBackGround()
       int nStepsX = 24; // Pretty arbitrary..
       int nStepsY = (int) (nStepsX * ((double) mirFrameSize.x / mirFrameSize.y)); // Scaled by aspect ratio
       if(nStepsY < 2)
-	nStepsY = 2;
+        nStepsY = 2;
       for(int ystep = 0; ystep< nStepsY; ystep++)
-	{
-	  glBegin(GL_QUAD_STRIP);
-	  for(int xstep = 0; xstep <= nStepsX; xstep++)
-	    for(int yystep = ystep; yystep<=ystep+1; yystep++) // Two y-coords in one go - magic.
-	      {
-		Vector<2> v2Iter;
-		v2Iter[0] = (double) xstep / nStepsX;
-		v2Iter[1] = (double) yystep / nStepsY;
-		// If this is a border quad, draw a little beyond the
-		// outside of the frame, this avoids strange jaggies
-		// at the edge of the reconstructed frame later:
-		if(xstep == 0 || yystep == 0 || xstep == nStepsX || yystep == nStepsY)
-		  for(int i=0; i<2; i++)
-		    v2Iter[i] = v2Iter[i] * 1.02 - 0.01;
-		Vector<2> v2UFBDistorted = v2Iter;
-		Vector<2> v2UFBUnDistorted = mCamera.UFBLinearProject(mCamera.UFBUnProject(v2UFBDistorted));
-		glTexCoord2d(v2UFBDistorted[0] * mirFrameSize.x, v2UFBDistorted[1] * mirFrameSize.y);
-		glVertex(v2UFBUnDistorted);
-	      }
-	  glEnd();
-	}
+        {
+          glBegin(GL_QUAD_STRIP);
+          for(int xstep = 0; xstep <= nStepsX; xstep++)
+            for(int yystep = ystep; yystep<=ystep+1; yystep++) // Two y-coords in one go - magic.
+              {
+                Vector<2> v2Iter;
+                v2Iter[0] = (double) xstep / nStepsX;
+                v2Iter[1] = (double) yystep / nStepsY;
+                // If this is a border quad, draw a little beyond the
+                // outside of the frame, this avoids strange jaggies
+                // at the edge of the reconstructed frame later:
+                if(xstep == 0 || yystep == 0 || xstep == nStepsX || yystep == nStepsY)
+                  for(int i=0; i<2; i++)
+                    v2Iter[i] = v2Iter[i] * 1.02 - 0.01;
+                Vector<2> v2UFBDistorted = v2Iter;
+                Vector<2> v2UFBUnDistorted = mCamera.UFBLinearProject(mCamera.UFBUnProject(v2UFBDistorted));
+                glTexCoord2d(v2UFBDistorted[0] * mirFrameSize.x, v2UFBDistorted[1] * mirFrameSize.y);
+                glVertex(v2UFBUnDistorted);
+              }
+          glEnd();
+        }
       glEndList();
     }
   else
@@ -290,24 +289,24 @@ void ARDriver::DrawDistortedFB()
       int nStepsX = 24; // Pretty arbitrary..
       int nStepsY = (int) (nStepsX * ((double) mirFrameSize.x / mirFrameSize.y)); // Scaled by aspect ratio
       if(nStepsY < 2)
-	nStepsY = 2;
+        nStepsY = 2;
       glColor3f(1,1,1);
       for(int ystep = 0; ystep<nStepsY; ystep++)
-	{
-	  glBegin(GL_QUAD_STRIP);
-	  for(int xstep = 0; xstep<=nStepsX; xstep++)
-	    for(int yystep = ystep; yystep<=ystep + 1; yystep++) // Two y-coords in one go - magic.
-	      {
-		Vector<2> v2Iter;
-		v2Iter[0] = (double) xstep / nStepsX;
-		v2Iter[1] = (double) yystep / nStepsY;
-		Vector<2> v2UFBDistorted = v2Iter;
-		Vector<2> v2UFBUnDistorted = mCamera.UFBLinearProject(mCamera.UFBUnProject(v2UFBDistorted));
-		glTexCoord2d(v2UFBUnDistorted[0] * mirFBSize.x, (1.0 - v2UFBUnDistorted[1]) * mirFBSize.y);
-		glVertex(v2UFBDistorted);
-	      }
-	  glEnd();
-	}
+        {
+          glBegin(GL_QUAD_STRIP);
+          for(int xstep = 0; xstep<=nStepsX; xstep++)
+            for(int yystep = ystep; yystep<=ystep + 1; yystep++) // Two y-coords in one go - magic.
+              {
+                Vector<2> v2Iter;
+                v2Iter[0] = (double) xstep / nStepsX;
+                v2Iter[1] = (double) yystep / nStepsY;
+                Vector<2> v2UFBDistorted = v2Iter;
+                Vector<2> v2UFBUnDistorted = mCamera.UFBLinearProject(mCamera.UFBUnProject(v2UFBDistorted));
+                glTexCoord2d(v2UFBUnDistorted[0] * mirFBSize.x, (1.0 - v2UFBUnDistorted[1]) * mirFBSize.y);
+                glVertex(v2UFBDistorted);
+              }
+          glEnd();
+        }
       glEndList();
     }
   else
@@ -336,11 +335,11 @@ void ARDriver::DrawFadingGrid()
   for(int i=0; i<nTot; i++)
     for(int j=0; j<nTot; j++)
       {
-	Vector<3> v3;
-	v3[0] = (i - nHalfCells) * 0.1;
-	v3[1] = (j - nHalfCells) * 0.1;
-	v3[2] = 0.0;
-	aaVertex[i][j] = v3;
+        Vector<3> v3;
+        v3[0] = (i - nHalfCells) * 0.1;
+        v3[1] = (j - nHalfCells) * 0.1;
+        v3[2] = 0.0;
+        aaVertex[i][j] = v3;
       }
 
   glEnable(GL_LINE_SMOOTH);
@@ -351,12 +350,12 @@ void ARDriver::DrawFadingGrid()
     {
       glBegin(GL_LINE_STRIP);
       for(int j=0; j<nTot; j++)
-	glVertex(aaVertex[i][j]);
+        glVertex(aaVertex[i][j]);
       glEnd();
 
       glBegin(GL_LINE_STRIP);
       for(int j=0; j<nTot; j++)
-	glVertex(aaVertex[j][i]);
+        glVertex(aaVertex[j][i]);
       glEnd();
     };
 }
@@ -367,14 +366,14 @@ void ARDriver::DrawFadingGrid()
  * Calculates the 3d postion of the click on the plane
  * and passes info to a game, if there is one.
  * @param nButton the button pressed
- * @param irWin the window x, y location 
+ * @param irWin the window x, y location
  */
 void ARDriver::HandleClick(int nButton, ImageRef irWin )
 {
   //The window may have been resized, so want to work out the coords based on the orignal image size
   Vector<2> v2VidCoords = mGLWindow.VidFromWinCoords( irWin );
-  
-  
+
+
   Vector<2> v2UFBCoords;
 #ifdef WIN32
   Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = numeric_limits<double>::quiet_NaN();   v2PlaneCoords[1] = numeric_limits<double>::quiet_NaN();
@@ -443,7 +442,7 @@ void ARDriver::LoadGame(std::string sName)
   if( mpMap->pGame ) {
     mpMap->pGame->Init();
   }
- 
+
 }
 
 

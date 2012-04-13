@@ -12,7 +12,6 @@
 #ifndef __MAP_SERIALIZER__
 #define __MAP_SERIALIZER__
 
-
 #include <fstream>
 #include <vector>
 #include <map>
@@ -20,6 +19,7 @@
 
 #include "tinyxml.h"
 #include "TakFrame.h" //@hack by camparijet for serialize all frames.
+
 namespace PTAMM {
 
 class Map;
@@ -37,44 +37,44 @@ class MapSerializer : public CVD::Thread
 {
   public:
     enum MapStatus { MAP_OK, MAP_FAILED, MAP_EXISTS };
-    
+
     MapSerializer( std::vector<Map*> &maps );
     ~MapSerializer();
 
     bool Init(  std::string sCommand, std::string sParams, Map &currentMap );
     void PrintOptions();
-    
+
     virtual void run();
 
   private:
     Map * _ParseCommandAndParameters();
-    
+
     //The actual map saving and loading functions
     MapStatus LoadMap( Map * pMap, std::string sDirName );
     MapStatus SaveMap( Map * pMap, std::string sDirName );
     void SaveMaps( std::vector<Map*> & vpMaps,  std::string sBaseName );
-        
+
     //saving
     MapStatus _SaveMap( std::string sPath );
-    
+
     bool _SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, TiXmlElement * keyFramesNode );
-  bool _SaveKeyFrames( const std::string & sPath, TiXmlElement * rootNode );
-    
+    bool _SaveKeyFrames( const std::string & sPath, TiXmlElement * rootNode );
+
     bool _SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode );
     bool _SaveMapPoints( TiXmlElement * rootNode );
-  //@hack for serialize tracked Frame.
-  bool _SaveATakFrame(TakFrame & tf,const std::string & sPath, TiXmlElement * takFramesNode );
-  bool _SaveTakFrames(const std::string & sPath, TiXmlElement * rootNode );
+    //@hack for serialize tracked Frame.
+    bool _SaveATakFrame(TakFrame & tf,const std::string & sPath, TiXmlElement * takFramesNode );
+    bool _SaveTakFrames(const std::string & sPath, TiXmlElement * rootNode );
     void _CreateSaveLUTs();
     int _LookupKeyFrame( KeyFrame * k );
     int _LookupMapPoint( MapPoint * m );
 
     //loading
     MapStatus _LoadMap( std::string sDirName );
-    
+
     bool _LoadAKeyFrame( TiXmlHandle &hKF, const std::string & sPath, bool bQueueFrame = false );
     bool _LoadKeyFrames( TiXmlHandle &hRoot, const std::string & sPath );
-    
+
     bool _LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint = false );
     bool _LoadMapPoints( TiXmlHandle &hRoot );
 
@@ -89,7 +89,7 @@ class MapSerializer : public CVD::Thread
     void _RegisterWithMap( Map * map );
     void _CleanUp();
     Map * _FindTheMap( std::string sParam );
-    
+
   private:
     std::string msDirName;                                  // The directory to save the map(s) to
     Map * mpMap;                                            // the map currently be (de)serialized

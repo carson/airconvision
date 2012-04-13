@@ -5,7 +5,7 @@
 //
 // Defines the MapViewer class
 //
-// This defines a simple map viewer widget, which can draw the 
+// This defines a simple map viewer widget, which can draw the
 // current map and the camera/keyframe poses within it.
 //
 #ifndef __MAP_VIEWER_H
@@ -20,6 +20,7 @@
 #include <cvd/rgb.h> //for hack
 #include <cvd/byte.h>
 #include "ATANCamera.h"
+
 namespace PTAMM {
 
 using namespace TooN;
@@ -37,29 +38,29 @@ class MapViewer
     void ViewNextMap();
     void ViewPrevMap();
     void ViewCurrentMap();
-    
+
   protected:
     std::vector<Map*> & mvpMaps;     // Reference to all of the maps
     Map * mpMap, *mpViewingMap;      // the active tracking map, and the map being viewed
     GLWindow2 &mGLWindow;
-    
+
     void DrawGrid();
     void DrawMapDots();
     void DrawCamera(SE3<> se3, bool bSmall=false);
     void SetupFrustum();
     void SetupModelView(SE3<> se3WorldFromCurrent = SE3<>());
-    
+
     Vector<3> mv3MassCenter;
     SE3<> mse3ViewerFromWorld;
 
     std::ostringstream mMessageForUser;
     bool mbBrowseMode;                            // Map browsing mode enabled?
 
-  //GLUnit TakKeyFrameTex[100];//@hack added by camparijet for drawing keyframe
-  //void TakDrawCameraAndFrame(SE3<> se3CfromW, bool bSmall,CVD::Image<CVD::Rgb<CVD::byte> > keyFrameImage); //@hack added by camparijet
-  void TakDrawCameraAndFrame(SE3<> se3CfromW, bool bSmall,GLuint *texName, int tIndex, ATANCamera camera); //@hack added by camparijet
-  void DrawFlatGrid();
-  void TakSetupFrustum();
+    //GLUnit TakKeyFrameTex[100];//@hack added by camparijet for drawing keyframe
+    //void TakDrawCameraAndFrame(SE3<> se3CfromW, bool bSmall,CVD::Image<CVD::Rgb<CVD::byte> > keyFrameImage); //@hack added by camparijet
+    void TakDrawCameraAndFrame(SE3<> se3CfromW, bool bSmall,GLuint *texName, int tIndex, ATANCamera camera); //@hack added by camparijet
+    void DrawFlatGrid();
+    void TakSetupFrustum();
 };
 
 }

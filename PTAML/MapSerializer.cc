@@ -110,13 +110,13 @@ bool MapSerializer::Init( std::string sCommand, std::string sParams, Map &curren
     cout << "Serialization is currently running. Please try again in a moment." << endl;
     return false;
   }
-  
+
   mbOK = false;
 
   msCommand = sCommand;
   msParams = sParams;
   mpInitMap = &currentMap;
-  
+
   mbOK = true;
 
   return true;
@@ -156,7 +156,7 @@ bool MapSerializer::_CrossReferencing(TiXmlHandle &hRoot)
   {
     KeyFrame * k = (*i).first;
     vector< std::pair< int, Measurement > > & vMeas = (*i).second;
-    
+
     for( j = vMeas.begin(); j != vMeas.end(); j++ )
     {
       MapPoint * mp = _LookupMapPoint( (*j).first );
@@ -172,7 +172,7 @@ bool MapSerializer::_CrossReferencing(TiXmlHandle &hRoot)
   vector<std::pair<int, int> >::iterator fq;
   KeyFrame * k = NULL;
   MapPoint * m = NULL;
-  
+
   for( fq = mvFailureQueueUIDs.begin(); fq != mvFailureQueueUIDs.end(); fq++ )
   {
     k = _LookupKeyFrame( (*fq).first );
@@ -181,10 +181,10 @@ bool MapSerializer::_CrossReferencing(TiXmlHandle &hRoot)
       mpMap->vFailureQueue.push_back( std::pair<KeyFrame *, MapPoint *>( k, m ) );
     }
   }
-  
+
   return true;
 }
-  
+
 
 /**
  * Load a map by loading the map.xml file and the keyframe
@@ -202,11 +202,11 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
     cerr << "Failed to load " << sMapFileName << ". Aborting." << endl;
     return MAP_FAILED;
   }
-  
+
   TiXmlHandle hDoc(&mXMLDoc);
   TiXmlElement* pElem;
   TiXmlHandle hRoot(0);
-  
+
 
   pElem = hDoc.FirstChildElement().Element();
   // should always have a valid root but handle gracefully if it does not
@@ -218,8 +218,8 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
 
   string sID( MAP_XML_ID );
   string sVersion( MAP_VERSION );
-  string sFileVersion = pElem->Attribute("version");  
-  
+  string sFileVersion = pElem->Attribute("version");
+
   if( ( sID.compare( pElem->Value() ) != 0 ) &&
         ( sVersion.compare( sFileVersion ) != 0 ) )
   {
@@ -254,7 +254,7 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
     _UnlockMap();
     return MAP_FAILED;
   }
-  
+
 
   ////////////  load the uids for the keyframes and map points in the failure queue  ////////////
   ///@TODO   load the mvFailureQueueUIDs
@@ -266,7 +266,7 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
     _UnlockMap();
     return MAP_FAILED;
   }
-  
+
 
   ////////////  load the game data  ////////////
   string sGame = hRoot.FirstChild( "Game" ).Element()->Attribute("type");
@@ -282,7 +282,7 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
 
   ////////////  relase map lock  ////////////
   _UnlockMap();
-  
+
   return MAP_OK;
 
 }
@@ -291,7 +291,7 @@ MapSerializer::MapStatus MapSerializer::_LoadMap( std::string sDirName )
 
 /**
  * Load a map specified in the sDirName.
- * @param pMap the map to load into 
+ * @param pMap the map to load into
  * @param sDirName the directory containing the map
  * @return success
  */
@@ -321,7 +321,7 @@ MapSerializer::MapStatus MapSerializer::LoadMap( Map * pMap, std::string sDirNam
   if( ( mpMap->IsGood()  || !mpMap->vpKeyFrames.empty() || !mpMap->vpPoints.empty() ))
   {
     cerr << "Map already exists! Reset the map first." << endl;
-    _UnRegisterWithMap();  
+    _UnRegisterWithMap();
     return MAP_EXISTS;
   }
 
@@ -333,9 +333,9 @@ MapSerializer::MapStatus MapSerializer::LoadMap( Map * pMap, std::string sDirNam
   {
     perror( "Error getting the current working directory: Error with _getcwd in MapSerializer." );
     _UnRegisterWithMap();
-    return MAP_FAILED;    
+    return MAP_FAILED;
   }
-  
+
   //attempt to change working directory
   int chdirReturn = _chdir( sDirName.c_str() ); //returns 0 if change was successful, -1 if it dosen't exist
   if( chdirReturn == 0 )
@@ -377,25 +377,25 @@ bool MapSerializer::_LoadAKeyFrame( TiXmlHandle &phKF, const std::string & sPath
 {
   int uid = -1;
   TiXmlElement* kfe = phKF.ToElement();
-  
+
   kfe->QueryIntAttribute("id", &uid);
   if( uid == -1 ) {
     cerr << " keyframe has no ID. aborting" << endl;
     return false;
   }
-  
+
 
   TiXmlElement * pElem = phKF.FirstChild("Image").ToElement();
   if( pElem == NULL ) {
     return false;
   }
-  
+
   //load the image
   ostringstream os;
   os << sPath << "/" << pElem->Attribute("file");
   string sImgFileName = os.str();
   CVD::Image<CVD::byte> im;
-  
+
   try {
     CVD::img_load( im, sImgFileName );
   }
@@ -477,7 +477,7 @@ bool MapSerializer::_LoadAKeyFrame( TiXmlHandle &phKF, const std::string & sPath
     int nTmp = -1;
     string sTmp;
     vector< std::pair< int, Measurement > > vMapPointMeas;
-    
+
     int nSize = -1;
     hMeas.ToElement()->QueryIntAttribute("size", &nSize);
 
@@ -487,15 +487,15 @@ bool MapSerializer::_LoadAKeyFrame( TiXmlHandle &phKF, const std::string & sPath
     {
       Measurement meas;
       int nId = -1;
-      
+
       pNode->QueryIntAttribute("id", &nId);
       pNode->QueryIntAttribute("nLevel", &meas.nLevel);
       pNode->QueryIntAttribute("bSubPix", &nTmp);
       meas.bSubPix = ( nTmp != 0 ? true : false );
-      
+
       sTmp = pNode->Attribute("v2RootPos");
       sscanf( sTmp.c_str(), "%lf %lf", &meas.v2RootPos[0], &meas.v2RootPos[1] );
-      
+
       sTmp = pNode->Attribute("v2ImplanePos");
       sscanf( sTmp.c_str(), "%lf %lf", &meas.v2ImplanePos[0], &meas.v2ImplanePos[1] );
 
@@ -507,7 +507,7 @@ bool MapSerializer::_LoadAKeyFrame( TiXmlHandle &phKF, const std::string & sPath
 
       vMapPointMeas.push_back( std::pair< int, Measurement >( nId, meas ) );
     }
-      
+
     mmMeasCrossRef[ kf ] = vMapPointMeas;
   }
 
@@ -520,7 +520,7 @@ bool MapSerializer::_LoadAKeyFrame( TiXmlHandle &phKF, const std::string & sPath
   else  {
     mpMap->vpKeyFrames.push_back( kf );
   }
-  
+
   return true;
 }
 
@@ -557,7 +557,7 @@ bool MapSerializer::_LoadKeyFrames( TiXmlHandle &hRoot, const std::string & sPat
     }
   }
 
-  
+
   ////////////  load the keyframe queue  ////////////
   {
     int nSize = -1;
@@ -601,7 +601,7 @@ bool MapSerializer::_LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint )
   }
 
   //////////////////// fill in map point
-  
+
   MapPoint * mp = new MapPoint();
 
   string sTmp = hMP.ToElement()->Attribute( "position" );
@@ -641,7 +641,7 @@ bool MapSerializer::_LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint )
   string sPixRight = pElem->Attribute( "PixelRight_W" );
   sscanf( sPixRight.c_str(), "%lf %lf %lf", &mp->v3PixelRight_W[0], &mp->v3PixelRight_W[1], &mp->v3PixelRight_W[2]);
 
-  
+
   //////////// cross ref data - as all keyframes are loaded we can cross ref with them.
 
   //MapMakerData
@@ -677,8 +677,8 @@ bool MapSerializer::_LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint )
         delete pN;
       }
     }
-    
-    
+
+
 
     if( (int)vnUids.size() != nSize ) {
       cerr << "Warning: MapMakerData:MeasurementKFs size mismatch for map point "
@@ -701,7 +701,7 @@ bool MapSerializer::_LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint )
     vnUids.clear();
     vsUids.clear();
 
-    
+
     pElem = hMP.FirstChild("MapMakerData").FirstChild("sNeverRetryKFs").ToElement();
     if( pElem == NULL ) {
       return false;
@@ -709,7 +709,7 @@ bool MapSerializer::_LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint )
 
 
     pElem->QueryIntAttribute( "size", &nSize );
-    
+
     c = pElem->GetText();
     if(c != NULL )  {
       sTmp = c;
@@ -732,7 +732,7 @@ bool MapSerializer::_LoadAMapPoint( TiXmlHandle &hMP, bool bQueuePoint )
     if( (int)vnUids.size() != nSize ) {
       cerr << "Warning: MapMakerData:sNeverRetryKFs size mismatch for map point " << uid << endl;
     }
-    
+
     for( it =  vnUids.begin(); it != vnUids.end(); it++ )
     {
       k = _LookupKeyFrame( (*it) );
@@ -792,7 +792,7 @@ bool MapSerializer::_LoadMapPoints( TiXmlHandle &hRoot )
       return false;
     }
   }
-  
+
   ////////////  load the new pending map points  ////////////
   {
     int nSize = -1;
@@ -816,7 +816,7 @@ bool MapSerializer::_LoadMapPoints( TiXmlHandle &hRoot )
       return false;
     }
   }
-  
+
   return true;
 }
 
@@ -834,7 +834,7 @@ MapSerializer::MapStatus MapSerializer::_SaveMap( std::string sPath )
     cerr << "Failed to get map lock" << endl;
     return MAP_FAILED;
   }
-  
+
   TiXmlDocument xmlDoc;     //XML file
 
   string sMapFileName = sPath + "/map.xml";
@@ -845,11 +845,11 @@ MapSerializer::MapStatus MapSerializer::_SaveMap( std::string sPath )
   TiXmlElement * rootNode = new TiXmlElement(MAP_XML_ID);
   xmlDoc.LinkEndChild( rootNode );
   rootNode->SetAttribute("version", MAP_VERSION);
-  
+
   ////////////  save the keyframes and map points  ////////////
   bool bOK = false;
   _CreateSaveLUTs();                      // create lookup tables for the mappoints and keyframes
-  
+
   /**
    * @ hack by camparijet comment out for  overwriting method
   //bOK = _SaveKeyFrames( sPath, rootNode );   // recursively save each keyframe
@@ -874,7 +874,7 @@ MapSerializer::MapStatus MapSerializer::_SaveMap( std::string sPath )
     failElem->SetAttribute( "size", mpMap->vFailureQueue.size() );
 
     int k = -1, m = -1;
-    
+
     vector<std::pair<KeyFrame*, MapPoint*> >::iterator fq;
     for( fq = mpMap->vFailureQueue.begin(); fq != mpMap->vFailureQueue.end(); fq++ )
     {
@@ -887,10 +887,10 @@ MapSerializer::MapStatus MapSerializer::_SaveMap( std::string sPath )
         kmElem->SetAttribute( "mp", m );
       }
     }
-  }  
+  }
 
 
- 
+
   ////////////  save the game data  ////////////
   TiXmlElement * game = new TiXmlElement( "Game" );
   rootNode->LinkEndChild( game );
@@ -929,9 +929,9 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
   if(uid == -1 )  {
     return false;
     }*/
-  
 
-  
+
+
   TiXmlElement* tfe = new TiXmlElement("TakFrame");
   takFramesNode->LinkEndChild( tfe );
 
@@ -941,7 +941,7 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
     string s;
 
     tfe->SetAttribute( "id", tf._id );
-    
+
     os << tf.CamFromWorld;
     s = os.str();
     PruneWhiteSpace( s );
@@ -956,7 +956,7 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
     ostringstream os;
     os << "KeyFrames/" << setfill('0') << setw(6) << uid << ".png";
     string sFileBaseName = os.str();
-    
+
     //save the image out as a png
     os.str("");
     os << sPath << "/" << sFileBaseName;
@@ -985,7 +985,7 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
     ostringstream os;
     TiXmlElement* camElem = new TiXmlElement("Camera");
     tfe->LinkEndChild( camElem );
-    
+
     camElem->SetAttribute("name", tf->Camera.Name() );
     os << tf->Camera.ImageSize()[0] << " " << tf->Camera.ImageSize()[1];
     camElem->SetAttribute("size", os.str() );
@@ -1002,19 +1002,19 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
   {
     TiXmlElement* depthElem = new TiXmlElement("SceneDepth");
     tfe->LinkEndChild( depthElem );
-      
+
     depthElem->SetDoubleAttribute("mean", tf->dSceneDepthMean );
     depthElem->SetDoubleAttribute("sigma", tf->dSceneDepthSigma );
-  
+
     }
-  
+
   //measurements_SaveKeyFrames
   {
     ostringstream os;
     string s;
     TiXmlElement* measurementsElem = new TiXmlElement("Measurements");
     tfe->LinkEndChild( measurementsElem );
-      
+
     //find out how many are in the points list (not in the trash), so know how many will be saved
     int size = 0;
     map<MapPoint*, Measurement>::iterator mit;
@@ -1039,14 +1039,14 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
         measElem->SetAttribute("id", m);
         measElem->SetAttribute("nLevel", (*mit).second.nLevel);
         measElem->SetAttribute("bSubPix", (*mit).second.bSubPix);
-        
+
         os << (*mit).second.v2RootPos[0] << " " << (*mit).second.v2RootPos[1];
         measElem->SetAttribute("v2RootPos", os.str() );
-        
+
         os.str("");
         os << (*mit).second.v2ImplanePos[0] << " " << (*mit).second.v2ImplanePos[1];
         measElem->SetAttribute("v2ImplanePos",os.str());
-        
+
         os.str("");
         os << (*mit).second.m2CamDerivs[0] << " " << (*mit).second.m2CamDerivs[1];
         s = os.str();
@@ -1069,7 +1069,7 @@ bool MapSerializer::_SaveATakFrame( TakFrame & tf, const std::string & sPath, Ti
  */
 bool MapSerializer::_SaveTakFrames( const std::string &sPath, TiXmlElement * rootNode )
 {
-  
+
   string sKeyFramePath = sPath + "/KeyFrames";
 
   //create the dir if not there
@@ -1086,7 +1086,7 @@ bool MapSerializer::_SaveTakFrames( const std::string &sPath, TiXmlElement * roo
       return false;
     }
     }
-  
+
   TiXmlElement * keyFramesNode = new TiXmlElement( "KeyFrames" );
   rootNode->LinkEndChild( keyFramesNode );
   keyFramesNode->SetAttribute( "size", mpMap->vpKeyFrames.size() );
@@ -1106,7 +1106,7 @@ bool MapSerializer::_SaveTakFrames( const std::string &sPath, TiXmlElement * roo
       return false;
     }
   }
-  
+
   ////////////  save the keyframe queue  ////////////
   TiXmlElement * keyFrameQNode = new TiXmlElement( "KeyFrameQueue" );
   rootNode->LinkEndChild( keyFrameQNode );
@@ -1142,10 +1142,10 @@ bool MapSerializer::_SaveTakFrames( const std::string &sPath, TiXmlElement * roo
         return false;
 	}*/
       cout << "Fails to serialize :" << tf->_id  << endl;
-      
+
     }else{
     }
-    
+
   }
   return true;
 }
@@ -1157,13 +1157,13 @@ void MapSerializer::_CreateSaveLUTs()
 {
   mmKeyFrameSaveLUT.clear();
   mmMapPointSaveLUT.clear();
-  
+
   for( size_t i = 0; i < mpMap->vpKeyFrames.size(); i++ )  {
     mmKeyFrameSaveLUT[ mpMap->vpKeyFrames[i] ] = i;
   }
-  
+
   int nSize = mpMap->vpKeyFrames.size();
-  
+
   for( size_t i = 0; i < mpMap->vpKeyFrameQueue.size(); i++ )  {
     mmKeyFrameSaveLUT[ mpMap->vpKeyFrames[i] ] = nSize + i;
   }
@@ -1171,9 +1171,9 @@ void MapSerializer::_CreateSaveLUTs()
   for( size_t i = 0; i < mpMap->vpPoints.size(); i++ )  {
       mmMapPointSaveLUT[ mpMap->vpPoints[i] ] = i;
   }
-  
+
   nSize = mpMap->vpPoints.size();
-  
+
   for( size_t i = 0; i < mpMap->qNewQueue.size(); i++ )  {
       mmMapPointSaveLUT[ mpMap->qNewQueue[i] ] = nSize + i;
   }
@@ -1265,7 +1265,7 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
   if(uid == -1 )  {
     return false;
   }
-  
+
   TiXmlElement* kfe = new TiXmlElement("KeyFrame");
   keyFramesNode->LinkEndChild( kfe );
 
@@ -1275,7 +1275,7 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
     string s;
 
     kfe->SetAttribute( "id", uid );
-    
+
     //os << kf->se3CfromW.ln();
     os << kf->se3CfromW.ln();
     s = os.str();
@@ -1284,14 +1284,14 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
 
     kfe->SetAttribute("fixed", kf->bFixed );
   }
-  
+
   //save image
   {
     //create base filename and path for within the file structure.
     ostringstream os;
     os << "KeyFrames/" << setfill('0') << setw(6) << uid << ".png";
     string sFileBaseName = os.str();
-    
+
     //save the image out as a png
     os.str("");
     os << sPath << "/" << sFileBaseName;
@@ -1314,13 +1314,13 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
 
     imageElem->SetAttribute("md5", sMD5 );
   }
-  
+
   //camera model
   {
     ostringstream os;
     TiXmlElement* camElem = new TiXmlElement("Camera");
     kfe->LinkEndChild( camElem );
-    
+
     camElem->SetAttribute("name", kf->Camera.Name() );
     os << kf->Camera.ImageSize()[0] << " " << kf->Camera.ImageSize()[1];
     camElem->SetAttribute("size", os.str() );
@@ -1337,19 +1337,19 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
   {
     TiXmlElement* depthElem = new TiXmlElement("SceneDepth");
     kfe->LinkEndChild( depthElem );
-      
+
     depthElem->SetDoubleAttribute("mean", kf->dSceneDepthMean );
     depthElem->SetDoubleAttribute("sigma", kf->dSceneDepthSigma );
-  
+
   }
-  
+
   //measurements_SaveKeyFrames
   {
     ostringstream os;
     string s;
     TiXmlElement* measurementsElem = new TiXmlElement("Measurements");
     kfe->LinkEndChild( measurementsElem );
-      
+
     //find out how many are in the points list (not in the trash), so know how many will be saved
     int size = 0;
     map<MapPoint*, Measurement>::iterator mit;
@@ -1374,14 +1374,14 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
         measElem->SetAttribute("id", m);
         measElem->SetAttribute("nLevel", (*mit).second.nLevel);
         measElem->SetAttribute("bSubPix", (*mit).second.bSubPix);
-        
+
         os << (*mit).second.v2RootPos[0] << " " << (*mit).second.v2RootPos[1];
         measElem->SetAttribute("v2RootPos", os.str() );
-        
+
         os.str("");
         os << (*mit).second.v2ImplanePos[0] << " " << (*mit).second.v2ImplanePos[1];
         measElem->SetAttribute("v2ImplanePos",os.str());
-        
+
         os.str("");
         os << (*mit).second.m2CamDerivs[0] << " " << (*mit).second.m2CamDerivs[1];
         s = os.str();
@@ -1421,7 +1421,7 @@ bool MapSerializer::_SaveKeyFrames( const std::string &sPath, TiXmlElement * roo
       return false;
     }
   }
-  
+
   TiXmlElement * keyFramesNode = new TiXmlElement( "KeyFrames" );
   rootNode->LinkEndChild( keyFramesNode );
   keyFramesNode->SetAttribute( "size", mpMap->vpKeyFrames.size() );
@@ -1441,7 +1441,7 @@ bool MapSerializer::_SaveKeyFrames( const std::string &sPath, TiXmlElement * roo
       return false;
     }
   }
-  
+
   ////////////  save the keyframe queue  ////////////
   TiXmlElement * keyFrameQNode = new TiXmlElement( "KeyFrameQueue" );
   rootNode->LinkEndChild( keyFrameQNode );
@@ -1466,7 +1466,7 @@ bool MapSerializer::_SaveKeyFrames( const std::string &sPath, TiXmlElement * roo
 
 
 /**
- * save a map point 
+ * save a map point
  * @param mp the map point to save
  * @param mapPointsNode  XML node
  * @return success
@@ -1479,10 +1479,10 @@ bool MapSerializer::_SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode 
     return false;
   }
 
-  
+
   TiXmlElement* mpe = new TiXmlElement("MapPoint");
   mapPointsNode->LinkEndChild( mpe );
-  
+
   mpe->SetAttribute( "id", uid );
 
   string s;
@@ -1517,10 +1517,10 @@ bool MapSerializer::_SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode 
     srcElem->SetAttribute("level", mp->nSourceLevel );
     srcElem->SetAttribute("x", mp->irCenter.x );
     srcElem->SetAttribute("y", mp->irCenter.y );
-  
+
     ostringstream os2;
     string s2;
-    
+
     os2.str("");
     os2 << mp->v3Center_NC;
     s2 = os2.str();
@@ -1558,23 +1558,23 @@ bool MapSerializer::_SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode 
     srcElem->SetAttribute("PixelRight_W", s2 );
   }
 
-    
+
   ///@TODO are these needed?
 //   nMEstimatorOutlierCount);
 //   nMEstimatorInlierCount);
 //   dCreationTime);
 
-  
+
 
   //MapMakerData
   {
     TiXmlElement* mmDataElem = new TiXmlElement("MapMakerData");
     mpe->LinkEndChild( mmDataElem );
-    
+
     vector<int> uids;
     int k = -1;
     std::set<KeyFrame*>::iterator sit;
-  
+
     for( sit =  mp->pMMData->sMeasurementKFs.begin();
         sit != mp->pMMData->sMeasurementKFs.end(); sit++)
     {
@@ -1588,10 +1588,10 @@ bool MapSerializer::_SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode 
     mmDataElem->LinkEndChild( mkfsElem );
 
     mkfsElem->SetAttribute("size", uids.size() );
-    
+
     ostringstream os;
     os << uids;
-    
+
     mkfsElem->LinkEndChild( new TiXmlText(os.str() ) );
 
     uids.clear();
@@ -1604,20 +1604,20 @@ bool MapSerializer::_SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode 
         uids.push_back( k );
       }
     }
-    
+
 
     TiXmlElement* nrkfsElem = new TiXmlElement("sNeverRetryKFs");
     mmDataElem->LinkEndChild( nrkfsElem );
 
     nrkfsElem->SetAttribute("size", uids.size() );
-    
+
     os.str("");
     os << uids;
-    
+
     nrkfsElem->LinkEndChild( new TiXmlText(os.str() ) );
-    
+
   }
-  
+
   return true;
 }
 
@@ -1657,7 +1657,7 @@ bool MapSerializer::_SaveMapPoints( TiXmlElement * rootNode )
   TiXmlElement * mapPointsNewNode = new TiXmlElement( "NewMapPoints" );
   rootNode->LinkEndChild( mapPointsNewNode );
   mapPointsNewNode->SetAttribute( "size", mpMap->qNewQueue.size() );
-  
+
   std::deque<MapPoint*>::iterator nq;
 
   for( nq = mpMap->qNewQueue.begin(); nq != mpMap->qNewQueue.end(); nq++ )
@@ -1684,7 +1684,7 @@ bool MapSerializer::_SaveMapPoints( TiXmlElement * rootNode )
  * Save the map out.
  * if no sFileName is provided then the map number will be used.
  * otherwise map will be saved to path/to/sFileName
- * 
+ *
  * @param pMap the map to save
  * @param sDirName the filename ("mapname" or "path/to/mapname" or "")
  * @return status
@@ -1695,7 +1695,7 @@ MapSerializer::MapStatus MapSerializer::SaveMap( Map * pMap, std::string sDirNam
   _CleanUp();
 
   cerr << " Saving Map " << sDirName << endl;
-  
+
   if( pMap == NULL ) {
     cerr << "SaveMap: got a NULL map pointer. abort" << endl;
     return MAP_FAILED;
@@ -1721,12 +1721,12 @@ MapSerializer::MapStatus MapSerializer::SaveMap( Map * pMap, std::string sDirNam
     os << "map" << setfill('0') << setw(6) << mpMap->MapID();
     sDirName = os.str();
   }
-    
+
   //does the dir exists
   struct stat st;
   if( stat( sDirName.c_str(), &st ) == 0 )
   {
-    //is it a dir  
+    //is it a dir
 #ifdef WIN32
     // Get the current working directory:
     char* cwdBuffer = _getcwd( NULL, 0 );
@@ -1734,9 +1734,9 @@ MapSerializer::MapStatus MapSerializer::SaveMap( Map * pMap, std::string sDirNam
     {
       perror( "Error getting the current working directory: Error with _getcwd in MapSerializer." );
       _UnRegisterWithMap();
-      return MAP_EXISTS;    
+      return MAP_EXISTS;
     }
-    
+
     //attempt to change working directory
     int chdirReturn = _chdir(sDirName.c_str()); //returns 0 if change was successful, -1 if it dosen't exist
     if( chdirReturn == 0 )
@@ -1752,14 +1752,14 @@ MapSerializer::MapStatus MapSerializer::SaveMap( Map * pMap, std::string sDirNam
       _UnRegisterWithMap();
       return MAP_EXISTS;
     }
-    
+
     // are we using this location anyway?
     if( !bUsePrevSaveLocation ) {
       cerr << "ERROR: Map directory " << sDirName << " already exists. Aborting. " << endl;
       _UnRegisterWithMap();
       return MAP_EXISTS;
-    }      
-  }  
+    }
+  }
   else
   {
 #ifdef WIN32
@@ -1825,13 +1825,13 @@ void MapSerializer::SaveMaps( std::vector<Map*> & vpMaps,  std::string sBaseName
       if( _mkdir( sBaseName.c_str()) != 0 ) {
 #else
       if( mkdir( sBaseName.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH ) != 0 ) {
-#endif 
+#endif
         cerr << "Failed to make dir " << sBaseName << endl;
         return;
       }
     }
   }
-  
+
   //iteratively call save map
   std::vector<Map*>::iterator i;
   for( i = vpMaps.begin(); i != vpMaps.end(); i++ )
@@ -1862,7 +1862,7 @@ void MapSerializer::run()
 
   //if a map was specified then it is either load or save a map
   if( pMap ) {
-    
+
     if( msCommand == "LoadMap" )  {
       LoadMap( pMap, msDirName );
     }
@@ -1877,9 +1877,9 @@ void MapSerializer::run()
       SaveMaps( mvpMaps, msDirName );
     }
   }
-  
+
   _CleanUp();
-  
+
   mbOK = false;
 }
 
@@ -1921,17 +1921,17 @@ Map * MapSerializer::_ParseCommandAndParameters()
     return NULL;
   }
 
-  
+
 
   /*  What has the user asked for?
       No args = current map to default location
       1 arg = map num to default or current to specified path
       2 args = specified map num to specified location
   */
-  
+
   Map * pMap = NULL;
   msDirName = "";
-  
+
   vector<string> vs = ChopAndUnquoteString(msParams);
 
   if( msCommand == "SaveMap" ) {
@@ -1942,7 +1942,7 @@ Map * MapSerializer::_ParseCommandAndParameters()
         pMap = mpInitMap;
         msDirName = "";
         break;
-        
+
       case 1:
         pMap = _FindTheMap( vs[0] );
         if( pMap == NULL ) {
@@ -1963,7 +1963,7 @@ Map * MapSerializer::_ParseCommandAndParameters()
 
       msDirName = vs[1];
       break;
-      
+
       default:
       cerr << " Incorrect parameters." << endl;
       PrintOptions();
@@ -1982,7 +1982,7 @@ Map * MapSerializer::_ParseCommandAndParameters()
     pMap = mpInitMap;
     int *pN = NULL;
     ostringstream os;
-    
+
     if( vs.size() == 0 )
     {
         //nothing specified, so load based on current map number
@@ -1995,7 +1995,7 @@ Map * MapSerializer::_ParseCommandAndParameters()
       for( size_t i = 0; i < vs[0].size(); i++ ) {
         bIsNum = isdigit( vs[0][i] ) && bIsNum;
       }
-      
+
       if( bIsNum )
       {
         pN = ParseAndAllocate<int>(vs[0]);
@@ -2039,7 +2039,7 @@ Map * MapSerializer::_FindTheMap( std::string sParam )
   for( size_t i = 0; i < sParam.size(); i++ ) {
     bIsNum = isdigit( sParam[i] ) && bIsNum;
   }
-      
+
   if( bIsNum )
   {
     int *pN = ParseAndAllocate<int>(sParam);

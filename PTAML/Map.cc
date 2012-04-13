@@ -25,7 +25,7 @@ Map::Map()
 Map::~Map()
 {
   Reset();
-  
+
 }
 
 /**
@@ -89,11 +89,11 @@ void Map::MoveBadPointsToTrash()
   for(int i = vpPoints.size()-1; i>=0; i--)
     {
       if(vpPoints[i]->bBad)
-	{
-	  vpPointsTrash.push_back(vpPoints[i]);
-	  vpPoints.erase(vpPoints.begin() + i);
-	  nBad++;
-	}
+        {
+          vpPointsTrash.push_back(vpPoints[i]);
+          vpPoints.erase(vpPoints.begin() + i);
+          nBad++;
+        }
     };
 }
 
@@ -108,27 +108,27 @@ void Map::EmptyTrash()
   vpPointsTrash.clear();
 }
 
-  void Map::InitTexture()
-  {
-    nTex = 0;
-    glGenTextures(N,&texName[0]);//@hack by camparijet for adding keyframe
-  }
-  
-  void Map::MakeTextureFromKF(KeyFrame &k)
-  {
-    glBindTexture(GL_TEXTURE_2D, texName[nTex]);
-    glTexImage2D(k.im_cl);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-    k.tIndex = nTex;
-    //cout << "Added Keyframe : " << nTex << endl;
-    nTex++;
-  }
-  
+void Map::InitTexture()
+{
+  nTex = 0;
+  glGenTextures(N,&texName[0]);//@hack by camparijet for adding keyframe
+}
+
+void Map::MakeTextureFromKF(KeyFrame &k)
+{
+  glBindTexture(GL_TEXTURE_2D, texName[nTex]);
+  glTexImage2D(k.im_cl);
+  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+  k.tIndex = nTex;
+  //cout << "Added Keyframe : " << nTex << endl;
+  nTex++;
+}
+
 void Map::ReleaseTexture()
-  {
-    glDeleteTextures(N,&texName[0]);
-  }
+{
+  glDeleteTextures(N,&texName[0]);
+}
 
 }
 

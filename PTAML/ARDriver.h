@@ -20,7 +20,7 @@
 
 #ifndef NAN
 #include <limits>
-#endif 
+#endif
 
 namespace PTAMM {
 
@@ -33,7 +33,7 @@ class ARDriver
 {
   public:
     ARDriver(const ATANCamera &cam, ImageRef irFrameSize, GLWindow2 &glw, Map &map);
-	void Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CamFromWorld, bool bLost);
+    void Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CamFromWorld, bool bLost);
     void Reset();
     void Init();
 
@@ -41,7 +41,7 @@ class ARDriver
     void HandleKeyPress( std::string sKey );
     void AdvanceLogic();
     void LoadGame(std::string sName);
-  
+
     void SetCurrentMap(Map &map) { mpMap = &map; mnCounter = 0; }
 
   protected:
@@ -50,29 +50,26 @@ class ARDriver
     void DrawFBBackGround();
     void DrawDistortedFB();
     void SetFrustum();
-    
+
     bool PosAndDirnInPlane(Vector<2> v2VidCoords, Vector<2> &v2Pos, Vector<2> &v2Dirn);
 
-    
   protected:
     ATANCamera mCamera;
     GLWindow2 &mGLWindow;
     Map *mpMap;
-  
+
     // Texture stuff:
     GLuint mnFrameBuffer;
     GLuint mnFrameBufferTex;
     GLuint mnFrameTex;
-    
+
     int mnCounter;
     ImageRef mirFBSize;
     ImageRef mirFrameSize;
     SE3<> mse3CfromW;
     bool mbInitialised;
 
-	Image<Rgba<CVD::byte> > mLostOverlay;
-
-
+    Image<Rgba<CVD::byte> > mLostOverlay;
 };
 
 }

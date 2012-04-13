@@ -9,7 +9,7 @@
 // everything is stored as lists of pointers,
 // and map points are not erased if they are bad:
 // they are moved to the trash list. That way
-// old pointers which other threads are using are not 
+// old pointers which other threads are using are not
 // invalidated!
 
 #ifndef __MAP_H
@@ -36,12 +36,12 @@ class Map
     ~Map();
     inline bool IsGood() {return bGood;}
     void Reset();
-  
+
     void MoveBadPointsToTrash();
     void EmptyTrash();
 
     int  QueueSize() { return static_cast<int>(vpKeyFrameQueue.size()); } // How many KFs in the queue waiting to be added?
-    
+
     int MapID() { return mnMapNum; }
 
   public:
@@ -57,7 +57,6 @@ class Map
     bool bBundleConverged_Full;                      // Has global bundle adjustment converged?
     bool bBundleConverged_Recent;                    // Has local bundle adjustment converged?
 
-  
     bool bGood;                                   // Is the map valid (has content)?
     bool bEditLocked;                                // Is the map locked from being edited?
 
@@ -68,16 +67,16 @@ class Map
                                                      // use when need complete control of a map
 
     std::string sSaveFile;                           // where the map was loaded from
-  GLuint texName[10000];//@hack by camparijet for texture
-  int N;//@hack for texture number
-  void InitTexture();
-  void MakeTextureFromKF(KeyFrame &k);
-  void ReleaseTexture();
-  std::vector<TakFrame> poolAllFrame; //@hack for serialize
+    GLuint texName[10000];//@hack by camparijet for texture
+    int N;//@hack for texture number
+    void InitTexture();
+    void MakeTextureFromKF(KeyFrame &k);
+    void ReleaseTexture();
+    std::vector<TakFrame> poolAllFrame; //@hack for serialize
 
-private:
-  int mnMapNum;                                    // The map number
-  int nTex;//@hack for index of texture
+  private:
+    int mnMapNum;                                    // The map number
+    int nTex;//@hack for index of texture
 };
 
 

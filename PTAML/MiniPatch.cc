@@ -23,10 +23,10 @@ inline int MiniPatch::SSDAtPoint(CVD::BasicImage<CVD::byte> &im, const CVD::Imag
       imagepointer = &im[irImgBase + ImageRef(0,nRow)];
       templatepointer = &mimOrigPatch[ImageRef(0,nRow)];
       for(int nCol = 0; nCol < nCols; nCol++)
-	{
-	  nDiff = imagepointer[nCol] - templatepointer[nCol];
-	  nSumSqDiff += nDiff * nDiff;
-	};
+        {
+          nDiff = imagepointer[nCol] - templatepointer[nCol];
+          nSumSqDiff += nDiff * nDiff;
+        };
     };
   return nSumSqDiff;
 }
@@ -34,11 +34,11 @@ inline int MiniPatch::SSDAtPoint(CVD::BasicImage<CVD::byte> &im, const CVD::Imag
 // Find a patch by searching at FAST corners in an input image
 // If available, a row-corner LUT is used to speed up search through the
 // FAST corners
-bool MiniPatch::FindPatch(CVD::ImageRef &irPos, 
-			  CVD::BasicImage<CVD::byte> &im, 
-			  int nRange, 
-			  vector<ImageRef> &vCorners,
-			  std::vector<int> *pvRowLUT)
+bool MiniPatch::FindPatch(CVD::ImageRef &irPos,
+                          CVD::BasicImage<CVD::byte> &im,
+                          int nRange,
+                          vector<ImageRef> &vCorners,
+                          std::vector<int> *pvRowLUT)
 {
   ImageRef irCenter = irPos;
   ImageRef irBest;
@@ -49,31 +49,31 @@ bool MiniPatch::FindPatch(CVD::ImageRef &irPos,
   if(!pvRowLUT)
     {
       for(i = vCorners.begin(); i!=vCorners.end(); i++)
-	if(i->y >= irBBoxTL.y) break;
+        if(i->y >= irBBoxTL.y) break;
     }
   else
     {
       int nTopRow = irBBoxTL.y;
       if(nTopRow < 0)
-	nTopRow = 0;
+        nTopRow = 0;
       if(nTopRow >= (int) pvRowLUT->size())
-	nTopRow = (int) pvRowLUT->size() - 1;
+        nTopRow = (int) pvRowLUT->size() - 1;
       i = vCorners.begin() + (*pvRowLUT)[nTopRow];
     }
-  
+
   for(; i!=vCorners.end(); i++)
     {
       if(i->x < irBBoxTL.x  || i->x > irBBoxBR.x)
-	continue;
+        continue;
       if(i->y > irBBoxBR.y)
-	break;
+        break;
       int nSSD = SSDAtPoint(im, *i);
-      
+
       if(nSSD < nBestSSD)
-	{
-	  irBest = *i;
-	  nBestSSD = nSSD;
-	}
+        {
+          irBest = *i;
+          nBestSSD = nSSD;
+        }
     }
   if(nBestSSD < mnMaxSSD)
     {

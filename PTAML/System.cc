@@ -47,28 +47,28 @@ System::System()
   GUI.RegisterCommand("LoadMap", GUICommandCallBack, this);
   GUI.RegisterCommand("SaveMap", GUICommandCallBack, this);
   GUI.RegisterCommand("SaveMaps", GUICommandCallBack, this);
-  
+
   GV2.Register(mgvnLockMap, "LockMap", 0, SILENT);
   GV2.Register(mgvnDrawMapInfo, "MapInfo", 0, SILENT);
-  
+
 #ifdef _LINUX
   GV2.Register(mgvnSaveFIFO, "SaveFIFO", 0, SILENT);
   GV2.Register(mgvnBitrate, "Bitrate", 15000, SILENT);
-#endif  
+#endif
 
   GUI.RegisterCommand("KeyPress", GUICommandCallBack, this);
 
-  
+
   mimFrameBW.resize(mVideoSource.Size());
   mimFrameRGB.resize(mVideoSource.Size());
   // First, check if the camera is calibrated.
   // If not, we need to run the calibration widget.
   Vector<NUMTRACKERCAMPARAMETERS> vTest;
-  
+
   vTest = GV3::get<Vector<NUMTRACKERCAMPARAMETERS> >("Camera.Parameters", ATANCamera::mvDefaultParams, HIDDEN);
   mpCamera = new ATANCamera("Camera");
   mpCamera->SetImageSize(mVideoSource.Size());
-  
+
   if(vTest == ATANCamera::mvDefaultParams)
   {
     cout << endl;
@@ -77,12 +77,11 @@ System::System()
     exit(1);
   }
 
-
   //create the first map
   mpMap = new Map();
   mvpMaps.push_back( mpMap );
   mpMap->mapLockManager.Register(this);
-        
+
   mpMapMaker = new MapMaker( mvpMaps, mpMap );
   mpTracker = new Tracker(mVideoSource.Size(), *mpCamera, mvpMaps, mpMap, *mpMapMaker);
   mpARDriver = new ARDriver(*mpCamera, mVideoSource.Size(), mGLWindow, *mpMap);
@@ -93,7 +92,7 @@ System::System()
   GUI.RegisterCommand("NextMap", GUICommandCallBack, mpMapViewer);
   GUI.RegisterCommand("PrevMap", GUICommandCallBack, mpMapViewer);
   GUI.RegisterCommand("CurrentMap", GUICommandCallBack, mpMapViewer);
-  
+
   GUI.RegisterCommand("LoadGame", GUICommandCallBack, mpARDriver);
   GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, mpARDriver);
 
@@ -110,7 +109,7 @@ System::System()
 
   //Games. This function can be found in Games.cc. Add your games to it.
   InitializeGameMenu();
-  
+
   GUI.ParseLine("GLWindow.AddMenu MapsMenu Maps");
   GUI.ParseLine("MapsMenu.AddMenuButton Root \"New Map\" NewMap Root");
   GUI.ParseLine("MapsMenu.AddMenuButton Root \"Serialize\" \"\" Serial");
@@ -140,7 +139,6 @@ System::System()
   coordfile.open("coord-log.txt");
 }
 
-  
 
 /**
  * Destructor
@@ -163,94 +161,92 @@ void System::Run()
 {
   while(!mbDone)
   {
-      //Check if the map has been locked by another thread, and wait for release.
-      bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
+    //Check if the map has been locked by another thread, and wait for release.
+    bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
 
-      
-      /* This is a rather hacky way of getting this feedback,
-         but GVars cannot be assigned to different variables
-         and each map has its own edit lock bool.
-         A button could be used instead, but the visual
-         feedback would not be as obvious.
-      */ 
-      mpMap->bEditLocked = *mgvnLockMap; //sync up the maps edit lock with the gvar bool.
-      
-      // We use two versions of each video frame:
-      // One black and white (for processing by the tracker etc)
-      // and one RGB, for drawing.
+    /* This is a rather hacky way of getting this feedback,
+       but GVars cannot be assigned to different variables
+       and each map has its own edit lock bool.
+       A button could be used instead, but the visual
+       feedback would not be as obvious.
+    */
+    mpMap->bEditLocked = *mgvnLockMap; //sync up the maps edit lock with the gvar bool.
 
-      // Grab new video frame...
-      mVideoSource.GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);  
-      static bool bFirstFrame = true;
-      if(bFirstFrame)
-      {
-        mpARDriver->Init();
-	mpMap->InitTexture();//@hack for texture
-        bFirstFrame = false;
-      }
-      
-      mGLWindow.SetupViewport();
-      mGLWindow.SetupVideoOrtho();
-      mGLWindow.SetupVideoRasterPosAndZoom();
-      
-      if(!mpMap->IsGood()) {
-	mpARDriver->Reset();
-      }
+    // We use two versions of each video frame:
+    // One black and white (for processing by the tracker etc)
+    // and one RGB, for drawing.
 
-      if(bWasLocked)  {
-        mpTracker->ForceRecovery();
-      }
-      
-      static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
-      static gvar3<int> gvnDrawAR("DrawAR", 0, HIDDEN|SILENT);
-      
-      bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
-      bool bDrawAR = mpMap->IsGood() && *gvnDrawAR;
-      
-      //@hack by camparijet for adding Image to KeyFrame
-      mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!bDrawAR && !bDrawMap);
+    // Grab new video frame...
+    mVideoSource.GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
+    static bool bFirstFrame = true;
+    if(bFirstFrame)
+    {
+      mpARDriver->Init();
+      mpMap->InitTexture();//@hack for texture
+      bFirstFrame = false;
+    }
 
-      // HACK: log coordinates      
-      TooN::Vector<3, double> xyz = mpTracker->GetCurrentPose().inverse().get_translation();
-      const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
-      if (xyz != origin) {
-	// cout << mpTracker->GetCurrentPose().inverse().get_translation() << endl;
-	// coordfile << mpTracker->GetCurrentPose().inverse().get_translation() << endl;
-      }
-      
-      if(bDrawMap) {
-	mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
-      }
-      else if(bDrawAR) {
-        if( !mpTracker->IsLost() ) {
-          mpARDriver->AdvanceLogic();
-        }
-	mpARDriver->Render(mimFrameRGB, mpTracker->GetCurrentPose(), mpTracker->IsLost() );
-      }
+    mGLWindow.SetupViewport();
+    mGLWindow.SetupVideoOrtho();
+    mGLWindow.SetupVideoRasterPosAndZoom();
 
-      if(*mgvnDrawMapInfo) {
-        DrawMapInfo();
-      }
+    if(!mpMap->IsGood()) {
+      mpARDriver->Reset();
+    }
 
-      string sCaption;
-      if(bDrawMap) {
-	sCaption = mpMapViewer->GetMessageForUser();
-      }
-      else {
-	sCaption = mpTracker->GetMessageForUser();
-      }
-      mGLWindow.DrawCaption(sCaption);
-      mGLWindow.DrawMenus();
+    if(bWasLocked) {
+      mpTracker->ForceRecovery();
+    }
 
-#ifdef _LINUX      
-      if( *mgvnSaveFIFO )
-      {
-        SaveFIFO();
+    static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
+    static gvar3<int> gvnDrawAR("DrawAR", 0, HIDDEN|SILENT);
+
+    bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
+    bool bDrawAR = mpMap->IsGood() && *gvnDrawAR;
+
+    //@hack by camparijet for adding Image to KeyFrame
+    mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!bDrawAR && !bDrawMap);
+
+    // HACK: log coordinates
+    TooN::Vector<3, double> xyz = mpTracker->GetCurrentPose().inverse().get_translation();
+    const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
+    if (xyz != origin) {
+      coordfile << xyz << endl;
+    }
+
+    if(bDrawMap) {
+      mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
+    }
+    else if(bDrawAR) {
+      if( !mpTracker->IsLost() ) {
+        mpARDriver->AdvanceLogic();
       }
+      mpARDriver->Render(mimFrameRGB, mpTracker->GetCurrentPose(), mpTracker->IsLost() );
+    }
+
+    if(*mgvnDrawMapInfo) {
+      DrawMapInfo();
+    }
+
+    string sCaption;
+    if(bDrawMap) {
+      sCaption = mpMapViewer->GetMessageForUser();
+    }
+    else {
+      sCaption = mpTracker->GetMessageForUser();
+    }
+    mGLWindow.DrawCaption(sCaption);
+    mGLWindow.DrawMenus();
+
+#ifdef _LINUX
+    if( *mgvnSaveFIFO )
+    {
+      SaveFIFO();
+    }
 #endif
-      
-      mGLWindow.swap_buffers();
-      mGLWindow.HandlePendingEvents();
+
+    mGLWindow.swap_buffers();
+    mGLWindow.HandlePendingEvents();
   }
 }
 
@@ -312,7 +308,7 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   }
   else if( sCommand == "Mouse.Click" ) {
     vector<string> vs = ChopAndUnquoteString(sParams);
-    
+
     if( vs.size() != 3 ) {
       return;
     }
@@ -322,7 +318,7 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     ImageRef irWin;
     is >> nButton >> irWin.x >> irWin.y;
     static_cast<ARDriver*>(ptr)->HandleClick( nButton, irWin );
-    
+
   }
   else if( sCommand == "KeyPress" )
   {
@@ -338,7 +334,7 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
       static_cast<System*>(ptr)->mpARDriver->HandleKeyPress( sParams );
     }
   }
-    
+
 
 }
 
@@ -353,7 +349,7 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
 bool System::GetSingleParam(int &nAnswer, string sCommand, string sParams)
 {
   vector<string> vs = ChopAndUnquoteString(sParams);
-    
+
   if(vs.size() == 1)
   {
     //is param a number?
@@ -361,7 +357,7 @@ bool System::GetSingleParam(int &nAnswer, string sCommand, string sParams)
     for( size_t i = 0; i < vs[0].size(); i++ ) {
       bIsNum = isdigit( vs[0][i] ) && bIsNum;
     }
-      
+
     if( !bIsNum )
     {
       return false;
@@ -402,7 +398,7 @@ bool System::SwitchMap( int nMapNum, bool bForce )
     return false;
   }
 
-  
+
   for( size_t ii = 0; ii < mvpMaps.size(); ii++ )
   {
     Map * pcMap = mvpMaps[ ii ];
@@ -418,24 +414,24 @@ bool System::SwitchMap( int nMapNum, bool bForce )
     cerr << "Failed to switch to " << nMapNum << ". Does not exist." << endl;
     return false;
   }
-  
+
   /*  Map was found and switched to for system.
       Now update the rest of the system.
       Order is important. Do not want keyframes added or
       points deleted from the wrong map.
-  
+
       MapMaker is in its own thread.
       System,Tracker, and MapViewer are all in this thread.
   */
 
   *mgvnLockMap = mpMap->bEditLocked;
 
- 
+
   //update the map maker thread
   if( !mpMapMaker->RequestSwitch( mpMap ) ) {
     return false;
   }
-  
+
   while( !mpMapMaker->SwitchDone() ) {
 #ifdef WIN32
     Sleep(1);
@@ -446,11 +442,11 @@ bool System::SwitchMap( int nMapNum, bool bForce )
 
   //update the map viewer object
   mpMapViewer->SwitchMap(mpMap, bForce);
-      
+
   //update the tracker object
 //   mpARDriver->Reset();
   mpARDriver->SetCurrentMap( *mpMap );
-  
+
   if( !mpTracker->SwitchMap( mpMap ) ) {
     return false;
   }
@@ -466,13 +462,12 @@ bool System::SwitchMap( int nMapNum, bool bForce )
  */
 void System::NewMap()
 {
-
   *mgvnLockMap = false;
   mpMap->mapLockManager.UnRegister( this );
   mpMap = new Map();
   mpMap->mapLockManager.Register( this );
   mvpMaps.push_back( mpMap );
-  
+
   //update the map maker thread
   mpMapMaker->RequestReInit( mpMap );
   while( !mpMapMaker->ReInitDone() ) {
@@ -482,7 +477,7 @@ void System::NewMap()
     usleep(10);
 #endif
   }
-    
+
   //update the map viewer object
   mpMapViewer->SwitchMap(mpMap);
 
@@ -490,9 +485,8 @@ void System::NewMap()
   mpARDriver->SetCurrentMap( *mpMap);
   mpARDriver->Reset();
   mpTracker->SetNewMap( mpMap );
-    
+
   cout << "New map created (" << mpMap->MapID() << ")" << endl;
-      
 }
 
 
@@ -504,7 +498,6 @@ void System::NewMap()
  */
 void System::ResetAll()
 {
-
   //move all maps to first map.
   if( mpMap != mvpMaps.front() )
   {
@@ -516,13 +509,12 @@ void System::ResetAll()
 
   //reset map.
   mpTracker->Reset();
-  
+
   //lock and delete all remaining maps
   while( mvpMaps.size() > 1 )
   {
     DeleteMap( mvpMaps.back()->MapID() );
   }
-
 }
 
 
@@ -538,19 +530,18 @@ bool System::DeleteMap( int nMapNum )
     return false;
   }
 
-
   //if the specified map is the current map, move threads to another map
   if( nMapNum == mpMap->MapID() )
   {
     int nNewMap = -1;
-    
+
     if( mpMap == mvpMaps.front() ) {
       nNewMap = mvpMaps.back()->MapID();
     }
     else {
       nNewMap = mvpMaps.front()->MapID();
     }
-    
+
     // move the current map users elsewhere
     if( !SwitchMap( nNewMap, true ) ) {
       cerr << "Delete Map: Failed to move threads to another map." << endl;
@@ -558,8 +549,6 @@ bool System::DeleteMap( int nMapNum )
     }
   }
 
-  
- 
   // find and delete the map
   for( size_t ii = 0; ii < mvpMaps.size(); ii++ )
   {
@@ -575,7 +564,7 @@ bool System::DeleteMap( int nMapNum )
       /// and waiting for unlock, would become stuck or seg fault.
     }
   }
-  
+
   return true;
 }
 
@@ -600,7 +589,7 @@ void System::DrawMapInfo()
 {
   int nLines = static_cast<int>(mvpMaps.size()) + 2;
   int x = 5, y = 120, w = 160, nBorder = 5;
-  
+
   mGLWindow.DrawBox( x, y, w, nLines, 0.7f );
 
   y += 17;
@@ -610,7 +599,7 @@ void System::DrawMapInfo()
   os << "Maps " << mvpMaps.size();
   mGLWindow.PrintString( ImageRef(x + nBorder,y + nBorder), os.str() );
   os.str("");
-      
+
   for( size_t i = 0; i < mvpMaps.size(); i++ )
   {
     Map * pMap = mvpMaps[i];
@@ -623,7 +612,7 @@ void System::DrawMapInfo()
     else {
       glColor3f(1,1,1);
     }
-    
+
     os << "M: " << pMap->MapID() << "  P: " << pMap->vpPoints.size() << "  K: " << pMap->vpKeyFrames.size();
     mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + (i+1)*17), os.str() );
     os.str("");
@@ -674,7 +663,7 @@ void System::SaveFIFO()
 
     bFIFOInitDone = true;
   }
-  
+
   if( irWindowSize != mGLWindow.size() )
   {
     cerr << "ERROR: Aborting FIFO as window size has changed!!" << endl;

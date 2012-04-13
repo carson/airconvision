@@ -50,7 +50,7 @@ void MapViewer::DrawMapDots()
   mv3MassCenter = Zeros;
   for(size_t i=0; i<mpViewingMap->vpPoints.size(); i++)
   {
-    
+
     Vector<3> v3Pos = mpViewingMap->vpPoints[i]->v3WorldPos;
     /*
      *@hack
@@ -153,7 +153,7 @@ void MapViewer::DrawGrid()
 
   /**
    * @hack by camparijet
-   * Draw Flat grid 
+   * Draw Flat grid
    * @todo repairquick and dirty hack
    *
    */
@@ -267,9 +267,9 @@ void MapViewer::DrawMap(SE3<> se3CamFromWorld)
   }
 
   for(size_t i=0; i<mpViewingMap->vpKeyFrames.size(); i++){
-    TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,mpViewingMap->vpKeyFrames[i]->tIndex,mpViewingMap->vpKeyFrames[i]->Camera);       
+    TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,mpViewingMap->vpKeyFrames[i]->tIndex,mpViewingMap->vpKeyFrames[i]->Camera);
   }
-  //cout << "Display Keyframe : " << mpViewingMap->vpKeyFrames[i]->tIndex << endl; 
+  //cout << "Display Keyframe : " << mpViewingMap->vpKeyFrames[i]->tIndex << endl;
   //TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,0);
   //TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->vpKeyFrames[i]->aLevels[0].im);
     //DrawCamera(mpViewingMap->vpKeyFrames[i]->se3CfromW, true);
@@ -301,14 +301,14 @@ void MapViewer::SetupFrustum()
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
   double zNear = 0.03;
-  glFrustum(-zNear, zNear, 0.75*zNear,-0.75*zNear,zNear,50); 
+  glFrustum(-zNear, zNear, 0.75*zNear,-0.75*zNear,zNear,50);
   glScalef(1,1,-1);
   return;
 }
 /**
  * @hack by camparijet
  * for KF's textures
- 
+
 void MapViewer::TakSetupFrustum()
 {
   glMatrixMode(GL_PROJECTION);
@@ -413,14 +413,14 @@ void MapViewer::DrawCamera(SE3<> se3CfromW, bool bSmall)
   glLoadIdentity();
   /*glTranslated(-0.5,-0.5,0.0);
     glScaled(0.5,0.5,1.0);*/
-      
+
   SetupModelView(se3CfromW.inverse());
-  //@hack for texture  
+  //@hack for texture
   // glMatrixMode(GL_TEXTURE);
   // glLoadIdentity();
   // TooN::Matrix<4,4> camparams;
   // //cout << camera.GetParams() << endl;
-  // Fill(camparams) = camera.mvFocal[0],0,0,-camera.mvCenter[0]*camera.mvInvFocal[0],       
+  // Fill(camparams) = camera.mvFocal[0],0,0,-camera.mvCenter[0]*camera.mvInvFocal[0],
   //   0,camera.mvFocal[1],0,-camera.mvCenter[3]*camera.mvInvFocal[1],
   //   0,0,1,0,
   //   0,0,0,1;
@@ -428,11 +428,11 @@ void MapViewer::DrawCamera(SE3<> se3CfromW, bool bSmall)
   //    // 	   0,camera.GetParams[1],0,-camera.GetParams[3]/camera.GetParams[1],
   //    // 	   0,0,1,0,
   //    // 	   0,0,0,1);
-  
+
   // //glTranslated()
-  // glMultMatrix(camparams);  
+  // glMultMatrix(camparams);
   SetupFrustum();
-  
+
   /**
    * @hack camparijet
    * for drawing keyframe
@@ -470,7 +470,7 @@ void MapViewer::DrawCamera(SE3<> se3CfromW, bool bSmall)
   glMultMatrix(camera.MakeUFBLinearFrustumMatrix(0,1));
   glScalef(1,1,-1);*/
   //glProje()
-  //glBlendFunc(GL_SRC_COLOR, GL_DST_COLOR);  
+  //glBlendFunc(GL_SRC_COLOR, GL_DST_COLOR);
   // static double fx = 1./camera.GetParams()[0];
   // static double fy = 1./camera.GetParams()[1];
   // static double cx = -camera.GetParams()[2]/camera.GetParams()[0];
@@ -478,54 +478,54 @@ void MapViewer::DrawCamera(SE3<> se3CfromW, bool bSmall)
   //glScalef(1.,1.,1.);
   glBlendFunc(GL_SRC_COLOR,GL_ONE_MINUS_SRC_COLOR);
   glEnable(GL_BLEND);
-  
+
   glEnable(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D,texName[tIndex]);
-  
+
   glBegin(GL_QUADS);
   //0.490112 0.680042 0.521819 0.387479 0.285584
   // glTexCoord2d(0.25,0.75);
   // glVertex3d(-1./0.490112,1./0.680042,1);
-  
+
   // glTexCoord2d(0.25,0.25);
   // glVertex3d(-1./0.490112,-1./0.680042,1);
-  
+
   // glTexCoord2d(0.75, 0.25);
   // glVertex3d(1./0.490112,-1./0.680042,1);
-  
+
   // glTexCoord2d(0.75, 0.75);
   // glVertex3d(1./0.490112,1./0.680042,1);
-  
+
   glTexCoord2d(0.0,1.0);
   glVertex3d(-1,1,1);
-  
+
   glTexCoord2d(0.0,0.0);
   glVertex3d(-1,-1,1);
-  
+
   glTexCoord2d(1.0, 0.0);
   glVertex3d(1,-1,1);
-  
+
   glTexCoord2d(1.0, 1.0);
   glVertex3d(1,1,1);
-  
-  
+
+
   // glTexCoord2d(0.0, 1.0);
   // glVertex3d(-1,0.75,1);
-  
+
   // glTexCoord2d(0.0, 0.0);
   // glVertex3d(-1,-0.75,1);
-  
+
   // glTexCoord2d(1.0, 0.0);
   // glVertex3d(1,-0.75,1);
-  
+
   // glTexCoord2d(1.0, 1.0);
   // glVertex3d(1,0.75,1);
-  
+
   glEnd();
-  
+
   glDisable(GL_TEXTURE_2D);
   glDisable(GL_BLEND);
-  
+
 
   /**
    * @hack camparijet
@@ -558,7 +558,7 @@ void MapViewer::DrawCamera(SE3<> se3CfromW, bool bSmall)
   //glVertex3d(10,0,0);
 
   //glModelView()
-  //glMultMatrix(se3CfromW); 
+  //glMultMatrix(se3CfromW);
   //glVertex3d(0,0,0);
   //glMultMatrix(se3CfromW.inverse());
   glEnd();*/
