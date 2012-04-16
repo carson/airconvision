@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
   cout << argv[argc-1] << endl;
   cout << endl;
 
-  tak_parseoptions(argc,argv);
+  tak_parseoptions(argc, argv);
   GUI.LoadFile(cameraCalibrationFileName);
   GUI.StartParserThread(); // Start parsing of the console input
   atexit(GUI.StopParserThread);

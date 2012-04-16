@@ -37,6 +37,5 @@ void VideoSource::GetAndFillFrameBWandRGB(Image<byte> &imBW, Image<Rgb<byte> > &
   pvb->put_frame(pVidFrame);
 }
 
-
 }
 
