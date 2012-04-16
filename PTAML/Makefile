@@ -12,7 +12,7 @@ EXTRA_CFLAGS:=
 
 # Edit the lines below to point to any needed include and link paths
 # Or to change the compiler's optimization flags
-CC = g++-4.4
+CC = g++
 LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd -lgstapp-0.10 -lglut -lGLU -llapack -lblas -g
 COMPILEFLAGS = $(MY_CUSTOM_INCLUDE_PATH) -D_LINUX -D_REENTRANT -Wall -O3 -fno-strict-aliasing -g
 
