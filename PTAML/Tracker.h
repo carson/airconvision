@@ -43,6 +43,8 @@ struct Trail    // This struct is used for initial correspondences of the first 
   CVD::ImageRef irInitialPos;
 };
 
+typedef std::pair<float,float> ArPtamDistPair;
+
 class Tracker
 {
 public:
@@ -52,6 +54,10 @@ public:
   void TrackFrame(CVD::Image<CVD::byte> &imFrame,CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame,bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
   inline SE3<> GetCurrentPose() { return mse3CamFromWorld; }
   inline bool IsLost() { return (mnLostFrames > NUM_LOST_FRAMES); }
+
+  inline Vector<3, double> RealWorldCoordinate() const {
+    return mse3CamFromWorld.inverse().get_translation() * mScale;
+  }
 
   // Gets messages to be printed on-screen for the user.
   std::string GetMessageForUser();
@@ -147,6 +153,16 @@ protected:
   int frameIndex;
   int isKeyFrame;
   bool bSave;
+
+private: // Scale by marker code -- dhenell
+
+  void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
+  float CalculateScale(const std::vector<ArPtamDistPair>& values);
+
+  bool mHasDeterminedScale;
+  bool mHasInitARToolkit;
+  std::vector<ArPtamDistPair> mScaleMeasurements;
+  float mScale;
 };
 
 

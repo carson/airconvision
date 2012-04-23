@@ -203,9 +203,10 @@ void System::Run()
     mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!bDrawAR && !bDrawMap);
 
     // HACK: log coordinates
-    TooN::Vector<3, double> xyz = mpTracker->GetCurrentPose().inverse().get_translation();
-    const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
+    TooN::Vector<3, double> xyz = mpTracker->RealWorldCoordinate();
+    static const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
     if (xyz != origin) {
+      std::cout << xyz << std::endl;
       //coordfile << xyz << endl;
     }
 

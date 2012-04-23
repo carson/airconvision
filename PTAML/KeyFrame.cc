@@ -63,7 +63,7 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
   dSceneDepthMean    =    rhs.dSceneDepthMean;
   dSceneDepthSigma   =    rhs.dSceneDepthSigma;
   Camera             =    rhs.Camera;
-  
+
   for( int i = 0; i < LEVELS; ++i ) {
     aLevels[i] = rhs.aLevels[i];
   }
@@ -75,7 +75,7 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
   else {
     pSBI = NULL;
   }
-  
+
   im_cl = rhs.im_cl;//@hack by camparijet for adding keyframe to color
   return *this;
 }
@@ -100,10 +100,10 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
     {
       Level &lev = aLevels[i];
       if(i!=0)
-	{  // .. make a half-size image from the previous level..
-	  lev.im.resize(aLevels[i-1].im.size() / 2);
-	  halfSample(aLevels[i-1].im, lev.im);
-	}
+        {  // .. make a half-size image from the previous level..
+          lev.im.resize(aLevels[i-1].im.size() / 2);
+          halfSample(aLevels[i-1].im, lev.im);
+        }
 
       // .. and detect and store FAST corner points.
       // I use a different threshold on each level; this is a bit of a hack
@@ -112,24 +112,24 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       lev.vCandidates.clear();
       lev.vMaxCorners.clear();
       if(i == 0)
-	fast_corner_detect_10(lev.im, lev.vCorners, 10);
+        fast_corner_detect_10(lev.im, lev.vCorners, 10);
       if(i == 1)
-	fast_corner_detect_10(lev.im, lev.vCorners, 15);
+        fast_corner_detect_10(lev.im, lev.vCorners, 15);
       if(i == 2)
-	fast_corner_detect_10(lev.im, lev.vCorners, 15);
+        fast_corner_detect_10(lev.im, lev.vCorners, 15);
       if(i == 3)
-	fast_corner_detect_10(lev.im, lev.vCorners, 10);
+        fast_corner_detect_10(lev.im, lev.vCorners, 10);
 
       // Generate row look-up-table for the FAST corner points: this speeds up
       // finding close-by corner points later on.
       unsigned int v=0;
       lev.vCornerRowLUT.clear();
       for(int y=0; y<lev.im.size().y; y++)
-	{
-	  while( (v < lev.vCorners.size()) && (y > lev.vCorners[v].y) )
-	    v++;
-	  lev.vCornerRowLUT.push_back(v);
-	}
+        {
+          while( (v < lev.vCorners.size()) && (y > lev.vCorners[v].y) )
+            v++;
+          lev.vCornerRowLUT.push_back(v);
+        }
     }
 }
 
@@ -141,7 +141,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
   void KeyFrame::AddRgbToKeyFrame(BasicImage<CVD::Rgb<CVD::byte> > &im_color){
      im_cl.resize(im_color.size());
      copy(im_color, im_cl);
-     //cout << "Raw :" << im_cl[0][0]  << endl; @hack for debugging    
+     //cout << "Raw :" << im_cl[0][0]  << endl; @hack for debugging
      //cout << "Raw :" << im_cl.size()  << endl; //@hack @todo for debugging
   }
   /*void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im, BasicImage<CVD::Rgb<CVD::byte> > &im_color)
@@ -169,18 +169,18 @@ void KeyFrame::MakeKeyFrame_Rest()
       // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
       // to make new map points out of.
       for(vector<ImageRef>::iterator i=lev.vMaxCorners.begin(); i!=lev.vMaxCorners.end(); i++)
-	{
-	  if(!lev.im.in_image_with_border(*i, 10))
-	    continue;
-	  double dSTScore = FindShiTomasiScoreAtPoint(lev.im, 3, *i);
-	  if(dSTScore > *gvdCandidateMinSTScore)
-	    {
-	      Candidate c;
-	      c.irLevelPos = *i;
-	      c.dSTScore = dSTScore;
-	      lev.vCandidates.push_back(c);
-	    }
-	}
+        {
+          if(!lev.im.in_image_with_border(*i, 10))
+            continue;
+          double dSTScore = FindShiTomasiScoreAtPoint(lev.im, 3, *i);
+          if(dSTScore > *gvdCandidateMinSTScore)
+            {
+              Candidate c;
+              c.irLevelPos = *i;
+              c.dSTScore = dSTScore;
+              lev.vCandidates.push_back(c);
+            }
+        }
     }
 
   // Also, make a SmallBlurryImage of the keyframe: The relocaliser uses these.
@@ -218,11 +218,11 @@ struct LevelHelpersFiller // Code which should be initialised on init goes here;
   {
     for(int i=0; i<LEVELS; i++)
       {
-	if(i==0)  gavLevelColors[i] = makeVector( 1.0, 0.0, 0.0);
-	else if(i==1)  gavLevelColors[i] = makeVector( 1.0, 1.0, 0.0);
-	else if(i==2)  gavLevelColors[i] = makeVector( 0.0, 1.0, 0.0);
-	else if(i==3)  gavLevelColors[i] = makeVector( 0.0, 0.0, 0.7);
-	else gavLevelColors[i] =  makeVector( 1.0, 1.0, 0.7); // In case I ever run with LEVELS > 4
+        if(i==0)  gavLevelColors[i] = makeVector( 1.0, 0.0, 0.0);
+        else if(i==1)  gavLevelColors[i] = makeVector( 1.0, 1.0, 0.0);
+        else if(i==2)  gavLevelColors[i] = makeVector( 0.0, 1.0, 0.0);
+        else if(i==3)  gavLevelColors[i] = makeVector( 0.0, 0.0, 0.7);
+        else gavLevelColors[i] =  makeVector( 1.0, 1.0, 0.7); // In case I ever run with LEVELS > 4
       }
   }
 };
