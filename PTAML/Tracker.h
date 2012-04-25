@@ -161,7 +161,6 @@ private:
   float CalculateScale(const std::vector<ArPtamDistPair>& values);
 
   bool mHasDeterminedScale;
-  bool mHasInitARToolkit;
   std::vector<ArPtamDistPair> mScaleMeasurements;
   float mScale;
 };
@@ -169,3 +168,4 @@ private:
 }
 
 #endif
+

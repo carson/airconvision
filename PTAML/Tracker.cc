@@ -29,7 +29,7 @@ using namespace std;
 using namespace GVars3;
 
 
-const int NUM_SCALE_MEASUREMENTS = 100;
+const int NUM_SCALE_MEASUREMENTS = 50;
 
 /**
  * The constructor mostly sets up interal reference variables to the other classes..
@@ -52,7 +52,6 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
 
   frameIndex(0), //@hack by camparijet for serialize allframe
   mHasDeterminedScale(false),
-  mHasInitARToolkit(false),
   mScale(0)
 {
   mCurrentKF.bFixed = false;
@@ -89,6 +88,8 @@ void Tracker::ResetCommon()
   mnFrame=0;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
+  mHasDeterminedScale = false;
+  mScale = 0;
 }
 
 /**
@@ -150,17 +151,11 @@ float Tracker::CalculateScale(const std::vector<ArPtamDistPair>& values)
 void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 {
   if (!mHasDeterminedScale) {
-    // First measurement - init AR toolkit
-    if (!mHasInitARToolkit) {
-      InitARToolkit();
-      mHasInitARToolkit = true;
-    }
-
     // Get AR Toolkit position to ground plane
     float arDistToGroundPlane;
     if (DistanceToMarkerPlane(imFrame, arDistToGroundPlane)) {
       // Get PTAM position to ground plane
-      Vector<3, double> ptamPosition = GetCurrentPose().inverse().get_translation();
+      Vector<> ptamPosition = GetCurrentPose().inverse().get_translation();
       float ptamDistToGroundPlane = ptamPosition[2];
 
       // Save both distances
@@ -168,15 +163,15 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
           std::make_pair(arDistToGroundPlane, ptamDistToGroundPlane));
 
 
-      std::cout << arDistToGroundPlane << " \t"
-                << ptamDistToGroundPlane << std::endl;
+      //std::cout << arDistToGroundPlane << " \t"
+      //          << ptamDistToGroundPlane << std::endl;
 
       // When we have enough values we calculate the scale
       if (mScaleMeasurements.size() >= (unsigned)NUM_SCALE_MEASUREMENTS) {
         mScale = CalculateScale(mScaleMeasurements);
         mScaleMeasurements.clear();
         std::cout << " SCALE: " << mScale << std::endl;
-        mHasDeterminedScale = true;
+        //mHasDeterminedScale = true;
       }
     }
   }
@@ -352,7 +347,8 @@ void Tracker::RenderGrid()
   int nHalfCells = 8;
   int nTot = nHalfCells * 2 + 1;
   Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
-  float scale = mHasDeterminedScale ? 0.1 * mScale : 1.0f;
+  //float scale = mHasDeterminedScale ? 10.0 / mScale : 1.0f;
+  float scale = mScale > 0 ? 50.0 / mScale : 1.0f;
   for(int i=0; i<nTot; i++)
   {
     for(int j=0; j<nTot; j++)

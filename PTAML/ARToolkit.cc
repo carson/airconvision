@@ -6,6 +6,9 @@
 #include <cvd/image_convert.h>
 #include <cvd/image_io.h>
 
+#include <TooN/TooN.h>
+#include <TooN/se3.h>
+
 #include <AR/param.h>
 #include <AR/ar.h>
 #include <AR/gsub.h>
@@ -18,15 +21,12 @@ namespace PTAMM {
 const char CPARAM_NAME[] = "Data/psEye.dat";
 const char PATTERN_NAME[] = "Data/patt.hiro";
 const int MARKER_WIDTH = 80.0;
-double MARKER_CENTER[2] = {0.0, 0.0};
+double MARKER_CENTER[2] = {0.0, 0.0}; // cant be const because of the AR toolkit api...
 const int THRESH = 100;
 
-int g_patternId;
+int g_patternId = -1;
 
-int xsize=640;
-int ysize=480;
-
-bool InitARToolkit()
+bool InitARToolkit(int xsize, int ysize)
 {
   ARParam wparam, cparam;
 
@@ -72,9 +72,18 @@ void DrawSquare(double  vertex[4][2])
 
 bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
 {
+  // Check if AR toolkit was initialized
+  if (g_patternId < 0) {
+    const CVD::ImageRef& imSize = imFrame.size();
+    if (!InitARToolkit(imSize.x, imSize.y)) {
+      return false;
+    }
+  }
+
+  // Convert the input image from BW to RGB (a bit stupid because AR toolkit
+  // later converts it to BW anyway)
   CVD::Image<CVD::Rgb<CVD::byte> > rgbImage(imFrame.size());
   CVD::convert_image(imFrame, rgbImage);
-
   ARUint8* dataPtr = (ARUint8*)rgbImage.data();
 
   ARMarkerInfo* markerInfo;
@@ -111,17 +120,17 @@ bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
   // get the transformation between the marker and the real camera
   double markerTrans[3][4];
   arGetTransMat(&markerInfo[k], MARKER_CENTER, MARKER_WIDTH, markerTrans);
-    
+
   // Convert the matrix markerTrans into a SE3 object
-  TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*marker_trans);
+  TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*markerTrans);
   TooN::SO3<> rot(markerTransMat.slice<0, 0, 3, 3>());
   TooN::SE3<> mt(rot, markerTransMat.slice<0, 3, 3, 1>().T()[0]);
-    
+
   // Caluclate the camers position relative to the marker, assuming the
   // marker is located at the world origin.
   TooN::Vector<> camPos = mt.inverse().get_translation();
 
-  // find the range
+  // find the range (eqals the Z coordinate of the camera)
   dist = camPos[2];
 
   //printf(" X: %3.2f Y: %3.2f Z: %3.2f Range: %3.2f \n",Xpos,Ypos,Zpos,range);

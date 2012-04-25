@@ -206,7 +206,7 @@ void System::Run()
     TooN::Vector<3, double> xyz = mpTracker->RealWorldCoordinate();
     static const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
     if (xyz != origin) {
-      std::cout << xyz << std::endl;
+      //std::cout << xyz << std::endl;
       //coordfile << xyz << endl;
     }
 
