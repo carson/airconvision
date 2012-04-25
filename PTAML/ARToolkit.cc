@@ -70,7 +70,6 @@ void DrawSquare(double  vertex[4][2])
                vertex[0][0], vertex[0][1]);
 }
 
-
 bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
 {
   CVD::Image<CVD::Rgb<CVD::byte> > rgbImage(imFrame.size());
@@ -112,15 +111,18 @@ bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
   // get the transformation between the marker and the real camera
   double markerTrans[3][4];
   arGetTransMat(&markerInfo[k], MARKER_CENTER, MARKER_WIDTH, markerTrans);
+    
+  // Convert the matrix markerTrans into a SE3 object
+  TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*marker_trans);
+  TooN::SO3<> rot(markerTransMat.slice<0, 0, 3, 3>());
+  TooN::SE3<> mt(rot, markerTransMat.slice<0, 3, 3, 1>().T()[0]);
+    
+  // Caluclate the camers position relative to the marker, assuming the
+  // marker is located at the world origin.
+  TooN::Vector<> camPos = mt.inverse().get_translation();
 
   // find the range
-  double Xpos = markerTrans[0][3];
-  double Ypos = markerTrans[1][3];
-  double Zpos = markerTrans[2][3];
-  double range = std::sqrt(Xpos*Xpos + Ypos*Ypos + Zpos*Zpos);
-
-  // Result
-  dist = Zpos;
+  dist = camPos[2];
 
   //printf(" X: %3.2f Y: %3.2f Z: %3.2f Range: %3.2f \n",Xpos,Ypos,Zpos,range);
 

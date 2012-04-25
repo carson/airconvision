@@ -182,11 +182,6 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
   }
 }
 
-float CalculateScale(const std::vector<ArPtamDistPair>& values)
-{
-  return 1;
-}
-
 // TrackFrame is called by System.cc with each incoming video frame.
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
