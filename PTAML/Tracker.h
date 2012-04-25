@@ -154,7 +154,8 @@ protected:
   int isKeyFrame;
   bool bSave;
 
-private: // Scale by marker code -- dhenell
+private:
+  // Scale initialization with markers -- dhenell
 
   void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
   float CalculateScale(const std::vector<ArPtamDistPair>& values);
@@ -165,14 +166,6 @@ private: // Scale by marker code -- dhenell
   float mScale;
 };
 
-
 }
 
-
 #endif
-
-
-
-
-
-

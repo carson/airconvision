@@ -21,6 +21,7 @@
 
 #include <cvd/image_io.h>//@hack by camaparijet
 #include <sstream> //@hack by camparijet  for  saving image
+
 namespace PTAMM {
 
 using namespace CVD;
@@ -28,7 +29,7 @@ using namespace std;
 using namespace GVars3;
 
 
-const int NUM_SCALE_MEASUREMENTS = 300;
+const int NUM_SCALE_MEASUREMENTS = 100;
 
 /**
  * The constructor mostly sets up interal reference variables to the other classes..
@@ -51,7 +52,8 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
 
   frameIndex(0), //@hack by camparijet for serialize allframe
   mHasDeterminedScale(false),
-  mHasInitARToolkit(false)
+  mHasInitARToolkit(false),
+  mScale(0)
 {
   mCurrentKF.bFixed = false;
   GUI.RegisterCommand("Reset", GUICommandCallBack, this);
@@ -355,13 +357,14 @@ void Tracker::RenderGrid()
   int nHalfCells = 8;
   int nTot = nHalfCells * 2 + 1;
   Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
+  float scale = mHasDeterminedScale ? 0.1 * mScale : 1.0f;
   for(int i=0; i<nTot; i++)
   {
     for(int j=0; j<nTot; j++)
     {
       Vector<3> v3;
-      v3[0] = (i - nHalfCells) * 0.1;
-      v3[1] = (j - nHalfCells) * 0.1;
+      v3[0] = (i - nHalfCells) * 0.1 * scale;
+      v3[1] = (j - nHalfCells) * 0.1 * scale;
       v3[2] = 0.0;
       Vector<3> v3Cam = mse3CamFromWorld * v3;
       if(v3Cam[2] < 0.001) {
