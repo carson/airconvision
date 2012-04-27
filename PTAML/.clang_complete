@@ -1,0 +1,4 @@
+-DDEBUG
+-I/home/daniel/Code/ARToolKit/include
+-lGVars3 -lcvd -lgstapp-0.10 -lARgsub -lAR -lglut -lGLU -llapack -lblas -g
+
