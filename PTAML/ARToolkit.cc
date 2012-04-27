@@ -12,6 +12,7 @@
 #include <AR/param.h>
 #include <AR/ar.h>
 #include <AR/gsub.h>
+#include <AR/matrix.h>
 
 #include <GL/gl.h>
 
@@ -26,7 +27,7 @@ const int THRESH = 100;
 
 int g_patternId = -1;
 
-bool InitARToolkit(int xsize, int ysize)
+bool InitARToolkit(const CVD::ImageRef& imSize)
 {
   ARParam wparam, cparam;
 
@@ -36,7 +37,7 @@ bool InitARToolkit(int xsize, int ysize)
     return false;
   }
 
-  arParamChangeSize(&wparam, xsize, ysize, &cparam);
+  arParamChangeSize(&wparam, imSize.x, imSize.y, &cparam);
   arInitCparam(&cparam);
   printf("*** Camera Parameter ***\n");
   arParamDisp(&cparam);
@@ -72,12 +73,9 @@ void DrawSquare(double  vertex[4][2])
 
 bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
 {
-  // Check if AR toolkit was initialized
+  // Check if AR toolkit was initialized correctly
   if (g_patternId < 0) {
-    const CVD::ImageRef& imSize = imFrame.size();
-    if (!InitARToolkit(imSize.x, imSize.y)) {
-      return false;
-    }
+    return false;
   }
 
   // Convert the input image from BW to RGB (a bit stupid because AR toolkit
@@ -121,17 +119,23 @@ bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
   double markerTrans[3][4];
   arGetTransMat(&markerInfo[k], MARKER_CENTER, MARKER_WIDTH, markerTrans);
 
-  // Convert the matrix markerTrans into a SE3 object
-  TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*markerTrans);
-  TooN::SO3<> rot(markerTransMat.slice<0, 0, 3, 3>());
-  TooN::SE3<> mt(rot, markerTransMat.slice<0, 3, 3, 1>().T()[0]);
-
   // Caluclate the camers position relative to the marker, assuming the
   // marker is located at the world origin.
-  TooN::Vector<> camPos = mt.inverse().get_translation();
+  double markerTransInv[3][4];
+  arUtilMatInv(markerTrans, markerTransInv);
 
   // find the range (eqals the Z coordinate of the camera)
-  dist = camPos[2];
+  dist = markerTransInv[2][3];
+
+  // Convert the matrix markerTrans into a SE3 object
+  //TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*markerTrans);
+  //TooN::SO3<> rot(markerTransMat.slice<0, 0, 3, 3>());
+  //TooN::SE3<> mt(rot, markerTransMat.slice<0, 3, 3, 1>().T()[0]);
+
+  //TooN::Vector<> camPos = mt.inverse().get_translation();
+
+  // find the range (eqals the Z coordinate of the camera)
+  //dist = camPos[2];
 
   //printf(" X: %3.2f Y: %3.2f Z: %3.2f Range: %3.2f \n",Xpos,Ypos,Zpos,range);
 

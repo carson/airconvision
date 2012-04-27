@@ -9,6 +9,7 @@
 #include "ARDriver.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
+#include "ARToolkit.h"
 
 // hack to print camera coordinates to coord-log.txt
 // FEB-17-2012
@@ -73,6 +74,11 @@ System::System()
     cout << endl;
     cout << "! Camera.Parameters is not set, need to run the CameraCalibrator tool" << endl;
     cout << "  and/or put the Camera.Parameters= line into the appropriate .cfg file." << endl;
+    exit(1);
+  }
+
+  if (!InitARToolkit(mVideoSource.Size())) {
+    cout << "Failed to init AR toolkit." << std::endl;
     exit(1);
   }
 

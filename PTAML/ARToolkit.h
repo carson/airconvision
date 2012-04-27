@@ -6,6 +6,7 @@
 
 namespace PTAMM {
 
+bool InitARToolkit(const CVD::ImageRef& imSize);
 bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist);
 
 }
