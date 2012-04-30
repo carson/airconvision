@@ -67,8 +67,6 @@ class ARDriver
     ImageRef mirFrameSize;
     SE3<> mse3CfromW;
     bool mbInitialised;
-
-    Image<Rgba<CVD::byte> > mLostOverlay;
 };
 
 }

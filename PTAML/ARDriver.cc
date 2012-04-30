@@ -43,13 +43,6 @@ void ARDriver::Init()
                GL_RGBA, GL_UNSIGNED_BYTE, NULL);
   MakeFrameBuffer();
 
-  try {
-    CVD::img_load(mLostOverlay, "ARData/Overlays/searching.png");
-  }
-  catch(CVD::Exceptions::All err) {
-    cerr << "Failed to load searching image " << "\"ARData/Overlays/searching.png\"" << ": " << err.what << endl;
-  }
-
 }
 
 
@@ -126,19 +119,6 @@ void ARDriver::Render(Image<Rgb<CVD::byte> > &imFrame, SE3<> se3CfromW, bool bLo
   mGLWindow.SetupViewport();
   mGLWindow.SetupVideoOrtho();
   mGLWindow.SetupVideoRasterPosAndZoom();
-
-
-  //2d drawing
-  if(bLost)
-  {
-    //draw the lost ar overlays
-    glEnable(GL_BLEND);
-    glRasterPos2i( ( mGLWindow.size().x - mLostOverlay.size().x )/2,
-                   ( mGLWindow.size().y - mLostOverlay.size().y )/2 );
-    glDrawPixels(mLostOverlay);
-    glDisable(GL_BLEND);
-  }
-
 }
 
 
