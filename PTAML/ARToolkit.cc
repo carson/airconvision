@@ -10,12 +10,10 @@
 #include <TooN/se3.h>
 
 #include <AR/param.h>
-#include <AR/ar.h>
 #include <AR/gsub.h>
 #include <AR/matrix.h>
 
 #include <GL/gl.h>
-
 
 namespace PTAMM {
 
@@ -25,25 +23,23 @@ const int MARKER_WIDTH = 80.0;
 double MARKER_CENTER[2] = {0.0, 0.0}; // cant be const because of the AR toolkit api...
 const int THRESH = 100;
 
-int g_patternId = -1;
-
-bool InitARToolkit(const CVD::ImageRef& imSize)
+bool ARToolkitTracker::Init(const CVD::ImageRef& imSize)
 {
   ARParam wparam, cparam;
 
   // set the initial camera parameters
   if (arParamLoad(CPARAM_NAME, 1, &wparam) < 0) {
-    printf("Camera parameter load error !!\n");
+    std::cerr << "Camera parameter load error !!" << std::endl;
     return false;
   }
 
   arParamChangeSize(&wparam, imSize.x, imSize.y, &cparam);
   arInitCparam(&cparam);
-  printf("*** Camera Parameter ***\n");
+  std::cout << "*** Camera Parameter ***" << std::endl;
   arParamDisp(&cparam);
 
-  if ((g_patternId = arLoadPatt(PATTERN_NAME)) < 0) {
-    printf("Pattern file load error !! \n");
+  if ((mPatternId = arLoadPatt(PATTERN_NAME)) < 0) {
+    std::cerr << "Pattern file load error !!" << std::endl;
     return false;
   }
 
@@ -59,7 +55,7 @@ void DrawLineSeg( double x1, double y1, double x2, double y2 )
   glFlush();
 }
 
-void DrawSquare(double  vertex[4][2])
+void DrawSquare(double vertex[4][2])
 {
   DrawLineSeg( vertex[0][0], vertex[0][1],
                vertex[1][0], vertex[1][1]);
@@ -71,10 +67,13 @@ void DrawSquare(double  vertex[4][2])
                vertex[0][0], vertex[0][1]);
 }
 
-bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
+bool ARToolkitTracker::Track(
+    const CVD::Image<CVD::byte> &imFrame)
 {
+  mTrackedMarker = 0;
+
   // Check if AR toolkit was initialized correctly
-  if (g_patternId < 0) {
+  if (mPatternId < 0) {
     return false;
   }
 
@@ -95,7 +94,7 @@ bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
   // Select the best matched marker
   int k = -1;
   for (int i = 0; i < markerNum; i++) {
-    if (markerInfo[i].id  == g_patternId) {
+    if (markerInfo[i].id  == mPatternId) {
       if( k == -1 ) {
         k = i;
       } else { // make sure you have the best pattern (highest confidence factor)
@@ -108,6 +107,8 @@ bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
     return false;
   }
 
+  mTrackedMarker = &markerInfo[k];
+
   // Draw the found squares
   glColor3f(1.0, 0.0, 0.0);
   glLineWidth(6.0);
@@ -115,31 +116,30 @@ bool DistanceToMarkerPlane(const CVD::Image<CVD::byte> &imFrame, float& dist)
     DrawSquare(markerInfo[i].vertex);
   }
 
+  return true;
+}
+
+void ARToolkitTracker::GetMarkerTrans(
+  TooN::SE3<>& markerTransform)
+{
   // get the transformation between the marker and the real camera
   double markerTrans[3][4];
-  arGetTransMat(&markerInfo[k], MARKER_CENTER, MARKER_WIDTH, markerTrans);
-
-  // Caluclate the camers position relative to the marker, assuming the
-  // marker is located at the world origin.
-  double markerTransInv[3][4];
-  arUtilMatInv(markerTrans, markerTransInv);
-
-  // find the range (eqals the Z coordinate of the camera)
-  dist = markerTransInv[2][3];
+  arGetTransMat(mTrackedMarker, MARKER_CENTER, MARKER_WIDTH, markerTrans);
 
   // Convert the matrix markerTrans into a SE3 object
-  //TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*markerTrans);
-  //TooN::SO3<> rot(markerTransMat.slice<0, 0, 3, 3>());
-  //TooN::SE3<> mt(rot, markerTransMat.slice<0, 3, 3, 1>().T()[0]);
+  TooN::Matrix<3,4,double,TooN::Reference::RowMajor> markerTransMat(*markerTrans);
+  TooN::SO3<> rot(markerTransMat.slice<0, 0, 3, 3>());
+  markerTransform = TooN::SE3<>(rot, markerTransMat.slice<0, 3, 3, 1>().T()[0]);
+}
 
-  //TooN::Vector<> camPos = mt.inverse().get_translation();
-
-  // find the range (eqals the Z coordinate of the camera)
-  //dist = camPos[2];
-
-  //printf(" X: %3.2f Y: %3.2f Z: %3.2f Range: %3.2f \n",Xpos,Ypos,Zpos,range);
-
-  return true;
+void ARToolkitTracker::GetMarkerCorners(
+  std::vector<TooN::Vector<2> >& corners)
+{
+  double (*verts)[2] = mTrackedMarker->vertex;
+  corners.push_back(TooN::makeVector(verts[0][0], verts[0][1]));
+  corners.push_back(TooN::makeVector(verts[1][0], verts[1][1]));
+  corners.push_back(TooN::makeVector(verts[2][0], verts[2][1]));
+  corners.push_back(TooN::makeVector(verts[3][0], verts[3][1]));
 }
 
 }

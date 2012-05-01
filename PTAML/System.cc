@@ -9,7 +9,6 @@
 #include "ARDriver.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
-#include "ARToolkit.h"
 
 // hack to print camera coordinates to coord-log.txt
 // FEB-17-2012
@@ -77,7 +76,7 @@ System::System()
     exit(1);
   }
 
-  if (!InitARToolkit(mVideoSource.Size())) {
+  if (!mARTracker.Init(mVideoSource.Size())) {
     cout << "Failed to init AR toolkit." << std::endl;
     exit(1);
   }
@@ -88,7 +87,7 @@ System::System()
   mpMap->mapLockManager.Register(this);
 
   mpMapMaker = new MapMaker( mvpMaps, mpMap );
-  mpTracker = new Tracker(mVideoSource.Size(), *mpCamera, mvpMaps, mpMap, *mpMapMaker);
+  mpTracker = new Tracker(mVideoSource.Size(), *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
   mpARDriver = new ARDriver(*mpCamera, mVideoSource.Size(), mGLWindow, *mpMap);
   mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
   mpMapSerializer = new MapSerializer( mvpMaps );

@@ -25,6 +25,7 @@
 #include "ATANCamera.h"
 #include "MiniPatch.h"
 #include "Relocaliser.h"
+#include "ARToolkit.h"
 
 #include <sstream>
 #include <vector>
@@ -48,7 +49,7 @@ typedef std::pair<float,float> ArPtamDistPair;
 class Tracker
 {
 public:
-  Tracker(CVD::ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm);
+  Tracker(CVD::ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker);
   // TrackFrame is the main working part of the tracker: call this every frame.
   void TrackFrame(CVD::Image<CVD::byte> &imFrame, bool bDraw);
   void TrackFrame(CVD::Image<CVD::byte> &imFrame,CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame,bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
@@ -78,6 +79,8 @@ protected:
   MapMaker &mMapMaker;            // The class which maintains the map
   ATANCamera mCamera;             // Projection model
   Relocaliser mRelocaliser;       // Relocalisation module
+
+  ARToolkitTracker& mARTracker;
 
   CVD::ImageRef mirSize;          // Image size of whole image
 
@@ -160,9 +163,16 @@ private:
   void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
   float CalculateScale(const std::vector<ArPtamDistPair>& values);
 
+  bool PickPointOnGround(
+    const TooN::Vector<2>& pixelCoord,
+    TooN::Vector<3>& pointOnPlane);
+
   bool mHasDeterminedScale;
   std::vector<ArPtamDistPair> mScaleMeasurements;
   float mScale;
+  // Transforms coordinates from the AR marker aligned CS to
+  // the internal map CS
+  SE3<> mse3WorldFromNormWorld;
 };
 
 }

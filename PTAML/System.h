@@ -12,6 +12,7 @@
 #define __SYSTEM_H
 #include "VideoSource.h"
 #include "GLWindow2.h"
+#include "ARToolkit.h"
 
 #include <gvars3/instances.h>
 
@@ -19,7 +20,7 @@
 #include <cvd/rgb.h>
 #include <cvd/byte.h>
 
-// HACK: Coordinate log file   
+// HACK: Coordinate log file
 #include <iostream>
 #include <fstream>
 #include <TooN/TooN.h>
@@ -40,7 +41,7 @@ class System
     System();
     ~System();
     void Run();
-  
+
   private:
     static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);  //process a console command
     bool GetSingleParam(int &nAnswer, std::string sCommand, std::string sParams);          //Extract an int param from a command param
@@ -51,7 +52,7 @@ class System
     void StartMapSerialization(std::string sCommand, std::string sParams);   //(de)serialize a map
     void DrawMapInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
-    
+
   private:
     VideoSource mVideoSource;                       // The video image source
     GLWindow2 mGLWindow;                            // The OpenGL window
@@ -66,14 +67,15 @@ class System
     ARDriver *mpARDriver;                           // The AR Driver
     MapViewer *mpMapViewer;                         // The Map Viewer
     MapSerializer *mpMapSerializer;                 // The map serializer for saving and loading maps
-    
+    ARToolkitTracker mARTracker;
+
     bool mbDone;                                    // Kill?
-    
+
     GVars3::gvar3<int> mgvnLockMap;                 // Stop a map being edited - i.e. keyframes added, points updated
     GVars3::gvar3<int> mgvnDrawMapInfo;             // Draw map info on the screen
 
-    std::ofstream coordfile;                        // HACK: Coordinate log file   
-    
+    std::ofstream coordfile;                        // HACK: Coordinate log file
+
 #ifdef _LINUX
     GVars3::gvar3<int> mgvnSaveFIFO;                // Output to a FIFO (make a video)
     GVars3::gvar3<int> mgvnBitrate;                 // Bitrate to encode at

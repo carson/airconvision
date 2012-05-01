@@ -39,13 +39,14 @@ const int NUM_SCALE_MEASUREMENTS = 50;
  * @param m current map
  * @param mm map maker
  */
-Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm) :
+Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker) :
   mCurrentKF(c),
   mvpMaps(maps),
   mpMap(m),
   mMapMaker(mm),
   mCamera(c),
   mRelocaliser(maps, mCamera),
+  mARTracker(arTracker),
   mirSize(irVideoSize),
   mFirstKF(mCamera),
   mPreviousFrameKF(mCamera),
@@ -144,16 +145,61 @@ float Tracker::CalculateScale(const std::vector<ArPtamDistPair>& values)
   }
 
   scale /= (scales.size() - 2*numElems);
+  scale /= 100.0f; // Convert it from mm to m
 
   return scale;
+}
+
+bool Tracker::PickPointOnGround(
+  const TooN::Vector<2>& pixelCoord,
+  TooN::Vector<3>& pointOnPlane)
+{
+  Vector<2> v2VidCoords = pixelCoord;
+
+  Vector<2> v2UFBCoords;
+#ifdef WIN32
+  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = numeric_limits<double>::quiet_NaN();   v2PlaneCoords[1] = numeric_limits<double>::quiet_NaN();
+#else
+  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = NAN;   v2PlaneCoords[1] = NAN;
+#endif
+  Vector<3> v3RayDirn_W;
+
+  // Work out image coords 0..1:
+  v2UFBCoords[0] = (v2VidCoords[0] + 0.5) / mCamera.GetImageSize()[0];
+  v2UFBCoords[1] = (v2VidCoords[1] + 0.5) / mCamera.GetImageSize()[1];
+
+  // Work out plane coords:
+  Vector<2> v2ImPlane = mCamera.UnProject(v2VidCoords);
+  Vector<3> v3C = unproject(v2ImPlane);
+  Vector<4> v4C = unproject(v3C);
+  SE3<> se3CamInv = mse3CamFromWorld.inverse();
+  Vector<4> v4W = se3CamInv * v4C;
+  double t = se3CamInv.get_translation()[2];
+  double dDistToPlane = -t / (v4W[2] - t);
+
+  if(v4W[2] -t <= 0) // Clicked the wrong side of the horizon?
+  {
+    v4C.slice<0,3>() *= dDistToPlane;
+    Vector<4> v4Result = se3CamInv * v4C;
+    pointOnPlane = v4Result.slice<0,3>(); // <--- result
+
+    return true;
+  }
+
+  return false;
 }
 
 void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 {
   if (!mHasDeterminedScale) {
-    // Get AR Toolkit position to ground plane
-    float arDistToGroundPlane;
-    if (DistanceToMarkerPlane(imFrame, arDistToGroundPlane)) {
+    if (mARTracker.Track(imFrame)) {
+      // Find the marker transformation
+      SE3<> mt;
+      mARTracker.GetMarkerTrans(mt);
+      // Get AR Toolkit position to ground plane
+      Vector<> arPosition = mt.inverse().get_translation();
+      float arDistToGroundPlane = arPosition[2];
+
       // Get PTAM position to ground plane
       Vector<> ptamPosition = GetCurrentPose().inverse().get_translation();
       float ptamDistToGroundPlane = ptamPosition[2];
@@ -162,17 +208,44 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       mScaleMeasurements.push_back(
           std::make_pair(arDistToGroundPlane, ptamDistToGroundPlane));
 
-
-      //std::cout << arDistToGroundPlane << " \t"
-      //          << ptamDistToGroundPlane << std::endl;
-
       // When we have enough values we calculate the scale
       if (mScaleMeasurements.size() >= (unsigned)NUM_SCALE_MEASUREMENTS) {
         mScale = CalculateScale(mScaleMeasurements);
         mScaleMeasurements.clear();
         std::cout << " SCALE: " << mScale << std::endl;
-        //mHasDeterminedScale = true;
+        mHasDeterminedScale = true;
       }
+    }
+  } else {
+    if (mARTracker.Track(imFrame)) {
+      std::vector<Vector<2> > imPts;
+      mARTracker.GetMarkerCorners(imPts);
+
+      glEnable(GL_LINE_SMOOTH);
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+      glLineWidth(2);
+      glPointSize(15);
+      glColor3f(1,0.5,1);
+
+      glBegin(GL_POINTS);
+
+      std::vector<Vector<2> >::const_iterator it = imPts.begin();
+      for (; it != imPts.end(); ++it) {
+
+        Vector<3> pointOnPlane;
+        if (PickPointOnGround(*it, pointOnPlane))
+        {
+          Vector<3> v3Cam = mse3CamFromWorld * pointOnPlane;
+          glVertex(mCamera.Project(project(v3Cam)));
+        }
+      }
+
+      glEnd();
+
+      glLineWidth(1);
+      glPointSize(1);
+      glColor3f(1,0,0);
     }
   }
 }
@@ -347,8 +420,12 @@ void Tracker::RenderGrid()
   int nHalfCells = 8;
   int nTot = nHalfCells * 2 + 1;
   Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
-  //float scale = mHasDeterminedScale ? 10.0 / mScale : 1.0f;
-  float scale = mScale > 0 ? 50.0 / mScale : 1.0f;
+  float scale = mScale > 0 ? 0.5 / mScale : 1.0f;
+
+  SE3<> mse3CamFromNormWorld = mse3CamFromWorld;
+
+  scale = 200;
+
   for(int i=0; i<nTot; i++)
   {
     for(int j=0; j<nTot; j++)
@@ -357,7 +434,7 @@ void Tracker::RenderGrid()
       v3[0] = (i - nHalfCells) * 0.1 * scale;
       v3[1] = (j - nHalfCells) * 0.1 * scale;
       v3[2] = 0.0;
-      Vector<3> v3Cam = mse3CamFromWorld * v3;
+      Vector<3> v3Cam = mse3CamFromNormWorld * v3;
       if(v3Cam[2] < 0.001) {
         v3Cam[2] = 0.001;
       }
