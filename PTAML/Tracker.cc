@@ -122,30 +122,23 @@ void Tracker::Reset()
   }
 }
 
-float Tracker::CalculateScale(const std::vector<ArPtamDistPair>& values)
+double Tracker::CalculateScale(const std::vector<double>& scales)
 {
-  // Calculate ratios of ArDist / PtamDist
-  std::vector<float> scales;
-  for (std::vector<ArPtamDistPair>::const_iterator it = values.begin();
-       it != values.end(); ++it)
-  {
-    scales.push_back(it->first / it->second);
-  }
-
   // Calculate the mean of the 1/3rd median values
 
-  std::sort(scales.begin(), scales.end());
+  std::vector<double> sortedScales = scales;
+
+  std::sort(sortedScales.begin(), sortedScales.end());
 
   size_t numElems = scales.size() / 3;
-  float scale = 0;
-  for (std::vector<float>::const_iterator it = scales.begin() + numElems;
-       it != scales.end() - numElems; ++it)
+  double scale = 0;
+  for (std::vector<double>::const_iterator it = sortedScales.begin() + numElems;
+       it != sortedScales.end() - numElems; ++it)
   {
     scale += *it;
   }
 
   scale /= (scales.size() - 2*numElems);
-  scale /= 100.0f; // Convert it from mm to m
 
   return scale;
 }
@@ -193,20 +186,83 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 {
   if (!mHasDeterminedScale) {
     if (mARTracker.Track(imFrame)) {
-      // Find the marker transformation
-      SE3<> mt;
-      mARTracker.GetMarkerTrans(mt);
-      // Get AR Toolkit position to ground plane
-      Vector<> arPosition = mt.inverse().get_translation();
-      float arDistToGroundPlane = arPosition[2];
+      // Get corner points of the marker in screen space
+      std::vector<Vector<2> > imPts;
+      mARTracker.GetMarkerCorners(imPts);
 
-      // Get PTAM position to ground plane
-      Vector<> ptamPosition = GetCurrentPose().inverse().get_translation();
-      float ptamDistToGroundPlane = ptamPosition[2];
+      // Project the corners onto the ground plane to get
+      // the coordinates in the PTAM world space
+      std::vector<Vector<3> > pointsOnPlane;
+      for (std::vector<Vector<2> >::const_iterator it = imPts.begin();
+           it != imPts.end(); ++it)
+      {
+        Vector<3> pointOnPlane;
+        if (PickPointOnGround(*it, pointOnPlane)) {
+          pointsOnPlane.push_back(pointOnPlane);
+        }
+      }
 
-      // Save both distances
-      mScaleMeasurements.push_back(
-          std::make_pair(arDistToGroundPlane, ptamDistToGroundPlane));
+      // Abort if not all corners were found
+      if (pointsOnPlane.size() != 4) {
+        return;
+      }
+
+      // Determine scale
+      Vector<3> origin;
+      double edgeLengthSum = 0;
+      Vector<3> prevPoint = pointsOnPlane[3];
+      for (std::vector<Vector<3> >::const_iterator it = pointsOnPlane.begin();
+           it != pointsOnPlane.end(); ++it)
+      {
+        origin += *it;
+        double edgeLength = norm(*it - prevPoint);
+        edgeLengthSum += edgeLength;
+        prevPoint = *it;
+      }
+
+      double scale = edgeLengthSum / (4 * 8.0); // Each edge should be 8 cm
+      origin *= 0.25;
+
+      mOrigin = origin;
+
+      Vector<3> xAxis = 0.5*(pointsOnPlane[0] + pointsOnPlane[3]) - origin;
+      Vector<3> yAxis = 0.5*(pointsOnPlane[2] + pointsOnPlane[3]) - origin;
+      Vector<3> zAxis = xAxis ^ yAxis;
+      yAxis = zAxis ^ xAxis;
+
+      normalize(xAxis);
+      normalize(yAxis);
+      normalize(zAxis);
+
+      Matrix<3,3> rot;
+      rot[0] = xAxis;
+      rot[1] = yAxis;
+      rot[2] = zAxis;
+
+      // Build the transform by SIM3 composition
+      SIM3<> simS(SO3<>(), Vector<3>(), scale);
+      SIM3<> simT(SO3<>(), origin, 1.0);
+      SIM3<> simR(SO3<>(rot.T()), Vector<3>(), 1.0);
+
+      msim3WorldFromNormWorld = simT * simR * simS;
+
+      /*
+      // Build the transform matrix by matrix multiplications
+      Matrix<4,4> mS = Identity(4);
+      mS[0][0] = scale;
+      mS[1][1] = scale;
+      mS[2][2] = scale;
+      Matrix<4,4> mT = Identity(4);
+      mT.slice<0,3,3,1>() = Data(origin[0], origin[1], origin[2]);
+      Matrix<4,4> mR = Identity(4);
+      mR.slice<0,0,3,3>() = rot.T();
+
+      mXForm  = mT * mR * mS;
+      */
+
+
+      // Save scale measurement
+      mScaleMeasurements.push_back(scale);
 
       // When we have enough values we calculate the scale
       if (mScaleMeasurements.size() >= (unsigned)NUM_SCALE_MEASUREMENTS) {
@@ -215,12 +271,8 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
         std::cout << " SCALE: " << mScale << std::endl;
         mHasDeterminedScale = true;
       }
-    }
-  } else {
-    if (mARTracker.Track(imFrame)) {
-      std::vector<Vector<2> > imPts;
-      mARTracker.GetMarkerCorners(imPts);
 
+      // Render for debugging
       glEnable(GL_LINE_SMOOTH);
       glEnable(GL_BLEND);
       glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -230,15 +282,21 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 
       glBegin(GL_POINTS);
 
-      std::vector<Vector<2> >::const_iterator it = imPts.begin();
-      for (; it != imPts.end(); ++it) {
+      bool first = true;
+      int i = 0;
 
-        Vector<3> pointOnPlane;
-        if (PickPointOnGround(*it, pointOnPlane))
-        {
-          Vector<3> v3Cam = mse3CamFromWorld * pointOnPlane;
-          glVertex(mCamera.Project(project(v3Cam)));
+      for (std::vector<Vector<3> >::const_iterator it = pointsOnPlane.begin();
+           it != pointsOnPlane.end(); ++it)
+      {
+        if (i == 2) {
+          glColor3f(1,0.05,1);
+        } else {
+          glColor3f(0,1,0.5);
         }
+        ++i;
+
+          Vector<3> v3Cam = mse3CamFromWorld * (*it);
+          glVertex(mCamera.Project(project(v3Cam)));
       }
 
       glEnd();
@@ -247,6 +305,43 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       glPointSize(1);
       glColor3f(1,0,0);
     }
+  } else {
+    std::vector<Vector<3> > pts;
+
+    /*
+
+    pts.push_back(project(mXForm * makeVector(0, 0, 0, 1)));
+    pts.push_back(project(mXForm * makeVector(8, 0, 0, 1)));
+    pts.push_back(project(mXForm * makeVector(0, 0, 0, 1)));
+    pts.push_back(project(mXForm * makeVector(0, 8, 0, 1)));
+*/
+
+    pts.push_back(msim3WorldFromNormWorld * makeVector(0, 0, 0));
+    pts.push_back(msim3WorldFromNormWorld * makeVector(8, 0, 0));
+    pts.push_back(msim3WorldFromNormWorld * makeVector(0, 0, 0));
+    pts.push_back(msim3WorldFromNormWorld * makeVector(0, 8, 0));
+
+    // Render for debugging
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLineWidth(2);
+    glColor3f(1,0.5,1);
+
+    glBegin(GL_LINES);
+
+    for (std::vector<Vector<3> >::const_iterator it = pts.begin();
+         it != pts.end(); ++it)
+    {
+        Vector<3> v3Cam = mse3CamFromWorld * (*it);
+        glVertex(mCamera.Project(project(v3Cam)));
+    }
+
+    glEnd();
+
+    glLineWidth(1);
+    glColor3f(1,0,0);
+
   }
 }
 
@@ -420,21 +515,15 @@ void Tracker::RenderGrid()
   int nHalfCells = 8;
   int nTot = nHalfCells * 2 + 1;
   Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
-  float scale = mScale > 0 ? 0.5 / mScale : 1.0f;
-
-  SE3<> mse3CamFromNormWorld = mse3CamFromWorld;
-
-  scale = 200;
-
   for(int i=0; i<nTot; i++)
   {
     for(int j=0; j<nTot; j++)
     {
       Vector<3> v3;
-      v3[0] = (i - nHalfCells) * 0.1 * scale;
-      v3[1] = (j - nHalfCells) * 0.1 * scale;
+      v3[0] = (i - nHalfCells) * 0.1;
+      v3[1] = (j - nHalfCells) * 0.1;
       v3[2] = 0.0;
-      Vector<3> v3Cam = mse3CamFromNormWorld * v3;
+      Vector<3> v3Cam = mse3CamFromWorld * v3;
       if(v3Cam[2] < 0.001) {
         v3Cam[2] = 0.001;
       }

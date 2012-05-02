@@ -26,6 +26,7 @@
 #include "MiniPatch.h"
 #include "Relocaliser.h"
 #include "ARToolkit.h"
+#include <TooN/sim3.h>
 
 #include <sstream>
 #include <vector>
@@ -43,8 +44,6 @@ struct Trail    // This struct is used for initial correspondences of the first 
   CVD::ImageRef irCurrentPos;
   CVD::ImageRef irInitialPos;
 };
-
-typedef std::pair<float,float> ArPtamDistPair;
 
 class Tracker
 {
@@ -161,18 +160,20 @@ private:
   // Scale initialization with markers -- dhenell
 
   void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
-  float CalculateScale(const std::vector<ArPtamDistPair>& values);
+  double CalculateScale(const std::vector<double>& values);
 
   bool PickPointOnGround(
     const TooN::Vector<2>& pixelCoord,
     TooN::Vector<3>& pointOnPlane);
 
   bool mHasDeterminedScale;
-  std::vector<ArPtamDistPair> mScaleMeasurements;
-  float mScale;
+  std::vector<double> mScaleMeasurements;
+  double mScale;
   // Transforms coordinates from the AR marker aligned CS to
   // the internal map CS
-  SE3<> mse3WorldFromNormWorld;
+  SIM3<> msim3WorldFromNormWorld;
+  Vector<3> mOrigin;
+  Matrix<4,4> mXForm;
 };
 
 }
