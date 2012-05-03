@@ -62,7 +62,7 @@ CALIB_OBJECTS=	GLWindow2.o\
 		ATANCamera.o \
 		CameraCalibrator.o
 
-All: PTAML CameraCalibrator
+all: PTAML CameraCalibrator
 
 PTAML: $(OBJECTS)
 	$(CC) -o PTAML $(OBJECTS) $(LINKFLAGS) -g 

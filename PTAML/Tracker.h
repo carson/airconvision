@@ -56,7 +56,12 @@ public:
   inline bool IsLost() { return (mnLostFrames > NUM_LOST_FRAMES); }
 
   inline Vector<3, double> RealWorldCoordinate() const {
-    return mse3CamFromWorld.inverse().get_translation() * mScale;
+	// Compute the inverse with LU decomposition
+	Matrix<4> linv;
+	LU<4> blu(mMarkerXForm);
+	linv = blu.get_inverse();
+
+    return project(linv * unproject(mse3CamFromWorld.inverse().get_translation()));
   }
 
   // Gets messages to be printed on-screen for the user.
@@ -91,7 +96,8 @@ protected:
 
   enum {TRAIL_TRACKING_NOT_STARTED,
         TRAIL_TRACKING_STARTED,
-        TRAIL_TRACKING_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
+        TRAIL_TRACKING_COMPLETE,
+  	  	MARKER_INIT_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
 
   void TrailTracking_Start();     // First frame of initial trail tracking. Called by TrackForInitialMap.
   int  TrailTracking_Advance();   // Steady-state of initial trail tracking. Called by TrackForInitialMap.
@@ -158,10 +164,7 @@ protected:
 
 private:
   // Scale initialization with markers -- dhenell
-
   void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
-  double CalculateScale(const std::vector<double>& values);
-
   bool PickPointOnGround(
     const TooN::Vector<2>& pixelCoord,
     TooN::Vector<3>& pointOnPlane);
@@ -172,8 +175,7 @@ private:
   // Transforms coordinates from the AR marker aligned CS to
   // the internal map CS
   SIM3<> msim3WorldFromNormWorld;
-  Vector<3> mOrigin;
-  Matrix<4,4> mXForm;
+  Matrix<4,4> mMarkerXForm;
 };
 
 }

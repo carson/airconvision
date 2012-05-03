@@ -136,10 +136,22 @@ void ARToolkitTracker::GetMarkerCorners(
   std::vector<TooN::Vector<2> >& corners)
 {
   double (*verts)[2] = mTrackedMarker->vertex;
-  corners.push_back(TooN::makeVector(verts[0][0], verts[0][1]));
-  corners.push_back(TooN::makeVector(verts[1][0], verts[1][1]));
-  corners.push_back(TooN::makeVector(verts[2][0], verts[2][1]));
-  corners.push_back(TooN::makeVector(verts[3][0], verts[3][1]));
+
+  // Select the corners in the order
+  //
+  //      0 --- 1
+  //      |     |
+  //      2 --- 3
+  //
+  int idx0 = (0 - mTrackedMarker->dir + 4) % 4;
+  int idx1 = (1 - mTrackedMarker->dir + 4) % 4;
+  int idx2 = (2 - mTrackedMarker->dir + 4) % 4;
+  int idx3 = (3 - mTrackedMarker->dir + 4) % 4;
+
+  corners.push_back(TooN::makeVector(verts[idx0][0], verts[idx0][1]));
+  corners.push_back(TooN::makeVector(verts[idx1][0], verts[idx1][1]));
+  corners.push_back(TooN::makeVector(verts[idx2][0], verts[idx2][1]));
+  corners.push_back(TooN::makeVector(verts[idx3][0], verts[idx3][1]));
 }
 
 }
