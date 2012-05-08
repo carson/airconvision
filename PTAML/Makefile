@@ -14,7 +14,7 @@ MY_CUSTOM_LINK_PATH=-L/home/daniel/Code/ARToolKit/lib
 # Or to change the compiler's optimization flags
 CC = g++
 LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd -lgstapp-0.10 -lARgsub -lAR -lglut -lGLU -lGL -llapack -lblas -g
-COMPILEFLAGS = $(MY_CUSTOM_INCLUDE_PATH) -D_LINUX -D_REENTRANT -Wall -O3 -march=core2 -msse3 -fno-strict-aliasing -g
+COMPILEFLAGS = $(MY_CUSTOM_INCLUDE_PATH) -D_LINUX -D_REENTRANT -Wall -O3 -march=core2 -msse3 -fno-strict-aliasing -std=gnu++0x -g
 
 # Edit this line to change video source
 #VIDEOSOURCE = VideoSource_Linux_DV.o

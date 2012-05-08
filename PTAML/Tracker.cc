@@ -669,10 +669,11 @@ void Tracker::TrackForInitialMap()
       vector<pair<ImageRef, ImageRef> > vMatches;   // This is the format the mapmaker wants for the stereo pairs
       for(list<Trail>::iterator i = mlTrails.begin(); i!=mlTrails.end(); ++i)
         vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
-      mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld);  // This will take some time!
-      mnInitialStage = TRAIL_TRACKING_COMPLETE;
-      //mse3CamFromWorld = mCurrent//mFirstKF.se3CfromW;
-      isKeyFrame = 2; //@hack by camaparijet for serializing
+      if (mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld)) {  // This will take some time!
+        mnInitialStage = TRAIL_TRACKING_COMPLETE;
+        //mse3CamFromWorld = mCurrent//mFirstKF.se3CfromW;
+        isKeyFrame = 2; //@hack by camaparijet for serializing
+      }
     }
     else
     {

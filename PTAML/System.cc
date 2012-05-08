@@ -211,7 +211,7 @@ void System::Run()
     TooN::Vector<3, double> xyz = mpTracker->RealWorldCoordinate();
     static const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
     if (xyz != origin) {
-      std::cout << xyz << std::endl;
+      //std::cout << xyz << std::endl;
       //coordfile << xyz << endl;
     }
 
@@ -654,7 +654,10 @@ void System::SaveFIFO()
       return;
     }
 
-    posix_memalign((void**)(&pcImage), 16, irWindowSize.x*irWindowSize.y*3);
+    if (posix_memalign((void**)(&pcImage), 16, irWindowSize.x*irWindowSize.y*3) != 0) {
+      return;
+    }
+
     string s = "FIFO";
     fd = open(s.c_str(), O_RDWR | O_ASYNC);
 
@@ -670,7 +673,9 @@ void System::SaveFIFO()
 
   glReadBuffer(GL_BACK);
   glReadPixels(0,0,irWindowSize.x,irWindowSize.y,GL_RGB, GL_UNSIGNED_BYTE, pcImage);
-  write(fd, (char*) pcImage, irWindowSize.x*irWindowSize.y*3);
+  if (write(fd, (char*) pcImage, irWindowSize.x*irWindowSize.y*3) < 0) {
+    return;
+  }
 
 #else
   cout << "Video Saving using FIFOs is only available under Linux" << endl;

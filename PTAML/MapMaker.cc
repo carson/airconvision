@@ -17,6 +17,7 @@
 #include <gvars3/instances.h>
 #include <fstream>
 #include <algorithm>
+#include <chrono>
 
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -481,8 +482,16 @@ bool MapMaker::InitFromStereo(KeyFrame &kF,
   mpMap->bBundleConverged_Full = false;
   mpMap->bBundleConverged_Recent = false;
 
+
+  std::chrono::time_point<std::chrono::system_clock> startTime = std::chrono::system_clock::now();
+
   while(!mpMap->bBundleConverged_Full)
     {
+      std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+      if (now - startTime > std::chrono::seconds(5)) {
+        std::cout << "InitFromStereo timed out" << std::endl;
+        return false;
+      }
       BundleAdjustAll();
       if(mbResetRequested || mbReInitRequested || mbSwitchRequested)
         return false;
@@ -558,7 +567,7 @@ void MapMaker::ApplyGlobalTransformationToMap(SE3<> se3NewFromOld)
   for(unsigned int i=0; i<mpMap->vpKeyFrames.size(); i++)
     mpMap->vpKeyFrames[i]->se3CfromW = mpMap->vpKeyFrames[i]->se3CfromW * se3NewFromOld.inverse();
 
-  SO3<> so3Rot = se3NewFromOld.get_rotation();
+  //SO3<> so3Rot = se3NewFromOld.get_rotation();
   for(unsigned int i=0; i<mpMap->vpPoints.size(); i++)
     {
       mpMap->vpPoints[i]->v3WorldPos =

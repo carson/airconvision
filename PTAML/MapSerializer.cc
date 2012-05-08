@@ -1786,7 +1786,6 @@ void MapSerializer::SaveMaps( std::vector<Map*> & vpMaps,  std::string sBaseName
   //is there a base name. if not just let savemap create the default name.
   bool bBase = !sBaseName.empty();
   string sDirName = "";
-  MapStatus ms;
 
   //does the dir exist?
   if( bBase ) {
@@ -1814,7 +1813,7 @@ void MapSerializer::SaveMaps( std::vector<Map*> & vpMaps,  std::string sBaseName
       sDirName = os.str();
     }
 
-    ms = SaveMap( (*i), sDirName );
+    SaveMap( (*i), sDirName );
   }
 }
 
