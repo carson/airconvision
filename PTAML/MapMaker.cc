@@ -622,7 +622,7 @@ void MapMaker::AddKeyFrame(KeyFrame &k)
  */
 void MapMaker::AddKeyFrameFromTopOfQueue()
 {
-  if(mpMap->vpKeyFrameQueue.size() == 0)
+  if(mpMap->vpKeyFrameQueue.empty())
     return;
 
   KeyFrame *pK = mpMap->vpKeyFrameQueue[0];
@@ -632,7 +632,7 @@ void MapMaker::AddKeyFrameFromTopOfQueue()
   // Any measurements? Update the relevant point's measurement counter status map
   for(meas_it it = pK->mMeasurements.begin();
       it!=pK->mMeasurements.end();
-      it++)
+      ++it)
     {
       it->first->pMMData->sMeasurementKFs.insert(pK);
       it->second.Source = Measurement::SRC_TRACKER;
