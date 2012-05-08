@@ -739,7 +739,7 @@ bool MapMaker::AddPointEpipolar(KeyFrame &kSrc,
     }
 
   int nBest = -1;
-  int nBestZMSSD = Finder.mnMaxSSD + 1;
+  int nBestZMSSD = Finder.GetMaxSSD() + 1;
   double dMaxDistDiff = kTarget.Camera.OnePixelDist() * (4.0 + 1.0 * nLevelScale);
   double dMaxDistSq = dMaxDistDiff * dMaxDistDiff;
 
