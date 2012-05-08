@@ -42,6 +42,10 @@ class System
     ~System();
     void Run();
 
+    void ToggleDisableRendering() {
+      *mgvnDisableRendering = !*mgvnDisableRendering;
+    }
+
   private:
     static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);  //process a console command
     bool GetSingleParam(int &nAnswer, std::string sCommand, std::string sParams);          //Extract an int param from a command param
@@ -73,6 +77,7 @@ class System
 
     GVars3::gvar3<int> mgvnLockMap;                 // Stop a map being edited - i.e. keyframes added, points updated
     GVars3::gvar3<int> mgvnDrawMapInfo;             // Draw map info on the screen
+    GVars3::gvar3<int> mgvnDisableRendering;                 // Disable all rendering
 
     std::ofstream coordfile;                        // HACK: Coordinate log file
 

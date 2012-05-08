@@ -446,7 +446,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
       }
 
       // Added some scale determing code here -- dhenell
-      DetermineScaleFromMarker(imFrame);
+      //DetermineScaleFromMarker(imFrame);
     }
     else  // what if there is a map, but tracking has been lost?
     {

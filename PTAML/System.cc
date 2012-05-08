@@ -15,6 +15,7 @@
 // Carson Reynolds & Chris Raabe
 #include <iostream>
 #include <fstream>
+#include <chrono>
 
 #ifdef _LINUX
 #include <fcntl.h>
@@ -49,6 +50,7 @@ System::System()
 
   GV2.Register(mgvnLockMap, "LockMap", 0, SILENT);
   GV2.Register(mgvnDrawMapInfo, "MapInfo", 0, SILENT);
+  GV2.Register(mgvnDisableRendering, "DisableRendering", 0, SILENT);
 
 #ifdef _LINUX
   GV2.Register(mgvnSaveFIFO, "SaveFIFO", 0, SILENT);
@@ -159,6 +161,13 @@ System::~System()
  */
 void System::Run()
 {
+  using namespace std::chrono;
+
+  auto lastFpsUpdate = system_clock::now();
+  int frames = 0;
+  double fps = 0;
+
+
   while(!mbDone)
   {
     //Check if the map has been locked by another thread, and wait for release.
@@ -186,9 +195,14 @@ void System::Run()
       bFirstFrame = false;
     }
 
-    mGLWindow.SetupViewport();
-    mGLWindow.SetupVideoOrtho();
-    mGLWindow.SetupVideoRasterPosAndZoom();
+    bool disableRendering = *mgvnDisableRendering;
+
+    if (!disableRendering) {
+      mGLWindow.SetupViewport();
+      mGLWindow.SetupVideoOrtho();
+      mGLWindow.SetupVideoRasterPosAndZoom();
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
 
     if(!mpMap->IsGood()) {
       mpARDriver->Reset();
@@ -199,55 +213,78 @@ void System::Run()
     }
 
     static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
-    static gvar3<int> gvnDrawAR("DrawAR", 0, HIDDEN|SILENT);
+//    static gvar3<int> gvnDrawAR("DrawAR", 0, HIDDEN|SILENT);
 
-    bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
-    bool bDrawAR = mpMap->IsGood() && *gvnDrawAR;
+    bool bDrawMap = !disableRendering && mpMap->IsGood() && *gvnDrawMap;
+    bool bDrawAR = !disableRendering && false; // mpMap->IsGood() && *gvnDrawAR;
 
     //@hack by camparijet for adding Image to KeyFrame
-    mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!bDrawAR && !bDrawMap);
+    mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!disableRendering && !bDrawAR && !bDrawMap);
 
     // HACK: log coordinates
+    /*
     TooN::Vector<3, double> xyz = mpTracker->RealWorldCoordinate();
     static const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
     if (xyz != origin) {
       //std::cout << xyz << std::endl;
       //coordfile << xyz << endl;
     }
+    */
 
     if(bDrawMap) {
       mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
     }
+
+    /*
     else if(bDrawAR) {
       if( !mpTracker->IsLost() ) {
         mpARDriver->AdvanceLogic();
       }
       mpARDriver->Render(mimFrameRGB, mpTracker->GetCurrentPose(), mpTracker->IsLost() );
     }
+    */
 
-    if(*mgvnDrawMapInfo) {
-      DrawMapInfo();
+    if(!disableRendering) {
+      if(*mgvnDrawMapInfo) {
+        DrawMapInfo();
+      }
+
+      string sCaption;
+      if(bDrawMap) {
+        sCaption = mpMapViewer->GetMessageForUser();
+      }
+      else {
+        sCaption = mpTracker->GetMessageForUser();
+      }
+
+      mGLWindow.DrawCaption(sCaption);
+      mGLWindow.DrawMenus();
+
+  #ifdef _LINUX
+      if( *mgvnSaveFIFO )
+      {
+        SaveFIFO();
+      }
+  #endif
+
+      mGLWindow.swap_buffers();
     }
 
-    string sCaption;
-    if(bDrawMap) {
-      sCaption = mpMapViewer->GetMessageForUser();
-    }
-    else {
-      sCaption = mpTracker->GetMessageForUser();
-    }
-    mGLWindow.DrawCaption(sCaption);
-    mGLWindow.DrawMenus();
-
-#ifdef _LINUX
-    if( *mgvnSaveFIFO )
-    {
-      SaveFIFO();
-    }
-#endif
-
-    mGLWindow.swap_buffers();
     mGLWindow.HandlePendingEvents();
+
+    // FPS counting logic
+
+    ++frames;
+
+    auto now = system_clock::now();
+    auto elapsed = now - lastFpsUpdate;
+    if (elapsed > seconds(1)) {
+      fps = (double)frames / duration_cast<milliseconds>(elapsed).count() * 1000.0;
+      lastFpsUpdate = now;
+      frames = 0;
+
+      cout << fps << endl;
+    }
   }
 }
 
@@ -319,6 +356,10 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   }
   else if( sCommand == "KeyPress" )
   {
+    if(sParams == "g") {
+      static_cast<System*>(ptr)->ToggleDisableRendering();
+    }
+
     if(sParams == "q" || sParams == "Escape")
     {
       GUI.ParseLine("quit");

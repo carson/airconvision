@@ -18,8 +18,6 @@ int videoSourceSizeHeight=480;
 // Parsing command-line option
 void tak_parseoptions(int argc, char *argv[])
 {
-  cout << "  TAK: parsing command line options ... " << endl;
-
   for (int i = 1; i < argc; i++) {
     cout << i << " " << argv[i] << endl;
     if (string(argv[i]) == "-size"){
