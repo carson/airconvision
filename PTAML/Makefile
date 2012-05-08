@@ -13,7 +13,7 @@ MY_CUSTOM_LINK_PATH=-L/home/daniel/Code/ARToolKit/lib
 # Edit the lines below to point to any needed include and link paths
 # Or to change the compiler's optimization flags
 CC = g++
-LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd -lgstapp-0.10 -lARgsub -lAR -lglut -lGLU -llapack -lblas -g
+LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd -lgstapp-0.10 -lARgsub -lAR -lglut -lGLU -lGL -llapack -lblas -g
 COMPILEFLAGS = $(MY_CUSTOM_INCLUDE_PATH) -D_LINUX -D_REENTRANT -Wall -O3 -march=core2 -msse3 -fno-strict-aliasing -g
 
 # Edit this line to change video source
@@ -65,7 +65,7 @@ CALIB_OBJECTS=	GLWindow2.o\
 all: PTAML CameraCalibrator
 
 PTAML: $(OBJECTS)
-	$(CC) -o PTAML $(OBJECTS) $(LINKFLAGS) -g 
+	$(CC) -o PTAML $(OBJECTS) $(LINKFLAGS)
 
 CameraCalibrator:$(CALIB_OBJECTS)
 	$(CC) -o CameraCalibrator $(CALIB_OBJECTS) $(LINKFLAGS)
