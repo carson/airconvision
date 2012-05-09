@@ -10,6 +10,7 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 using namespace PTAMM;
+
 string videoSourceFileName="";
 int videoSourceSizeWidth=640;
 int videoSourceSizeHeight=480;
@@ -18,33 +19,18 @@ int videoSourceSizeHeight=480;
 // Parsing command-line options
 void tak_parseoptions(int argc, char *argv[]) 
 {
-  int i = 0;
-  cout << "  TAK: parsing command line options ... " << endl;
-
-  for (i = 1; i < argc; i++) {
-    // cout << i << " " << argv[i] << endl;
-    /*    if (string(argv[i]) == "-coloron") {
-      TAK_coloron = true;
-      cout << "  TAK: -coloron: Always show color images" << endl;
-      cout << "                 (to overccome the case GL_LUMINANCE does not work) ..." << endl;
-    } else if (string(argv[i]) == "-lightoff") {
-      TAK_lighton = false;
-      cout << "  TAK: -lightoff: Light turned off to avoid black eyes..." << endl;
-    } else {
-      TAK_cameraname = string(argv[i]);
-      cout << "  TAK: Camera-name is now set to \"" << TAK_cameraname << "\"" << endl;
-o      }*/
-    if (string(argv[i]) == "-size"){
-      videoSourceSizeWidth=atoi(argv[i+1]);
-      videoSourceSizeHeight=atoi(argv[i+2]);
+  for (int i = 1; i < argc; i++) {
+    if (string(argv[i]) == "-size" && argc >= i + 2){
+      videoSourceSizeWidth = atoi(argv[i+1]);
+      videoSourceSizeHeight = atoi(argv[i+2]);
       cout << "TAK : -size : WindowSize : " << videoSourceSizeWidth << "x" << videoSourceSizeHeight << endl; 
-    }else{      
-      videoSourceFileName = string(argv[i]);
+    } else {
+      videoSourceFileName = argv[i];
       cout << "TAK : Camera-name : " << videoSourceFileName << endl;
     }
   }
-  return;
 }
+
 int main(int argc,char *argv[])
 {
   cout << "  Welcome to CameraCalibrator " << endl;
@@ -53,7 +39,8 @@ int main(int argc,char *argv[])
   cout << "  Copyright (C) Isis Innovation Limited 2008 " << endl;
   cout << endl;  
   cout << "  Parsing calibrator_settings.cfg ...." << endl;
-  tak_parseoptions(argc,argv);
+
+  tak_parseoptions(argc, argv);
 
   GUI.StartParserThread();
   atexit(GUI.StopParserThread); // Clean up readline when program quits
@@ -61,17 +48,17 @@ int main(int argc,char *argv[])
   GV3::get<Vector<NUMTRACKERCAMPARAMETERS> >("Camera.Parameters", ATANCamera::mvDefaultParams, SILENT);
 
   try
-    {
-      CameraCalibrator c;
-      c.Run();
-    }
-  catch(CVD::Exceptions::All e)
-    {
-      cout << endl;
-      cout << "!! Failed to run CameraCalibrator; got exception. " << endl;
-      cout << "   Exception was: " << endl;
-      cout << e.what << endl;
-    }
+  {
+    CameraCalibrator c;
+    c.Run();
+  }
+  catch(CVD::Exceptions::All& e)
+  {
+    cout << endl;
+    cout << "!! Failed to run CameraCalibrator; got exception. " << endl;
+    cout << "   Exception was: " << endl;
+    cout << e.what << endl;
+  }
 }
 
 
