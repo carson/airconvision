@@ -108,25 +108,29 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       // .. and detect and store FAST corner points.
       // I use a different threshold on each level; this is a bit of a hack
       // whose aim is to balance the different levels' relative feature densities.
-      lev.vCorners.clear();
       lev.vCandidates.clear();
       lev.vMaxCorners.clear();
-      if(i == 0)
-        fast_corner_detect_10(lev.im, lev.vCorners, 10);
-      if(i == 1)
-        fast_corner_detect_10(lev.im, lev.vCorners, 15);
-      if(i == 2)
-        fast_corner_detect_10(lev.im, lev.vCorners, 15);
-      if(i == 3)
-        fast_corner_detect_10(lev.im, lev.vCorners, 10);
+
+      int barrierPerLevel[] = { 10, 15, 15, 10 };
+      int barrier = barrierPerLevel[i];
+
+      do {
+        lev.vCorners.clear();
+        fast_corner_detect_10(lev.im, lev.vCorners, barrier);
+        barrier += 5;
+      } while (lev.vCorners.size() > 10000);
+
+      cout << "Level " << i << " : " << lev.vCorners.size() << "  " << barrier << endl;
+
 
       // Generate row look-up-table for the FAST corner points: this speeds up
       // finding close-by corner points later on.
-      unsigned int v=0;
       lev.vCornerRowLUT.clear();
+      unsigned int v=0;
+      size_t numCorners = lev.vCorners.size();
       for(int y=0; y<lev.im.size().y; y++)
         {
-          while( (v < lev.vCorners.size()) && (y > lev.vCorners[v].y) )
+          while( (v < numCorners) && (y > lev.vCorners[v].y) )
             v++;
           lev.vCornerRowLUT.push_back(v);
         }
