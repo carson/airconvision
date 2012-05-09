@@ -745,7 +745,7 @@ bool MapMaker::AddPointEpipolar(KeyFrame &kSrc,
 
   for(unsigned int i=0; i<vv2Corners.size(); i++)   // over all corners in target img..
     {
-      Vector<2> v2Im = vv2Corners[i];
+      const Vector<2>& v2Im = vv2Corners[i];
       double dDistDiff = dNormDist - v2Im * v2Normal;
       if( (dDistDiff * dDistDiff) > dMaxDistSq)       continue; // skip if not along epi line
       if( (v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
