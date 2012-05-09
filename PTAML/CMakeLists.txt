@@ -2,7 +2,7 @@ project(PTAML CXX C)
 cmake_minimum_required(VERSION 2.8)
 
 # Set default built type
-set(CMAKE_BUILD_TYPE Release CACHE STRING
+set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
     FORCE)
     
