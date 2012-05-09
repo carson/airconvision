@@ -2,31 +2,33 @@
 
 # OpenCV build of PTAMM by carson 15-FEB-2012
 
-#3DS modelling game dependencies
-
 EXTRA_CFLAGS:= 
 
 ## For Gstreamer
-MY_CUSTOM_INCLUDE_PATH=-I/home/daniel/Code/ARToolKit/include
-MY_CUSTOM_LINK_PATH=-L/home/daniel/Code/ARToolKit/lib
+MY_CUSTOM_INCLUDE_PATH=-I/home/daniel/Code/ARToolKit/include \
+                       `pkg-config --cflags gstreamer-0.10`
+MY_CUSTOM_LINK_PATH=-L/home/daniel/Code/ARToolKit/lib \
+					`pkg-config --libs gstreamer-0.10`
 
 # Edit the lines below to point to any needed include and link paths
 # Or to change the compiler's optimization flags
 CC = g++
-LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lGVars3 -lcvd -lgstapp-0.10 -lARgsub -lAR -lglut -lGLU -lGL -llapack -lblas -g
+LINKFLAGS = $(MY_CUSTOM_LINK_PATH) -lgstapp-0.10 -lGVars3 -lcvd -lARgsub -lAR -lglut -lGLU -lGL -llapack -lblas -g
 COMPILEFLAGS = $(MY_CUSTOM_INCLUDE_PATH) -D_LINUX -D_REENTRANT -Wall -O3 -march=core2 -msse3 -fno-strict-aliasing -std=gnu++0x -g
 
 # Edit this line to change video source
 #VIDEOSOURCE = VideoSource_Linux_DV.o
-VIDEOSOURCE = VideoSource_Linux_V4L.o
-#VIDEOSOURCE = VideoSource_Linux_Gstreamer_File.o
+VIDEOSOURCES = VideoSource_Linux_V4L.o \
+			   VideoSource_Linux_Gstreamer_File.o
 #VIDEOSOURCE = VideoSource_Linux_Gstreamer_Camera.o
 #VIDEOSOURCE = VideoSource_Linux_OpenCV.o
 
-OBJECTS=	main.o\
+OBJECTS= \
+		$(VIDEOSOURCES)\
+		VideoSource.o\
+		main.o\
 		GLWindow2.o\
 		GLWindowMenu.o\
-		$(VIDEOSOURCE)\
 		System.o \
 		ATANCamera.o\
 		KeyFrame.o\
@@ -55,8 +57,9 @@ OBJECTS=	main.o\
 		TakFrame.h
 
 CALIB_OBJECTS=	GLWindow2.o\
+		VideoSource.o\
 		GLWindowMenu.o\
-		$(VIDEOSOURCE)\
+		$(VIDEOSOURCES)\
 		CalibImage.o \
 		CalibCornerPatch.o\
 		ATANCamera.o \

@@ -1,10 +1,12 @@
 // Copyright 2008 Isis Innovation Limited
+#include "CameraCalibrator.h"
+#include "VideoSource.h"
 #include "OpenGL.h"
 #include <gvars3/instances.h>
-#include "CameraCalibrator.h"
 #include <TooN/SVD.h>
 #include <fstream>
-#include <stdlib.h>
+#include <cstdlib>
+#include <memory>
 
 using namespace CVD;
 using namespace std;
@@ -49,7 +51,8 @@ int main(int argc,char *argv[])
 
   try
   {
-    CameraCalibrator c;
+    std::unique_ptr<VideoSource> videoSource(CreateVideoSource());
+    CameraCalibrator c(videoSource.get());
     c.Run();
   }
   catch(CVD::Exceptions::All& e)
@@ -63,8 +66,10 @@ int main(int argc,char *argv[])
 
 
 
-CameraCalibrator::CameraCalibrator()
-  :mGLWindow(mVideoSource.Size(), "Camera Calibrator"), mCamera("Camera")
+CameraCalibrator::CameraCalibrator(VideoSource* videoSource)
+  : mGLWindow(videoSource->Size(), "Camera Calibrator")
+  , mVideoSource(videoSource)
+  , mCamera("Camera")
 {
   mbDone = false;
   GUI.RegisterCommand("CameraCalibrator.GrabNextFrame", GUICommandCallBack, this);
@@ -98,11 +103,11 @@ void CameraCalibrator::Run()
       // One black and white (for processing by the tracker etc)
       // and one RGB, for drawing.
       
-      Image<Rgb<CVD::byte> > imFrameRGB(mVideoSource.Size());
-      Image<CVD::byte>  imFrameBW(mVideoSource.Size());
+      Image<Rgb<CVD::byte> > imFrameRGB(mVideoSource->Size());
+      Image<CVD::byte>  imFrameBW(mVideoSource->Size());
       
       // Grab new video frame...
-      mVideoSource.GetAndFillFrameBWandRGB(imFrameBW, imFrameRGB);  
+      mVideoSource->GetAndFillFrameBWandRGB(imFrameBW, imFrameRGB);
       
       // Set up openGL
       mGLWindow.SetupViewport();
@@ -178,7 +183,7 @@ void CameraCalibrator::Reset()
   *mCamera.mgvvCameraParams = ATANCamera::mvDefaultParams;
   if(*mgvnDisableDistortion) mCamera.DisableRadialDistortion();
   
-  mCamera.SetImageSize(mVideoSource.Size());
+  mCamera.SetImageSize(mVideoSource->Size());
   mbGrabNextFrame =false;
   *mgvnOptimizing = false;
   mvCalibImgs.clear();

@@ -32,8 +32,9 @@ using namespace std;
 using namespace GVars3;
 
 
-System::System()
-  : mGLWindow(mVideoSource.Size(), "PTAMM")
+System::System(VideoSource* videoSource)
+  : mGLWindow(videoSource->Size(), "PTAMM")
+  , mVideoSource(videoSource)
 {
   GUI.RegisterCommand("exit", GUICommandCallBack, this);
   GUI.RegisterCommand("quit", GUICommandCallBack, this);
@@ -59,16 +60,17 @@ System::System()
 
   GUI.RegisterCommand("KeyPress", GUICommandCallBack, this);
 
+  ImageRef videoSize = videoSource->Size();
 
-  mimFrameBW.resize(mVideoSource.Size());
-  mimFrameRGB.resize(mVideoSource.Size());
+  mimFrameBW.resize(videoSize);
+  mimFrameRGB.resize(videoSize);
   // First, check if the camera is calibrated.
   // If not, we need to run the calibration widget.
   Vector<NUMTRACKERCAMPARAMETERS> vTest;
 
   vTest = GV3::get<Vector<NUMTRACKERCAMPARAMETERS> >("Camera.Parameters", ATANCamera::mvDefaultParams, HIDDEN);
   mpCamera = new ATANCamera("Camera");
-  mpCamera->SetImageSize(mVideoSource.Size());
+  mpCamera->SetImageSize(mVideoSource->Size());
 
   if(vTest == ATANCamera::mvDefaultParams)
   {
@@ -78,7 +80,7 @@ System::System()
     exit(1);
   }
 
-  if (!mARTracker.Init(mVideoSource.Size())) {
+  if (!mARTracker.Init(videoSize)) {
     cout << "Failed to init AR toolkit." << std::endl;
     exit(1);
   }
@@ -89,8 +91,8 @@ System::System()
   mpMap->mapLockManager.Register(this);
 
   mpMapMaker = new MapMaker( mvpMaps, mpMap );
-  mpTracker = new Tracker(mVideoSource.Size(), *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
-  mpARDriver = new ARDriver(*mpCamera, mVideoSource.Size(), mGLWindow, *mpMap);
+  mpTracker = new Tracker(videoSize, *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
+  mpARDriver = new ARDriver(*mpCamera, videoSize, mGLWindow, *mpMap);
   mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
   mpMapSerializer = new MapSerializer( mvpMaps );
 
@@ -186,7 +188,7 @@ void System::Run()
     // and one RGB, for drawing.
 
     // Grab new video frame...
-    mVideoSource.GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
+    mVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
     static bool bFirstFrame = true;
     if(bFirstFrame)
     {

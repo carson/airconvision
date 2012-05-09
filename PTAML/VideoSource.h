@@ -12,25 +12,27 @@
 // a new frame and then overwrite the passed-as-reference images with
 // GreyScale and Colour versions of the new frame.
 //
+#ifndef __VIDEO_SOURCE_H
+#define __VIDEO_SOURCE_H
+
 #include <cvd/image.h>
 #include <cvd/byte.h>
 #include <cvd/rgb.h>
 
 namespace PTAMM {
 
-struct VideoSourceData;
-
 class VideoSource
 {
- public:
-  VideoSource();
-  void GetAndFillFrameBWandRGB(CVD::Image<CVD::byte> &imBW, CVD::Image<CVD::Rgb<CVD::byte> > &imRGB);
-  CVD::ImageRef Size();
-  //~VideoSource(); 
- private:
-  void *mptr;
-  CVD::ImageRef mirSize;
+  public:
+    VideoSource() {}
+    virtual ~VideoSource() {}
+
+    virtual void GetAndFillFrameBWandRGB(CVD::Image<CVD::byte> &imBW, CVD::Image<CVD::Rgb<CVD::byte> > &imRGB) = 0;
+    virtual const CVD::ImageRef& Size() const = 0;
 };
 
+VideoSource* CreateVideoSource();
 
 }
+
+#endif

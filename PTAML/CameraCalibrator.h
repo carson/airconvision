@@ -14,7 +14,7 @@ namespace PTAMM {
 class CameraCalibrator
 {
 public:
-  CameraCalibrator();
+  CameraCalibrator(VideoSource* videoSource);
   void Run();
   
 protected:
@@ -22,9 +22,9 @@ protected:
   void HandleFrame(CVD::Image<CVD::byte> imFrame);
   static void MainLoopCallback(void* pvUserData);
   void MainLoopStep();
-  VideoSource mVideoSource;
-  
+
   GLWindow2 mGLWindow;
+  VideoSource* mVideoSource;
   ATANCamera mCamera;
   bool mbDone;
 

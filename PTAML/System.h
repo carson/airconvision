@@ -38,7 +38,7 @@ class MapSerializer;
 class System
 {
   public:
-    System();
+    System(VideoSource* videoSource);
     ~System();
     void Run();
 
@@ -58,8 +58,10 @@ class System
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
 
   private:
-    VideoSource mVideoSource;                       // The video image source
     GLWindow2 mGLWindow;                            // The OpenGL window
+
+    VideoSource* mVideoSource;                       // The video image source
+
     CVD::Image<CVD::Rgb<CVD::byte> > mimFrameRGB;   // The RGB image used for AR
     CVD::Image<CVD::byte> mimFrameBW;               // The Black and white image for tracking/mapping
 
