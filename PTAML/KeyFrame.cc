@@ -110,15 +110,39 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
       // whose aim is to balance the different levels' relative feature densities.
       lev.vCandidates.clear();
       lev.vMaxCorners.clear();
+      lev.vCorners.clear();
 
+      // Removed the if-cases and replaced it with a array lookup @dhenell
       int barrierPerLevel[] = { 10, 15, 15, 10 };
       int barrier = barrierPerLevel[i];
 
+      // Sometimes several 100 000 corners are found. This amount of corners make the
+      // program slow and freeze if it is during the stereo initialization. Thus,
+      // this code aims to keep the amount of corners below a certain number.
+      // 50 000 is chosen quite arbitrary but that number seems to work without
+      // freezing the computer.
+      // @dhenell
+
+      vector<ImageRef> vTmpCorners;
+
       do {
-        lev.vCorners.clear();
-        fast_corner_detect_10(lev.im, lev.vCorners, barrier);
+        vTmpCorners.clear();
+        fast_corner_detect_10(lev.im, vTmpCorners, barrier);
         barrier += 5;
-      } while (lev.vCorners.size() > 10000);
+      } while (vTmpCorners.size() > 50000);
+
+      // Added a ROI for corners just for testing if it had any effects.
+      // @dhenell
+      int minBorderX = 0.15 * lev.im.size().x;
+      int maxBorderX = 0.85 * lev.im.size().x;
+      int minBorderY = 0.15 * lev.im.size().y;
+      int maxBorderY = 0.85 * lev.im.size().y;
+
+      for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
+        if (it->x > minBorderX && it->y > minBorderY && it->x < maxBorderX && it->y < maxBorderY) {
+          lev.vCorners.push_back(*it);
+        }
+      }
 
       cout << "Level " << i << " : " << lev.vCorners.size() << "  " << barrier << endl;
 
