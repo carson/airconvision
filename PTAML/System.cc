@@ -10,13 +10,13 @@
 #include "MapViewer.h"
 #include "MapSerializer.h"
 #include "MKConnection.h"
+#include "FPSCounter.h"
 
 // hack to print camera coordinates to coord-log.txt
 // FEB-17-2012
 // Carson Reynolds & Chris Raabe
 #include <iostream>
 #include <fstream>
-#include <chrono>
 
 #ifdef _LINUX
 #include <fcntl.h>
@@ -166,13 +166,7 @@ void System::Run()
 {
   using namespace std::chrono;
 
-  // For FPS counting
-  auto lastFpsUpdate = system_clock::now();
-  int frames = 0;
-  double fps = 0;
-
   int logCoordsToFile = GV3::get<bool>("LogCoordsToFile", false, HIDDEN);
-
 
   // Read COM port settings
   int mkComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, HIDDEN); // 16 is /dev/ttyUSB0
@@ -183,6 +177,9 @@ void System::Run()
   if (!mkConn) {
     cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
   }
+
+  // For FPS counting
+  FPSCounter fpsCounter;
 
   while(!mbDone)
   {
@@ -294,18 +291,9 @@ void System::Run()
 
     mGLWindow.HandlePendingEvents();
 
-    // FPS counting logic
-
-    ++frames;
-
-    auto now = system_clock::now();
-    auto elapsed = now - lastFpsUpdate;
-    if (elapsed > seconds(1)) {
-      fps = (double)frames / duration_cast<milliseconds>(elapsed).count() * 1000.0;
-      lastFpsUpdate = now;
-      frames = 0;
-
-      cout << fps << endl;
+    // Update FPS counter
+    if (fpsCounter.Update()) {
+      cout << fpsCounter.Fps() << endl;
     }
   }
 }
