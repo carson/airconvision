@@ -11,7 +11,7 @@ using namespace std;
 using namespace CVD;
 using namespace GVars3;
 
-ATANCamera::ATANCamera(string sName)
+ATANCamera::ATANCamera(const string& sName)
 {
   // The camera name is used to find the camera's parameters in a GVar.
   msName = sName;
@@ -21,7 +21,6 @@ ATANCamera::ATANCamera(string sName)
   RefreshParams();
 }
 
-
 /**
  * Create a camera using the specified name, image size, and parameters.
  * This will overwrite any existing GVars of the same name (e.g. Camera.Parameters)
@@ -29,7 +28,8 @@ ATANCamera::ATANCamera(string sName)
  * @param irSize image size
  * @param vParams The camera parameters
  */
-ATANCamera::ATANCamera(string sName, ImageRef irSize, Vector<NUMTRACKERCAMPARAMETERS> vParams)
+ATANCamera::ATANCamera(const string& sName, const ImageRef& irSize,
+                       const Vector<NUMTRACKERCAMPARAMETERS>& vParams)
 {
   msName = sName;
   GV2.Register(mgvvCameraParams, sName+".Parameters", vParams, HIDDEN );
@@ -37,9 +37,7 @@ ATANCamera::ATANCamera(string sName, ImageRef irSize, Vector<NUMTRACKERCAMPARAME
   RefreshParams();
 }
 
-
-
-void ATANCamera::SetImageSize(Vector<2> vImageSize)
+void ATANCamera::SetImageSize(const Vector<2>& vImageSize)
 {
   mvImageSize = vImageSize;
   RefreshParams();
@@ -127,7 +125,8 @@ void ATANCamera::RefreshParams()
 
 // Project from the camera z=1 plane to image pixels,
 // while storing intermediate calculation results in member variables
-Vector<2> ATANCamera::Project(const Vector<2>& vCam){
+Vector<2> ATANCamera::Project(const Vector<2>& vCam)
+{
   mvLastCam = vCam;
   mdLastR = sqrt(vCam * vCam);
   mbInvalid = (mdLastR > mdMaxR);
@@ -162,10 +161,9 @@ Vector<2> ATANCamera::UnProject(const Vector<2>& v2Im)
 
 // Utility function for easy drawing with OpenGL
 // C.f. comment in top of ATANCamera.h
-Matrix<4> ATANCamera::MakeUFBLinearFrustumMatrix(double near, double far)
+Matrix<4> ATANCamera::MakeUFBLinearFrustumMatrix(double near, double far) const
 {
   Matrix<4> m4 = Zeros;
-  
 
   double left = mvImplaneTL[0] * near;
   double right = mvImplaneBR[0] * near;
@@ -190,7 +188,7 @@ Matrix<4> ATANCamera::MakeUFBLinearFrustumMatrix(double near, double far)
   return m4;
 };
 
-Matrix<2,2> ATANCamera::GetProjectionDerivs()
+Matrix<2,2> ATANCamera::GetProjectionDerivs() const
 {
   // get the derivative of image frame wrt camera z=1 frame at the last computed projection
   // in the form (d im1/d cam1, d im1/d cam2)
@@ -199,23 +197,23 @@ Matrix<2,2> ATANCamera::GetProjectionDerivs()
   double dFracBydx;
   double dFracBydy;
   
-  double &k = md2Tan;
-  double &x = mvLastCam[0];
-  double &y = mvLastCam[1];
+  double k = md2Tan;
+  double x = mvLastCam[0];
+  double y = mvLastCam[1];
   double r = mdLastR * mdDistortionEnabled;
   
   if(r < 0.01)
-    {
-      dFracBydx = 0.0;
-      dFracBydy = 0.0;
-    }
+  {
+    dFracBydx = 0.0;
+    dFracBydy = 0.0;
+  }
   else
-    {
-      dFracBydx = 
-	mdWinv * (k * x) / (r*r*(1 + k*k*r*r)) - x * mdLastFactor / (r*r); 
-      dFracBydy = 
-	mdWinv * (k * y) / (r*r*(1 + k*k*r*r)) - y * mdLastFactor / (r*r); 
-    }
+  {
+    dFracBydx =
+      mdWinv * (k * x) / (r*r*(1 + k*k*r*r)) - x * mdLastFactor / (r*r);
+    dFracBydy =
+      mdWinv * (k * y) / (r*r*(1 + k*k*r*r)) - y * mdLastFactor / (r*r);
+  }
   
   Matrix<2> m2Derivs;
   
@@ -237,24 +235,24 @@ Matrix<2,NUMTRACKERCAMPARAMETERS> ATANCamera::GetCameraParameterDerivs()
   Vector<2> v2Cam = mvLastCam;
   Vector<2> v2Out = Project(v2Cam);
   for(int i=0; i<NUMTRACKERCAMPARAMETERS; i++)
-    {
-      if(i == NUMTRACKERCAMPARAMETERS-1 && mdW == 0.0)
-	continue;
-      Vector<NUMTRACKERCAMPARAMETERS> vNUpdate;
-      vNUpdate = Zeros;
-      vNUpdate[i] += 0.001;
-      UpdateParams(vNUpdate); 
-      Vector<2> v2Out_B = Project(v2Cam);
-      m2NNumDerivs.T()[i] = (v2Out_B - v2Out) / 0.001;
-      *mgvvCameraParams = vNNormal;
-      RefreshParams();
-    }
+  {
+    if(i == NUMTRACKERCAMPARAMETERS-1 && mdW == 0.0)
+      continue;
+    Vector<NUMTRACKERCAMPARAMETERS> vNUpdate;
+    vNUpdate = Zeros;
+    vNUpdate[i] += 0.001;
+    UpdateParams(vNUpdate);
+    Vector<2> v2Out_B = Project(v2Cam);
+    m2NNumDerivs.T()[i] = (v2Out_B - v2Out) / 0.001;
+    *mgvvCameraParams = vNNormal;
+    RefreshParams();
+  }
   if(mdW == 0.0)
     m2NNumDerivs.T()[NUMTRACKERCAMPARAMETERS-1] = Zeros;
   return m2NNumDerivs;
 }
 
-void ATANCamera::UpdateParams(Vector<5> vUpdate)
+void ATANCamera::UpdateParams(const Vector<5>& vUpdate)
 {
   // Update the camera parameters; use this as part of camera calibration.
   (*mgvvCameraParams) = (*mgvvCameraParams) + vUpdate;
