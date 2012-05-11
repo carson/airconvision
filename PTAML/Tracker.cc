@@ -1366,9 +1366,11 @@ void Tracker::AssessTrackingQuality()
     else
       dLargeFracFound = dTotalFracFound;
 
+    // Original
     //static gvar3<double> gvdQualityGood("Tracker.TrackingQualityGood", 0.3, SILENT);
     //static gvar3<double> gvdQualityLost("Tracker.TrackingQualityLost", 0.13, SILENT);
 
+    // I think camparijet changed the default values -- dhenell
     static gvar3<double> gvdQualityGood("Tracker.TrackingQualityGood", 0.003, SILENT);
     static gvar3<double> gvdQualityLost("Tracker.TrackingQualityLost", 0.001, SILENT);
 
