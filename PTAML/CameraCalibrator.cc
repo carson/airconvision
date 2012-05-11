@@ -13,26 +13,6 @@ using namespace std;
 using namespace GVars3;
 using namespace PTAMM;
 
-string videoSourceFileName="";
-int videoSourceSizeWidth=640;
-int videoSourceSizeHeight=480;
-
-// 2011/06/28 takeoka[at]ipc.i.u-tokyo.ac.jp
-// Parsing command-line options
-void tak_parseoptions(int argc, char *argv[]) 
-{
-  for (int i = 1; i < argc; i++) {
-    if (string(argv[i]) == "-size" && argc >= i + 2){
-      videoSourceSizeWidth = atoi(argv[i+1]);
-      videoSourceSizeHeight = atoi(argv[i+2]);
-      cout << "TAK : -size : WindowSize : " << videoSourceSizeWidth << "x" << videoSourceSizeHeight << endl; 
-    } else {
-      videoSourceFileName = argv[i];
-      cout << "TAK : Camera-name : " << videoSourceFileName << endl;
-    }
-  }
-}
-
 int main(int argc,char *argv[])
 {
   cout << "  Welcome to CameraCalibrator " << endl;
@@ -42,7 +22,8 @@ int main(int argc,char *argv[])
   cout << endl;  
   cout << "  Parsing calibrator_settings.cfg ...." << endl;
 
-  tak_parseoptions(argc, argv);
+  GUI.LoadFile("calibrator_settings.cfg");
+  GUI.parseArguments(argc, argv);
 
   GUI.StartParserThread();
   atexit(GUI.StopParserThread); // Clean up readline when program quits
