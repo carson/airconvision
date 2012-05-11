@@ -158,8 +158,8 @@ void MapViewer::DrawGrid()
    *
    */
 void MapViewer::DrawFlatGrid(){
-  //SetupFrustum();
-  //SetupModelView();
+  SetupFrustum();
+  SetupModelView();
   glLineWidth(1);
 
   glBegin(GL_LINES);
@@ -258,21 +258,22 @@ void MapViewer::DrawMap(SE3<> se3CamFromWorld)
   glColorMask(1,1,1,1);
 
   glEnable(GL_DEPTH_TEST);
-  //DrawGrid(); @hack by camparijet
+  DrawGrid(); //@hack by camparijet
   //DrawFlatGrid();
-  //DrawMapDots();
+  DrawMapDots();
 
   if( mpViewingMap == mpMap ) {
     DrawCamera(se3CamFromWorld);
   }
 
   for(size_t i=0; i<mpViewingMap->vpKeyFrames.size(); i++){
-    TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,mpViewingMap->vpKeyFrames[i]->tIndex,mpViewingMap->vpKeyFrames[i]->Camera);
+    //TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,mpViewingMap->vpKeyFrames[i]->tIndex,mpViewingMap->vpKeyFrames[i]->Camera);
   }
   //cout << "Display Keyframe : " << mpViewingMap->vpKeyFrames[i]->tIndex << endl;
   //TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,0);
   //TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->vpKeyFrames[i]->aLevels[0].im);
     //DrawCamera(mpViewingMap->vpKeyFrames[i]->se3CfromW, true);
+
   glDisable(GL_DEPTH_TEST);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
