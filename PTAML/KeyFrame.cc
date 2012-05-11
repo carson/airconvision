@@ -133,18 +133,20 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
       // Added a ROI for corners just for testing if it had any effects.
       // @dhenell
-      int minBorderX = 0.15 * lev.im.size().x;
-      int maxBorderX = 0.85 * lev.im.size().x;
-      int minBorderY = 0.15 * lev.im.size().y;
-      int maxBorderY = 0.85 * lev.im.size().y;
+      double border = 0.15f;
+      int minBorderX = border * lev.im.size().x;
+      int maxBorderX = (1.0 - border) * lev.im.size().x;
+      int minBorderY = border * lev.im.size().y;
+      int maxBorderY = (1.0 - border) * lev.im.size().y;
 
       for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
-        if (it->x > minBorderX && it->y > minBorderY && it->x < maxBorderX && it->y < maxBorderY) {
+        //if (it->x > minBorderX && it->y > minBorderY && it->x < maxBorderX && it->y < maxBorderY)
+        {
           lev.vCorners.push_back(*it);
         }
       }
 
-      cout << "Level " << i << " : " << lev.vCorners.size() << "  " << barrier << endl;
+     // cout << "Level " << i << " : " << lev.vCorners.size() << "  " << barrier << endl;
 
 
       // Generate row look-up-table for the FAST corner points: this speeds up

@@ -236,12 +236,12 @@ void GLWindow2::on_mouse_move(GLWindow& win, CVD::ImageRef where, int state)
       mvMCPoseUpdate[3] -= irMotion[1] * dSensitivity;
       mvMCPoseUpdate[4] += irMotion[0] * dSensitivity;
     }
-  else if( !(state & BUTTON_LEFT) && state & BUTTON_RIGHT )
+  else if( !(state & BUTTON_LEFT) && (state & BUTTON_RIGHT) )
     {
       mvLeftPoseUpdate[4] -= irMotion[0] * dSensitivity;
       mvLeftPoseUpdate[3] += irMotion[1] * dSensitivity;
     }
-  else if( (state & BUTTON_MIDDLE) || (state & BUTTON_LEFT && state & BUTTON_RIGHT) )
+  else if( (state & BUTTON_MIDDLE) || ((state & BUTTON_LEFT) && (state & BUTTON_RIGHT)) )
     {
       mvLeftPoseUpdate[5] -= irMotion[0] * dSensitivity;
       mvLeftPoseUpdate[2] += irMotion[1] * dSensitivity;
@@ -355,7 +355,7 @@ void GLWindow2::on_key_down(GLWindow&, int k)
     case XK_space:  s="Space"; break;
     case XK_BackSpace:  s="BackSpace"; break;
     case XK_Escape:  s="Escape"; break;
-    default: ;
+    default: break;
     }
 
   if(s!="")
