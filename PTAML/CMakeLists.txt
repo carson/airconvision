@@ -100,6 +100,9 @@ set(PTAML_SRC
 	tinyxmlparser.cc
 	Tracker.cc
 	Utils.cc
+	MKProtocol.cc
+	MKConnection.cc
+	rs232.c
 	VideoSource.cc
 	${VIDEO_SOURCE_SRC}
 )

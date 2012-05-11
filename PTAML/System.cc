@@ -9,6 +9,7 @@
 #include "ARDriver.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
+#include "MKConnection.h"
 
 // hack to print camera coordinates to coord-log.txt
 // FEB-17-2012
@@ -165,10 +166,23 @@ void System::Run()
 {
   using namespace std::chrono;
 
+  // For FPS counting
   auto lastFpsUpdate = system_clock::now();
   int frames = 0;
   double fps = 0;
 
+  int logCoordsToFile = GV3::get<bool>("LogCoordsToFile", false, HIDDEN);
+
+
+  // Read COM port settings
+  int mkComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, HIDDEN); // 16 is /dev/ttyUSB0
+  int mkComPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", HIDDEN);
+
+  // Attempt connecting to the MK NaviCtrl
+  MKConnection mkConn(mkComPortId, mkComPortBaudrate);
+  if (!mkConn) {
+    cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
+  }
 
   while(!mbDone)
   {
@@ -223,30 +237,36 @@ void System::Run()
     //@hack by camparijet for adding Image to KeyFrame
     mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!disableRendering && !bDrawAR && !bDrawMap);
 
-    // HACK: log coordinates
-    /*
-    TooN::Vector<3, double> xyz = mpTracker->RealWorldCoordinate();
-    static const TooN::Vector<3, double> origin = makeVector(-0, -0, -0);
-    if (xyz != origin) {
-      //std::cout << xyz << std::endl;
-      //coordfile << xyz << endl;
-    }
-    */
 
-    if(bDrawMap) {
-      mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
+    //
+    // Log tracked world position to file and send it to the NaviCtrl
+    //
+
+    Vector<3> worldPos;
+    bool logCoords = mkConn || logCoordsToFile;
+
+    if (logCoords) {
+      worldPos = mpTracker->RealWorldCoordinate();
     }
 
-    /*
-    else if(bDrawAR) {
-      if( !mpTracker->IsLost() ) {
-        mpARDriver->AdvanceLogic();
-      }
-      mpARDriver->Render(mimFrameRGB, mpTracker->GetCurrentPose(), mpTracker->IsLost() );
+    if (logCoordsToFile) {
+      coordfile << worldPos << endl;
     }
-    */
 
+    // Send world position if connect to MK NaviCtrl
+    if (mkConn) {
+      Vector<3> worldPos = mpTracker->RealWorldCoordinate();
+      mkConn.SendPosition(worldPos);
+    }
+
+
+    // Additional rendering goes here
     if(!disableRendering) {
+
+      if(bDrawMap) {
+        mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
+      }
+
       if(*mgvnDrawMapInfo) {
         DrawMapInfo();
       }
