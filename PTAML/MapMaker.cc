@@ -292,13 +292,13 @@ bool MapMaker::SwitchDone()
   return mbSwitchDone;
 }
 
-void MapMaker::RequestApplyGlobalTransformationToMap(const SE3<>& se3NewFromOld)
+void MapMaker::RequestMapTransformation(const SE3<>& se3NewFromOld)
 {
   mse3NewFromOld = se3NewFromOld;
   mbMapTransformRequested = true;
 }
 
-void MapMaker::RequestApplyGlobalScaleToMap(double dScale)
+void MapMaker::RequestMapScaling(double dScale)
 {
   mdMapScaleFactor = dScale;
   mbMapScaleRequested = true;

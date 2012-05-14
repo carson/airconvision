@@ -320,8 +320,8 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
         mHasDeterminedScale = true;
         mbUserPressedSpacebar = false;
 
-        mMapMaker.RequestApplyGlobalTransformationToMap(msim3WorldFromNormWorld.inverse());
-        mMapMaker.RequestApplyGlobalScaleToMap(10 * 1.0/mScale);
+        mMapMaker.RequestMapTransformation(msim3WorldFromNormWorld.inverse());
+        mMapMaker.RequestMapScaling(10 * 1.0/mScale);
       }
     }
   }

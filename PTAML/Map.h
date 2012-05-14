@@ -91,7 +91,6 @@ class Map
     double DistToNearestKeyFrame(const KeyFrame &kCurrent);
     double KeyFrameLinearDist(const KeyFrame &k1, const KeyFrame &k2) const;
     KeyFrame* ClosestKeyFrame(const KeyFrame &k);
-    std::vector<KeyFrame*> NClosestKeyFrames(const KeyFrame &k, unsigned int N) const;
 
     // World transformation
     void ApplyGlobalTransformation(const TooN::SE3<>& se3NewFromOld);
@@ -121,27 +120,6 @@ class Map
                                                      // use when need complete control of a map
 
   private:
-    std::vector<MapPoint*> vpPoints;
-    std::vector<KeyFrame*> vpKeyFrames;
-    std::vector<MapPoint*> vpPointsTrash;
-
-    std::vector<KeyFrame*> vpKeyFrameQueue;  // Queue of keyframes from the tracker waiting to be processed
-    std::vector<std::pair<KeyFrame*, MapPoint*> > vFailureQueue; // Queue of failed observations to re-find
-    std::deque<MapPoint*> qNewQueue;   // Queue of newly-made map points to re-find in other KeyFrames
-
-    bool bBundleConverged_Full;                      // Has global bundle adjustment converged?
-    bool bBundleConverged_Recent;                    // Has local bundle adjustment converged?
-
-    bool bGood;                                      // Is the map valid (has content)?
-
-
-    std::string sSaveFile;                           // where the map was loaded from
-    GLuint texName[10000];//@hack by camparijet for texture
-    int N;//@hack for texture number
-
-    std::vector<TakFrame> poolAllFrame; //@hack for serialize
-
-  private:
     // Functions for starting the map from scratch:
     TooN::SE3<> CalcPlaneAligner();
 
@@ -152,6 +130,8 @@ class Map
     // For map generation
     void AddSomeMapPoints(int nLevel);
     bool AddPointEpipolar(KeyFrame &kSrc, KeyFrame &kTarget, int nLevel, int nCandidate);
+
+    std::vector<KeyFrame*> NClosestKeyFrames(const KeyFrame &k, unsigned int N) const;
 
     // Data association functions:
     int ReFindInSingleKeyFrame(KeyFrame &k);
@@ -167,6 +147,25 @@ class Map
     void ReleaseTexture();
 
   private:
+    std::vector<MapPoint*> vpPoints;
+    std::vector<KeyFrame*> vpKeyFrames;
+    std::vector<MapPoint*> vpPointsTrash;
+
+    std::vector<KeyFrame*> vpKeyFrameQueue;  // Queue of keyframes from the tracker waiting to be processed
+    std::vector<std::pair<KeyFrame*, MapPoint*> > vFailureQueue; // Queue of failed observations to re-find
+    std::deque<MapPoint*> qNewQueue;   // Queue of newly-made map points to re-find in other KeyFrames
+
+    bool bBundleConverged_Full;                      // Has global bundle adjustment converged?
+    bool bBundleConverged_Recent;                    // Has local bundle adjustment converged?
+
+    bool bGood;                                      // Is the map valid (has content)?
+
+    std::string sSaveFile;                           // where the map was loaded from
+    GLuint texName[10000];//@hack by camparijet for texture
+    int N;//@hack for texture number
+
+    std::vector<TakFrame> poolAllFrame; //@hack for serialize
+
     int mnMapNum;                                    // The map number
     int nTex;//@hack for index of texture
 

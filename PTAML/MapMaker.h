@@ -49,8 +49,8 @@ class MapMaker : protected CVD::Thread
     bool RequestSwitch(Map * map);    // Request a switch to map
     bool SwitchDone();                // Returns true if the Switch map has been done.
 
-    void RequestApplyGlobalTransformationToMap(const SE3<>& se3NewFromOld);
-    void RequestApplyGlobalScaleToMap(double dScale);
+    void RequestMapTransformation(const SE3<>& se3NewFromOld);
+    void RequestMapScaling(double dScale);
 
   private:
     virtual void run();      // The MapMaker thread code lives here
