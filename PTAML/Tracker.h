@@ -56,12 +56,7 @@ public:
   inline bool IsLost() { return (mnLostFrames > NUM_LOST_FRAMES); }
 
   inline Vector<3, double> RealWorldCoordinate() const {
-	// Compute the inverse with LU decomposition
-	Matrix<4> linv;
-	LU<4> blu(mMarkerXForm);
-	linv = blu.get_inverse();
-
-    return project(linv * unproject(mse3CamFromWorld.inverse().get_translation()));
+    return project(mMarkerFromWorld * unproject(mse3CamFromWorld.inverse().get_translation()));
   }
 
   // Gets messages to be printed on-screen for the user.
@@ -174,8 +169,9 @@ private:
   double mScale;
   // Transforms coordinates from the AR marker aligned CS to
   // the internal map CS
-  SIM3<> msim3WorldFromNormWorld;
+  SE3<> msim3WorldFromNormWorld;
   Matrix<4,4> mMarkerXForm;
+  Matrix<4,4> mMarkerFromWorld;
 };
 
 }

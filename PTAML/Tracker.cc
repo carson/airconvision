@@ -8,6 +8,9 @@
 #include "TrackerData.h"
 #include "ARToolkit.h"
 
+
+#include "GLWindow2.h"
+
 #include <cvd/utility.h>
 #include <cvd/gl_helpers.h>
 #include <cvd/fast_corner.h>
@@ -27,6 +30,9 @@ namespace PTAMM {
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
+
+
+extern GLWindow2* gGLWindow;
 
 
 const int NUM_SCALE_MEASUREMENTS = 50;
@@ -237,26 +243,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       rot[1] = yAxis;
       rot[2] = zAxis;
 
-      // Build the transform by SIM3 composition
-      /*
-      SIM3<> simS(SO3<>(), Vector<3>(), scale);
-      SIM3<> simT(SO3<>(), origin, 1.0);
-      SIM3<> simR(SO3<>(rot.T()), Vector<3>(), 1.0);
-      */
-
-//      msim3WorldFromNormWorld = simT * simR * simS;
-
-      // Build the transform matrix by matrix multiplications
-      Matrix<4,4> mS = Identity(4);
-      mS[0][0] = scale;
-      mS[1][1] = scale;
-      mS[2][2] = scale;
-      Matrix<4,4> mT = Identity(4);
-      mT.slice<0,3,3,1>() = Data(origin[0], origin[1], origin[2]);
-      Matrix<4,4> mR = Identity(4);
-      mR.slice<0,0,3,3>() = rot.T();
-
-      mMarkerXForm = mT * mR * mS;
+      msim3WorldFromNormWorld = SE3<>(SO3<>(rot.T()), origin);
 
       // Save scale measurement
       mScaleMeasurements.push_back(scale);
@@ -270,86 +257,81 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       }
 
       // Render for debugging
-      glEnable(GL_LINE_SMOOTH);
-      glEnable(GL_BLEND);
-      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      glLineWidth(2);
-      glPointSize(15);
-      glColor3f(1,0.5,1);
+      if (mbDraw) {
+        glEnable(GL_LINE_SMOOTH);
+        glDisable(GL_BLEND);
+        glLineWidth(2);
+        glPointSize(15);
 
-      glBegin(GL_POINTS);
+        glBegin(GL_POINTS);
 
-      int i = 0;
+        glColor3f(0,1,1);
 
-      for (std::vector<Vector<3> >::const_iterator it = pointsOnPlane.begin();
-           it != pointsOnPlane.end(); ++it)
-      {
-        if (i++ == 0) {
-          glColor3f(1,0.05,1);
-        } else {
-          glColor3f(0,1,0.5);
+        Vector<3> v3Cam = mse3CamFromWorld * origin;
+        if(v3Cam[2] < 0.001) {
+          v3Cam[2] = 0.001;
         }
 
-        Vector<3> v3Cam = mse3CamFromWorld * (*it);
-		glVertex(mCamera.Project(project(v3Cam)));
+        glVertex(mCamera.Project(project(v3Cam)));
+
+        glEnd();
+
+        Vector<3> wo2 = (msim3WorldFromNormWorld * makeVector(0, 0, 0));
+        Vector<3> wx2 = (msim3WorldFromNormWorld * makeVector(8, 0, 0));
+        Vector<3> wy2 = (msim3WorldFromNormWorld * makeVector(0, 8, 0));
+        Vector<3> wz2 = (msim3WorldFromNormWorld * makeVector(0, 0, 8));
+
+        std::vector<Vector<3> > pts;
+
+        pts.push_back(wo2); pts.push_back(wx2);
+        pts.push_back(wo2); pts.push_back(wy2);
+        pts.push_back(wo2); pts.push_back(wz2);
+
+        std::vector<Vector<2> > screenPts;
+        for (std::vector<Vector<3> >::const_iterator it = pts.begin();
+             it != pts.end(); ++it)
+        {
+          Vector<3> v3Cam = mse3CamFromWorld * (*it);
+
+          if(v3Cam[2] < 0.001) {
+            v3Cam[2] = 0.001;
+          }
+
+          screenPts.push_back(mCamera.Project(project(v3Cam)));
+        }
+
+
+        glBegin(GL_LINES);
+
+        int i = 0;
+
+        for (std::vector<Vector<2> >::const_iterator it = screenPts.begin();
+             it != screenPts.end(); ++it)
+        {
+          if (i++ < 4) {
+            glColor3f(1,0,0);
+          } else {
+            glColor3f(0,1,0);
+          }
+
+          glVertex(*it);
+        }
+
+        glEnd();
+
+
+        glLineWidth(1);
+        glPointSize(1);
       }
 
-      glEnd();
+      if (mbUserPressedSpacebar) {
+        mHasDeterminedScale = true;
+        mbUserPressedSpacebar = false;
 
-      glLineWidth(1);
-      glPointSize(1);
-      glColor3f(1,0,0);
-    }
-  }
-  {
-    std::vector<Vector<3> > pts;
-
-    pts.push_back(project(mMarkerXForm * makeVector(0, 0, 0, 1)));
-    pts.push_back(project(mMarkerXForm * makeVector(8, 0, 0, 1)));
-    pts.push_back(project(mMarkerXForm * makeVector(0, 0, 0, 1)));
-    pts.push_back(project(mMarkerXForm * makeVector(0, 8, 0, 1)));
-
-    /*
-    pts.push_back(msim3WorldFromNormWorld * makeVector(0, 0, 0));
-    pts.push_back(msim3WorldFromNormWorld * makeVector(8, 0, 0));
-    pts.push_back(msim3WorldFromNormWorld * makeVector(0, 0, 0));
-    pts.push_back(msim3WorldFromNormWorld * makeVector(0, 8, 0));
-	*/
-
-    // Render for debugging
-    glEnable(GL_LINE_SMOOTH);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLineWidth(2);
-    glColor3f(1,0.5,1);
-
-    glBegin(GL_LINES);
-
-    int i = 0;
-
-    for (std::vector<Vector<3> >::const_iterator it = pts.begin();
-         it != pts.end(); ++it)
-    {
-      if (i++ < 4) {
-        glColor3f(1,0,0);
-      } else {
-        glColor3f(0,1,0);
+        mMapMaker.RequestApplyGlobalTransformationToMap(msim3WorldFromNormWorld.inverse());
+        mMapMaker.RequestApplyGlobalScaleToMap(1.0/mScale);
       }
-
-      Vector<3> v3Cam = mse3CamFromWorld * (*it);
-      glVertex(mCamera.Project(project(v3Cam)));
     }
-
-    glEnd();
-
-    glLineWidth(1);
-    glColor3f(1,0,0);
-
-  }
-
-  if (mbUserPressedSpacebar) {
-    mHasDeterminedScale = true;
-    mbUserPressedSpacebar = false;
   }
 }
 
@@ -446,7 +428,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
       }
 
       // Added some scale determing code here -- dhenell
-      //DetermineScaleFromMarker(imFrame);
+      DetermineScaleFromMarker(imFrame);
     }
     else  // what if there is a map, but tracking has been lost?
     {

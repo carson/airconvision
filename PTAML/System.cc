@@ -28,6 +28,8 @@
 
 namespace PTAMM {
 
+GLWindow2* gGLWindow;
+
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
@@ -178,6 +180,8 @@ void System::Run()
     cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
   }
 
+  gGLWindow = &mGLWindow;
+
   // For FPS counting
   FPSCounter fpsCounter;
 
@@ -203,7 +207,6 @@ void System::Run()
     static bool bFirstFrame = true;
     if(bFirstFrame)
     {
-      mpARDriver->Init();
       mpMap->InitTexture();//@hack for texture
       bFirstFrame = false;
     }
@@ -217,22 +220,15 @@ void System::Run()
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
-    if(!mpMap->IsGood()) {
-      mpARDriver->Reset();
-    }
-
     if(bWasLocked) {
       mpTracker->ForceRecovery();
     }
 
     static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
-//    static gvar3<int> gvnDrawAR("DrawAR", 0, HIDDEN|SILENT);
-
     bool bDrawMap = !disableRendering && mpMap->IsGood() && *gvnDrawMap;
-    bool bDrawAR = !disableRendering && false; // mpMap->IsGood() && *gvnDrawAR;
 
     //@hack by camparijet for adding Image to KeyFrame
-    mpTracker->TrackFrame(mimFrameBW, mimFrameRGB,!disableRendering && !bDrawAR && !bDrawMap);
+    mpTracker->TrackFrame(mimFrameBW, mimFrameRGB, !disableRendering && !bDrawMap);
 
 
     //

@@ -40,6 +40,8 @@ using namespace GVars3;
 MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
   : mvpMaps(maps),
     mpMap(m),
+    mbMapTransformRequested(false),
+    mbMapScaleRequested(false),
     mbResetRequested(false),
     mbResetDone(true),
     mbBundleAbortRequested(false),
@@ -169,6 +171,18 @@ void MapMaker::run()
       // From here on, mapmaker does various map-maintenance jobs in a certain priority
       // Hierarchy. For example, if there's a new key-frame to be added (QueueSize() is >0)
       // then that takes high priority.
+
+      CKECK_ABORTS;
+      if (mbMapTransformRequested) {
+        ApplyGlobalTransformationToMap(mse3NewFromOld);
+        mbMapTransformRequested = false;
+      }
+
+      CKECK_ABORTS;
+      if (mbMapScaleRequested) {
+        RequestApplyGlobalScaleToMap(mdMapScaleFactor);
+        mbMapScaleRequested = false;
+      }
 
       CKECK_ABORTS;
       // Should we run local bundle adjustment?
@@ -560,6 +574,18 @@ void MapMaker::AddSomeMapPoints(int nLevel)
   for(unsigned int i = 0; i<l.vCandidates.size(); i++)
     AddPointEpipolar(kSrc, kTarget, nLevel, i);
 };
+
+void MapMaker::RequestApplyGlobalTransformationToMap(const SE3<>& se3NewFromOld)
+{
+  mse3NewFromOld = se3NewFromOld;
+  mbMapTransformRequested = true;
+}
+
+void MapMaker::RequestApplyGlobalScaleToMap(double dScale)
+{
+  mdMapScaleFactor = dScale;
+  mbMapScaleRequested = true;
+}
 
 // Rotates/translates the whole map and all keyframes
 void MapMaker::ApplyGlobalTransformationToMap(SE3<> se3NewFromOld)
