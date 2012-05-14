@@ -276,6 +276,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 
         glEnd();
 
+
         Vector<3> wo2 = (msim3WorldFromNormWorld * makeVector(0, 0, 0));
         Vector<3> wx2 = (msim3WorldFromNormWorld * makeVector(8, 0, 0));
         Vector<3> wy2 = (msim3WorldFromNormWorld * makeVector(0, 8, 0));
@@ -287,6 +288,9 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
         pts.push_back(wo2); pts.push_back(wy2);
         pts.push_back(wo2); pts.push_back(wz2);
 
+        glBegin(GL_LINES);
+
+        int i = 0;
         std::vector<Vector<2> > screenPts;
         for (std::vector<Vector<3> >::const_iterator it = pts.begin();
              it != pts.end(); ++it)
@@ -297,28 +301,16 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
             v3Cam[2] = 0.001;
           }
 
-          screenPts.push_back(mCamera.Project(project(v3Cam)));
-        }
-
-
-        glBegin(GL_LINES);
-
-        int i = 0;
-
-        for (std::vector<Vector<2> >::const_iterator it = screenPts.begin();
-             it != screenPts.end(); ++it)
-        {
           if (i++ < 4) {
             glColor3f(1,0,0);
           } else {
             glColor3f(0,1,0);
           }
 
-          glVertex(*it);
+          glVertex(mCamera.Project(project(v3Cam)));
         }
 
         glEnd();
-
 
         glLineWidth(1);
         glPointSize(1);
@@ -329,7 +321,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
         mbUserPressedSpacebar = false;
 
         mMapMaker.RequestApplyGlobalTransformationToMap(msim3WorldFromNormWorld.inverse());
-        mMapMaker.RequestApplyGlobalScaleToMap(1.0/mScale);
+        mMapMaker.RequestApplyGlobalScaleToMap(10 * 1.0/mScale);
       }
     }
   }
@@ -410,7 +402,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
           mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
         }
         mMessageForUser << " Map " << mpMap->MapID() << ": "
-                        << mpMap->vpPoints.size() << "P, " << mpMap->vpKeyFrames.size() << "KF";
+                        << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
       }
 
       // Heuristics to check if a key-frame should be added to the map:
@@ -651,6 +643,7 @@ void Tracker::TrackForInitialMap()
       vector<pair<ImageRef, ImageRef> > vMatches;   // This is the format the mapmaker wants for the stereo pairs
       for(list<Trail>::iterator i = mlTrails.begin(); i!=mlTrails.end(); ++i)
         vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
+
       if (mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld)) {  // This will take some time!
         mnInitialStage = TRAIL_TRACKING_COMPLETE;
         //mse3CamFromWorld = mCurrent//mFirstKF.se3CfromW;
@@ -786,9 +779,10 @@ void Tracker::TrackMap()
     avPVS[i].reserve(500);
 
   // For all points in the map..
-  for(size_t i=0; i<mpMap->vpPoints.size(); i++)
+  const std::vector<MapPoint*>& mapPts = mpMap->GetMapPoints();
+  for(size_t i=0; i < mapPts.size(); ++i)
   {
-    MapPoint &p = *(mpMap->vpPoints[i]);
+    MapPoint &p = *mapPts[i];
     // Ensure that this map point has an associated TrackerData struct.
     if(!p.pTData) {
       p.pTData = new TrackerData(&p);

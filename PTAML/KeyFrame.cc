@@ -2,6 +2,9 @@
 #include "KeyFrame.h"
 #include "ShiTomasi.h"
 #include "SmallBlurryImage.h"
+#include "LevelHelpers.h"
+#include "MapPoint.h"
+
 #include <cvd/vision.h>
 #include <cvd/fast_corner.h>
 
@@ -79,6 +82,71 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
   im_cl = rhs.im_cl;//@hack by camparijet for adding keyframe to color
   return *this;
 }
+
+// ThinCandidates() Thins out a key-frame's candidate list.
+// Candidates are those salient corners where the mapmaker will attempt
+// to make a new map point by epipolar search. We don't want to make new points
+// where there are already existing map points, this routine erases such candidates.
+// Operates on a single level of a keyframe.
+void KeyFrame::ThinCandidates(int nLevel)
+{
+  vector<Candidate> &vCSrc = aLevels[nLevel].vCandidates;
+  vector<Candidate> vCGood;
+  vector<ImageRef> irBusyLevelPos;
+  // Make a list of `busy' image locations, which already have features at the same level
+  // or at one level higher.
+  for(meas_it it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
+  {
+    if(!(it->second.nLevel == nLevel || it->second.nLevel == nLevel + 1))
+      continue;
+    irBusyLevelPos.push_back(ir_rounded(it->second.v2RootPos / LevelScale(nLevel)));
+  }
+
+  // Only keep those candidates further than 10 pixels away from busy positions.
+  unsigned int nMinMagSquared = 10*10;
+  for(size_t i=0; i<vCSrc.size(); ++i)
+  {
+    const ImageRef& irC = vCSrc[i].irLevelPos;
+    bool bGood = true;
+    for(size_t j=0; j<irBusyLevelPos.size(); ++j)
+    {
+      const ImageRef& irB = irBusyLevelPos[j];
+      if((irB - irC).mag_squared() < nMinMagSquared)
+      {
+        bGood = false;
+        break;
+      }
+    }
+    if(bGood)
+      vCGood.push_back(vCSrc[i]);
+  }
+  vCSrc = vCGood;
+}
+
+// Calculates the depth(z-) distribution of map points visible in a keyframe
+// This function is only used for the first two keyframes - all others
+// get this filled in by the tracker
+void KeyFrame::RefreshSceneDepth()
+{
+  double dSumDepth = 0.0;
+  double dSumDepthSquared = 0.0;
+  int nMeas = 0;
+  for(meas_it it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
+  {
+    MapPoint &point = *it->first;
+    Vector<3> v3PosK = se3CfromW * point.v3WorldPos;
+    dSumDepth += v3PosK[2];
+    dSumDepthSquared += v3PosK[2] * v3PosK[2];
+    nMeas++;
+  }
+
+  assert(nMeas > 2); // If not then something is seriously wrong with this KF!!
+
+  // Update scene depth variables
+  dSceneDepthMean = dSumDepth / nMeas;
+  dSceneDepthSigma = sqrt((dSumDepthSquared / nMeas) - (dSceneDepthMean) * (dSceneDepthMean));
+}
+
 
 
 /**

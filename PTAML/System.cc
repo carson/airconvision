@@ -657,7 +657,7 @@ void System::DrawMapInfo()
       glColor3f(1,1,1);
     }
 
-    os << "M: " << pMap->MapID() << "  P: " << pMap->vpPoints.size() << "  K: " << pMap->vpKeyFrames.size();
+    os << "M: " << pMap->MapID() << "  P: " << pMap->GetMapPoints().size() << "  K: " << pMap->GetKeyFrames().size();
     mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + (i+1)*17), os.str() );
     os.str("");
   }

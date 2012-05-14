@@ -48,17 +48,14 @@ void MapViewer::DrawMapDots()
   glPointSize(1);
   glBegin(GL_POINTS);
   mv3MassCenter = Zeros;
-  for(size_t i=0; i<mpViewingMap->vpPoints.size(); i++)
-  {
 
-    Vector<3> v3Pos = mpViewingMap->vpPoints[i]->v3WorldPos;
-    /*
-     *@hack
-     */
-    glColor(mpViewingMap->vpPoints[i]->pColor);
+  const std::vector<MapPoint*>& mapPts = mpViewingMap->GetMapPoints();
 
-    if( (v3Pos * v3Pos) < 10000)
-    {
+  for(size_t i = 0; i < mapPts.size(); ++i) {
+    glColor(mapPts[i]->pColor);
+
+    const Vector<3>& v3Pos = mapPts[i]->v3WorldPos;
+    if( (v3Pos * v3Pos) < 10000) {
       nForMass++;
       mv3MassCenter += v3Pos;
     }
@@ -266,7 +263,7 @@ void MapViewer::DrawMap(SE3<> se3CamFromWorld)
     DrawCamera(se3CamFromWorld);
   }
 
-  for(size_t i=0; i<mpViewingMap->vpKeyFrames.size(); i++){
+  for(size_t i=0; i<mpViewingMap->GetKeyFrames().size(); i++){
     //TakDrawCameraAndFrame(mpViewingMap->vpKeyFrames[i]->se3CfromW, true,mpViewingMap->texName,mpViewingMap->vpKeyFrames[i]->tIndex,mpViewingMap->vpKeyFrames[i]->Camera);
   }
   //cout << "Display Keyframe : " << mpViewingMap->vpKeyFrames[i]->tIndex << endl;
@@ -279,7 +276,7 @@ void MapViewer::DrawMap(SE3<> se3CamFromWorld)
   glLoadIdentity();
 
   mMessageForUser << " Map " << mpViewingMap->MapID() << ": "
-		  << mpViewingMap->vpPoints.size() << "P, " << mpViewingMap->vpKeyFrames.size() << "KF";
+		  << mpViewingMap->GetMapPoints().size() << "P, " << mpViewingMap->GetKeyFrames().size() << "KF";
   mMessageForUser << setprecision(4);
   mMessageForUser << "   Camera Pos: " << se3CamFromWorld.inverse().get_translation();
 }
