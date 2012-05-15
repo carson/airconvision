@@ -109,15 +109,15 @@ class Bundle
 public:
 
   Bundle(); //PTAMM: Camera model is now part of keyframe class
-  int AddCamera(SE3<> se3CamFromWorld, bool bFixed); // Add a viewpoint. bFixed signifies that this one is not to be adjusted.
-  int AddPoint(Vector<3> v3Pos);       // Add a map point.
-  void AddMeas(int nCam, int nPoint, Vector<2> v2Pos, double dSigmaSquared, Matrix<2> m2CamDerivs); // Add a measurement
+  int AddCamera(const SE3<>& se3CamFromWorld, bool bFixed); // Add a viewpoint. bFixed signifies that this one is not to be adjusted.
+  int AddPoint(const Vector<3>& v3Pos);       // Add a map point.
+  void AddMeas(int nCam, int nPoint, const Vector<2>& v2Pos, double dSigmaSquared, const Matrix<2>& m2CamDerivs); // Add a measurement
   int Compute(bool *pbAbortSignal);    // Perform bundle adjustment. Aborts if *pbAbortSignal gets set to true. Returns number of accepted update iterations, or negative on error.
-  inline bool Converged() { return mbConverged;}  // Has bundle adjustment converged?
-  Vector<3> GetPoint(int n);       // Point coords after adjustment
-  SE3<> GetCamera(int n);            // Camera pose after adjustment
-  std::vector<std::pair<int,int> > GetOutlierMeasurements();  // Measurements flagged as outliers
-  std::set<int> GetOutliers();                                // Points flagged as outliers
+  bool Converged() const { return mbConverged;}  // Has bundle adjustment converged?
+  const Vector<3>& GetPoint(int n) const;       // Point coords after adjustment
+  const SE3<>& GetCamera(int n) const;            // Camera pose after adjustment
+  const std::vector<std::pair<int,int> >& GetOutlierMeasurements() const;  // Measurements flagged as outliers
+  std::set<int> GetOutliers() const;                                // Points flagged as outliers
   
 protected:
 

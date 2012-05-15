@@ -44,7 +44,7 @@ Bundle::Bundle()
 };
 
 // Add a camera to the system, return value is the bundle adjuster's ID for the camera
-int Bundle::AddCamera(SE3<> se3CamFromWorld, bool bFixed)
+int Bundle::AddCamera(const SE3<> &se3CamFromWorld, bool bFixed)
 {
   int n = mvCameras.size();
   Camera c;
@@ -64,22 +64,26 @@ int Bundle::AddCamera(SE3<> se3CamFromWorld, bool bFixed)
 }
 
 // Add a map point to the system, return value is the bundle adjuster's ID for the point
-int Bundle::AddPoint(Vector<3> v3Pos)
+int Bundle::AddPoint(const Vector<3> &v3Pos)
 {
   int n = mvPoints.size();
   Point p;
+
   if(std::isnan((double)(v3Pos * v3Pos)))
-    {
-      cerr << " You sucker, tried to give me a nan " << v3Pos << endl;
-      v3Pos = Zeros;
-    }
-  p.v3Pos = v3Pos;
+  {
+    cerr << " You sucker, tried to give me a nan " << v3Pos << endl;
+    p.v3Pos = Zeros;
+  } else {
+    p.v3Pos = v3Pos;
+  }
+
   mvPoints.push_back(p);
   return n;
 }
 
 // Add a measurement of one point with one camera
-void Bundle::AddMeas(int nCam, int nPoint, Vector<2> v2Pos, double dSigmaSquared, Matrix<2> m2CamDerivs)
+void Bundle::AddMeas(int nCam, int nPoint, const Vector<2>& v2Pos,
+                     double dSigmaSquared, const Matrix<2>& m2CamDerivs)
 {
   assert(nCam < (int) mvCameras.size());
   assert(nPoint < (int) mvPoints.size());
@@ -615,23 +619,23 @@ void Bundle::ModifyLambda_BadStep()
 };
 
 
-Vector<3> Bundle::GetPoint(int n)
+const Vector<3>& Bundle::GetPoint(int n) const
 {
   return mvPoints.at(n).v3Pos;
 }
 
-SE3<> Bundle::GetCamera(int n)
+const SE3<>& Bundle::GetCamera(int n) const
 {
   return mvCameras.at(n).se3CfW;
 }
 
-set<int> Bundle::GetOutliers()
+set<int> Bundle::GetOutliers() const
 {
   set<int> sOutliers;
   set<int>::iterator hint = sOutliers.begin();
   for(unsigned int i=0; i<mvPoints.size(); i++)
     {
-      Point &p = mvPoints[i];
+      const Point &p = mvPoints[i];
       if(p.nMeasurements > 0 && p.nMeasurements == p.nOutliers)
         hint = sOutliers.insert(hint, i);
     }
@@ -639,7 +643,7 @@ set<int> Bundle::GetOutliers()
 };
 
 
-vector<pair<int, int> > Bundle::GetOutlierMeasurements()
+const vector<pair<int, int> >& Bundle::GetOutlierMeasurements() const
 {
   return mvOutlierMeasurementIdx;
 }
