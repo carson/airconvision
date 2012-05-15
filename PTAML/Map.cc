@@ -417,7 +417,7 @@ bool Map::InitFromStereo(KeyFrame &kF,
   }
 
   // Rotate and translate the map so the dominant plane is at z=0:
-  ApplyGlobalTransformation(CalcPlaneAligner());
+  ApplyGlobalTransformation(CalcPlaneAligner(true));
   bGood = true;
 
   se3TrackerPose = pkSecond->se3CfromW;
@@ -860,8 +860,8 @@ bool Map::RecentBundleAdjust(bool *pbAbortSignal)
       iter != sAdjustSet.end();
       ++iter)
   {
-    map<MapPoint*,Measurement> &mKFMeas = (*iter)->mMeasurements;
-    for(meas_it jiter = mKFMeas.begin(); jiter!= mKFMeas.end(); ++jiter)
+    const map<MapPoint*,Measurement> &mKFMeas = (*iter)->mMeasurements;
+    for(auto jiter = mKFMeas.begin(); jiter!= mKFMeas.end(); ++jiter)
       sMapPoints.insert(jiter->first);
   }
 
@@ -891,7 +891,7 @@ bool Map::RecentBundleAdjust(bool *pbAbortSignal)
 }
 
 // Find a dominant plane in the map, find an SE3<> to put it as the z=0 plane
-SE3<> Map::CalcPlaneAligner() const
+SE3<> Map::CalcPlaneAligner(bool bFlipNormal) const
 {
   size_t nPoints = vpPoints.size();
   if(nPoints < 10)
@@ -978,9 +978,15 @@ SE3<> Map::CalcPlaneAligner() const
   SymEigen<3> sym(m3Cov);
   Vector<3> v3Normal = sym.get_evectors()[0];
 
-  // Use the version of the normal which points towards the cam center
-  if(v3Normal[2] > 0)
-    v3Normal *= -1.0;
+  if (bFlipNormal) {
+    // Use the version of the normal which points towards the cam center
+    if(v3Normal[2] > 0)
+      v3Normal *= -1.0;
+  } else {
+    // Use the positive Z
+    if(v3Normal[2] < 0)
+      v3Normal *= -1.0;
+  }
 
   Matrix<3> m3Rot = Identity;
   m3Rot[2] = v3Normal;
@@ -1053,6 +1059,27 @@ double Map::DistToNearestKeyFrame(const KeyFrame &kCurrent)
   return KeyFrameLinearDist(kCurrent, *pClosest); // Dist
 }
 
+void Map::RemoveFarAwayMapPoints(const Vector<3> &v3CamPos, double dNearRadius)
+{
+  double dRadiusThresh = dNearRadius * dNearRadius;
+
+  // Did the tracker see this point as an outlier more often than as an inlier?
+  for (auto it = vpPoints.begin(); it != vpPoints.end(); ++it) {
+    Vector<3> delta = v3CamPos - (*it)->v3WorldPos;
+    double dDistSq = delta * delta;
+
+    if (dDistSq > dRadiusThresh) {
+      (*it)->bBad = true;
+    }
+  }
+
+  // All points marked as bad will be erased - erase all records of them
+  // from keyframes in which they might have been measured.
+  RemoveBadPointsFromKeyFrames();
+
+  // Move bad points to the trash list.
+  MoveBadPointsToTrash();
+}
 
 /**
  * HandleBadPoints() Does some heuristic checks on all points in the map to see if
@@ -1071,22 +1098,43 @@ void Map::HandleBadPoints()
 
   // All points marked as bad will be erased - erase all records of them
   // from keyframes in which they might have been measured.
+  RemoveBadPointsFromKeyFrames();
+
+  // Move bad points to the trash list.
+  MoveBadPointsToTrash();
+}
+
+/**
+ * Remove points marked as bad from key frame measurements.
+ */
+void Map::RemoveBadPointsFromKeyFrames()
+{
   for (size_t i = 0; i < vpPoints.size(); ++i)
   {
     if(vpPoints[i]->bBad) {
       MapPoint *p = vpPoints[i];
-      for(size_t j = 0; j < vpKeyFrames.size(); ++j)
-      {
-        KeyFrame &k = *vpKeyFrames[j];
-        if(k.mMeasurements.count(p)) {
-          k.mMeasurements.erase(p);
+
+      auto it = vpKeyFrames.begin();
+      while(it < vpKeyFrames.end()) {
+        // Remove measurements
+        (*it)->mMeasurements.erase(p);
+        // Remove keyframe if no more measurements
+        /*
+        if ((*it)->mMeasurements.empty()) {
+          it = vpKeyFrames.erase(it);
+          cout << "Erasing keyframe" << endl;
+        } else*/
+        {
+          ++it;
         }
       }
     }
   }
 
-  // Move bad points to the trash list.
-  MoveBadPointsToTrash();
+  if (!vpKeyFrames.empty()) {
+    vpKeyFrames[0]->bFixed = true;
+  }
+
 }
 
 /**

@@ -314,7 +314,11 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   }
   else if(sCommand == "Realign")
   {
-    static_cast<System*>(ptr)->mpMapMaker->RequestRealignment();
+    System* sys = static_cast<System*>(ptr);
+    Vector<3> v3CamPos = sys->mpTracker->RealWorldCoordinate();
+    sys->mpMap->RemoveFarAwayMapPoints(v3CamPos, abs(v3CamPos[2])*2);
+    sys->mpMapMaker->RequestRealignment();
+
     return;
   }
   else if(sCommand == "ResetAll")

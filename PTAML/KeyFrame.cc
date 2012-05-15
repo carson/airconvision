@@ -201,7 +201,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
       // Added a ROI for corners just for testing if it had any effects.
       // @dhenell
-      double border = 0.15f;
+      double border = 0.10f;
       int minBorderX = border * lev.im.size().x;
       int maxBorderX = (1.0 - border) * lev.im.size().x;
       int minBorderY = border * lev.im.size().y;

@@ -35,11 +35,7 @@
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappbuffer.h>
 
-
-
 extern std::string videoSourceFileName;
-extern int videoSourceSizeHeight;
-extern int videoSourceSizeWidth;
 
 namespace PTAMM{
   using namespace CVD;

@@ -94,12 +94,14 @@ class Map
     void ReFindNewlyMade();
 
     // Functions for starting the map from scratch:
-    TooN::SE3<> CalcPlaneAligner() const;
+    TooN::SE3<> CalcPlaneAligner(bool bFlipNormal) const;
 
     // World transformation
     void ApplyGlobalTransformation(const TooN::SE3<>& se3NewFromOld);
     void ApplyGlobalScale(double dScale);
 
+    // Prune out far away map points from the map and remove old unused keyframes
+    void RemoveFarAwayMapPoints(const Vector<3> &v3CamPos, double dNearRadius);
     // Uses a heuristic to mark certain points as bad and move the to the thrash list
     void HandleBadPoints();
     // Frees the memory of the points in the thrash list
@@ -135,7 +137,7 @@ class Map
     bool ReFind_Common(KeyFrame &k, MapPoint &p);
     void SubPixelRefineMatches(KeyFrame &k, int nLevel);
 
-    // Point memory handling
+    void RemoveBadPointsFromKeyFrames();
     void MoveBadPointsToTrash();
 
     // camparijets hack for keyframe visualization

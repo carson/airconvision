@@ -137,6 +137,8 @@ void MapMaker::SwitchMap()
 
 #define CKECK_ABORTS CHECK_RESET CHECK_REINIT CHECK_SWITCH CHECK_UNLOCK
 
+#define DEBUG_MAP_MAKER(x)
+
 /**
  * Run the map maker thread
  */
@@ -191,15 +193,19 @@ void MapMaker::run()
     // Should we run local bundle adjustment?
     if(!mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
       mbBundleAbortRequested = false;
+      DEBUG_MAP_MAKER(cout << "START: Recent bundle adjustment" << endl);
       if (!mpMap->RecentBundleAdjust(&mbBundleAbortRequested)) {
         mbResetRequested = true;
       }
+      DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbBundleAbortRequested << endl);
     }
 
     CKECK_ABORTS;
     // Are there any newly-made map points which need more measurements from older key-frames?
     if(mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
+      DEBUG_MAP_MAKER(cout << "START: Refining newly made map points" << endl);
       mpMap->ReFindNewlyMade();
+      DEBUG_MAP_MAKER(cout << "  END: Refining newly made map points" << endl);
     }
 
     CKECK_ABORTS;
@@ -210,9 +216,11 @@ void MapMaker::run()
     // otherwise the camera loses tracking with fast camera movements -- dhenell
     if (mpMap->QueueSize() == 0) {
       mbBundleAbortRequested = false;
+      DEBUG_MAP_MAKER(cout << "START: Full bundle adjustment" << endl);
       if (!mpMap->FullBundleAdjust(&mbBundleAbortRequested)) {
         mbResetRequested = true;
       }
+      DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbBundleAbortRequested << endl);
     }
 
     CKECK_ABORTS;
@@ -220,22 +228,34 @@ void MapMaker::run()
     if(mpMap->RecentBundleAdjustConverged() && mpMap->FullBundleAdjustConverged() &&
         rand()%20 == 0 && mpMap->QueueSize() == 0)
     {
+      DEBUG_MAP_MAKER(cout << "START: Refining failed map points" << endl);
       mpMap->ReFindFromFailureQueue();
+      DEBUG_MAP_MAKER(cout << "  END: Refining failed map points" << endl);
     }
 
     CKECK_ABORTS;
+    DEBUG_MAP_MAKER(cout << "START: Handling bad points" << endl);
     mpMap->HandleBadPoints();
+    DEBUG_MAP_MAKER(cout << "  END: Handling bad points" << endl);
 
     CKECK_ABORTS;
     // Any new key-frames to be added?
-    if(mpMap->QueueSize() > 0)
+    if(mpMap->QueueSize() > 0) {
+      DEBUG_MAP_MAKER(cout << "START: Adding key frame" << endl);
       mpMap->AddKeyFrameFromTopOfQueue(); // Integrate into map data struct, and process
+      DEBUG_MAP_MAKER(cout << "  END: Adding key frame" << endl);
+    }
   }
 }
 
 void MapMaker::RealignGroundPlane()
 {
-  SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner();
+  SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner(false);
+
+  // Don't align in the XY-plane!
+  se3GroundAlignment.get_translation()[0] = 0;
+  se3GroundAlignment.get_translation()[1] = 0;
+
   mpMap->ApplyGlobalTransformation(se3GroundAlignment);
 }
 
