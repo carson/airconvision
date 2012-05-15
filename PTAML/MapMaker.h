@@ -43,17 +43,19 @@ class MapMaker : protected CVD::Thread
     bool NeedNewKeyFrame(const KeyFrame &kCurrent);            // Is it a good camera pose to add another KeyFrame?
     bool IsDistanceToNearestKeyFrameExcessive(KeyFrame &kCurrent);  // Is the camera far away from the nearest KeyFrame (i.e. maybe lost?)
 
-    //New PTAMM functions
     void RequestReInit(Map * map);    // Request that the we reset. Called by the tracker.
     bool ReInitDone();                // Returns true if the ReInit has been done.
     bool RequestSwitch(Map * map);    // Request a switch to map
-    bool SwitchDone();                // Returns true if the Switch map has been done.
+    bool SwitchDone();                // Returns true if the Switch map has been done
+    void RequestRealignment() { mbRealignmentRequested = true; }
 
     void RequestMapTransformation(const SE3<>& se3NewFromOld);
     void RequestMapScaling(double dScale);
 
   private:
     virtual void run();      // The MapMaker thread code lives here
+
+    void RealignGroundPlane();
 
     // General Maintenance/Utility:
     //PTAMM
@@ -90,6 +92,7 @@ class MapMaker : protected CVD::Thread
     bool mbResetRequested;            // A reset has been requested
     bool mbResetDone;                 // The reset was done.
     bool mbBundleAbortRequested;      // We should stop bundle adjustment
+    bool mbRealignmentRequested;
 
     // Used for requesting map transforms
     SE3<> mse3NewFromOld;

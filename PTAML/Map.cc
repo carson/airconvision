@@ -891,9 +891,9 @@ bool Map::RecentBundleAdjust(bool *pbAbortSignal)
 }
 
 // Find a dominant plane in the map, find an SE3<> to put it as the z=0 plane
-SE3<> Map::CalcPlaneAligner()
+SE3<> Map::CalcPlaneAligner() const
 {
-  unsigned int nPoints = vpPoints.size();
+  size_t nPoints = vpPoints.size();
   if(nPoints < 10)
   {
     cout << "  MapMaker: CalcPlane: too few points to calc plane." << endl;
@@ -927,7 +927,7 @@ SE3<> Map::CalcPlaneAligner()
     normalize(v3Normal);
 
     double dSumError = 0.0;
-    for(unsigned int i=0; i<nPoints; i++)
+    for(size_t i=0; i<nPoints; i++)
     {
       Vector<3> v3Diff = vpPoints[i]->v3WorldPos - v3Mean;
       double dDistSq = v3Diff * v3Diff;
@@ -950,7 +950,7 @@ SE3<> Map::CalcPlaneAligner()
 
   // Done the ransacs, now collect the supposed inlier set
   vector<Vector<3> > vv3Inliers;
-  for(unsigned int i=0; i<nPoints; i++)
+  for(size_t i=0; i<nPoints; i++)
   {
     Vector<3> v3Diff = vpPoints[i]->v3WorldPos - v3BestMean;
     double dDistSq = v3Diff * v3Diff;
@@ -963,12 +963,12 @@ SE3<> Map::CalcPlaneAligner()
 
   // With these inliers, calculate mean and cov
   Vector<3> v3MeanOfInliers = Zeros;
-  for(unsigned int i=0; i<vv3Inliers.size(); i++)
+  for(size_t i=0; i<vv3Inliers.size(); i++)
     v3MeanOfInliers+=vv3Inliers[i];
   v3MeanOfInliers *= (1.0 / vv3Inliers.size());
 
   Matrix<3> m3Cov = Zeros;
-  for(unsigned int i=0; i<vv3Inliers.size(); i++)
+  for(size_t i=0; i<vv3Inliers.size(); i++)
   {
     Vector<3> v3Diff = vv3Inliers[i] - v3MeanOfInliers;
     m3Cov += v3Diff.as_col() * v3Diff.as_row();

@@ -93,6 +93,9 @@ class Map
     void ReFindFromFailureQueue();
     void ReFindNewlyMade();
 
+    // Functions for starting the map from scratch:
+    TooN::SE3<> CalcPlaneAligner() const;
+
     // World transformation
     void ApplyGlobalTransformation(const TooN::SE3<>& se3NewFromOld);
     void ApplyGlobalScale(double dScale);
@@ -116,9 +119,6 @@ class Map
                                                      // use when need complete control of a map
 
   private:
-    // Functions for starting the map from scratch:
-    TooN::SE3<> CalcPlaneAligner();
-
     // Returns point in ref frame B
     TooN::Vector<3> ReprojectPoint(const TooN::SE3<>& se3AfromB,
                                    const TooN::Vector<2> &v2A,

@@ -28,8 +28,6 @@
 
 namespace PTAMM {
 
-GLWindow2* gGLWindow;
-
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
@@ -47,6 +45,7 @@ System::System(VideoSource* videoSource)
   GUI.RegisterCommand("NewMap", GUICommandCallBack, this);
   GUI.RegisterCommand("DeleteMap", GUICommandCallBack, this);
   GUI.RegisterCommand("ResetAll", GUICommandCallBack, this);
+  GUI.RegisterCommand("Realign", GUICommandCallBack, this);
 
   GUI.RegisterCommand("LoadMap", GUICommandCallBack, this);
   GUI.RegisterCommand("SaveMap", GUICommandCallBack, this);
@@ -111,6 +110,7 @@ System::System(VideoSource* videoSource)
   GUI.ParseLine("Menu.ShowMenu Root");
   GUI.ParseLine("Menu.AddMenuButton Root \"Reset All\" ResetAll Root");
   GUI.ParseLine("Menu.AddMenuButton Root Reset Reset Root");
+  GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
   GUI.ParseLine("Menu.AddMenuButton Root Demos \"\" Demos");
   GUI.ParseLine("DrawAR=0");
@@ -179,8 +179,6 @@ void System::Run()
   if (!mkConn) {
     cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
   }
-
-  gGLWindow = &mGLWindow;
 
   // For FPS counting
   FPSCounter fpsCounter;
@@ -313,6 +311,11 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     if( static_cast<System*>(ptr)->GetSingleParam(nMapNum, sCommand, sParams) ) {
       static_cast<System*>(ptr)->SwitchMap( nMapNum );
     }
+  }
+  else if(sCommand == "Realign")
+  {
+    static_cast<System*>(ptr)->mpMapMaker->RequestRealignment();
+    return;
   }
   else if(sCommand == "ResetAll")
   {

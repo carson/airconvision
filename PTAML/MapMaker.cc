@@ -182,6 +182,12 @@ void MapMaker::run()
     }
 
     CKECK_ABORTS;
+    if (mbRealignmentRequested) {
+      RealignGroundPlane();
+      mbRealignmentRequested = false;
+    }
+
+    CKECK_ABORTS;
     // Should we run local bundle adjustment?
     if(!mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
       mbBundleAbortRequested = false;
@@ -225,6 +231,12 @@ void MapMaker::run()
     if(mpMap->QueueSize() > 0)
       mpMap->AddKeyFrameFromTopOfQueue(); // Integrate into map data struct, and process
   }
+}
+
+void MapMaker::RealignGroundPlane()
+{
+  SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner();
+  mpMap->ApplyGlobalTransformation(se3GroundAlignment);
 }
 
 /**
