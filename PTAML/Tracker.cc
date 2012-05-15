@@ -420,7 +420,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
       }
 
       // Added some scale determing code here -- dhenell
-      DetermineScaleFromMarker(imFrame);
+      //DetermineScaleFromMarker(imFrame);
     }
     else  // what if there is a map, but tracking has been lost?
     {
@@ -807,7 +807,7 @@ void Tracker::TrackMap()
     TData.bSearched = false;
     TData.bFound = false;
     avPVS[TData.nSearchLevel].push_back(&TData);
-  };
+  }
 
   // Next: A large degree of faffing about and deciding which points are going to be measured!
   // First, randomly shuffle the individual levels of the PVS.

@@ -64,6 +64,8 @@ class Map
     Map();
     ~Map();
 
+    int MapID() const { return mnMapNum; }
+
     bool IsGood() const { return bGood; }
     void Reset();
 
@@ -72,34 +74,33 @@ class Map
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
                         TooN::SE3<> &se3CameraPos);
 
+    // Keyframe queue
+    size_t QueueSize() const { return vpKeyFrameQueue.size(); } // How many KFs in the queue waiting to be added?
     void QueueKeyFrame(const KeyFrame &k);
     void AddKeyFrameFromTopOfQueue();
 
-    // Bundle adjustments
-    bool BundleAdjustAll(bool *pbAbortSignal = NULL);
-    bool BundleAdjustRecent(bool *pbAbortSignal = NULL);
-
-    void ReFindFromFailureQueue();
-    void ReFindNewlyMade();
-
-    // Keyframe related functions
+    // Keyframe distance functions
     double DistToNearestKeyFrame(const KeyFrame &kCurrent);
     double KeyFrameLinearDist(const KeyFrame &k1, const KeyFrame &k2) const;
     KeyFrame* ClosestKeyFrame(const KeyFrame &k);
+
+    // Bundle adjustments
+    bool FullBundleAdjust(bool *pbAbortSignal = NULL);
+    bool RecentBundleAdjust(bool *pbAbortSignal = NULL);
+    bool FullBundleAdjustConverged() const { return bBundleConverged_Full; }
+    bool RecentBundleAdjustConverged() const { return bBundleConverged_Recent; }
+
+    void ReFindFromFailureQueue();
+    void ReFindNewlyMade();
 
     // World transformation
     void ApplyGlobalTransformation(const TooN::SE3<>& se3NewFromOld);
     void ApplyGlobalScale(double dScale);
 
-    // Map point memory management
+    // Uses a heuristic to mark certain points as bad and move the to the thrash list
     void HandleBadPoints();
+    // Frees the memory of the points in the thrash list
     void EmptyTrash();
-
-    size_t QueueSize() const { return vpKeyFrameQueue.size(); } // How many KFs in the queue waiting to be added?
-    int MapID() const { return mnMapNum; }
-
-    bool HasFullBundleAdjustConverged() const { return bBundleConverged_Full; }
-    bool HasRecentBundleAdjustConverged() const { return bBundleConverged_Recent; }
 
     // Leaking constness but better than having it completly public as before
     const std::vector<MapPoint*>& GetMapPoints() const { return vpPoints; }
@@ -167,7 +168,6 @@ class Map
     double mdWiggleScale; // Distance between keyframes
     double mdWiggleScaleDepthNormalized;
 };
-
 
 }
 

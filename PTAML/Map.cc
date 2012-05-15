@@ -128,6 +128,9 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
     }
   }
 
+  // Added this to make sure this is the actual logic of this function
+  // Im leaving it for a while to test it out thoroughly -- dhenell
+  /*
   if (mbRecent) {
     assert(mpMap->bBundleConverged_Recent == mBundle.Converged());
     assert(mpMap->bBundleConverged_Full == bPrevFull);
@@ -135,6 +138,7 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
     assert(mpMap->bBundleConverged_Full == mBundle.Converged());
     assert(mpMap->bBundleConverged_Recent == mBundle.Converged() ? true : bPrevRecent);
   }
+  */
 
   // Handle outlier measurements:
   vector<pair<int,int> > vOutliers_PC_pair = mBundle.GetOutlierMeasurements();
@@ -375,7 +379,7 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
 
   for(int i=0; i<5; i++)
-    BundleAdjustAll();
+    FullBundleAdjust();
 
   // Estimate the feature depth distribution in the first two key-frames
   // (Needed for epipolar search)
@@ -402,7 +406,7 @@ bool Map::InitFromStereo(KeyFrame &kF,
       return false;
     }
 
-    if (!BundleAdjustAll()) {
+    if (!FullBundleAdjust()) {
       return false;
     }
 
@@ -806,7 +810,7 @@ void Map::AddSomeMapPoints(int nLevel)
 
 
 // Perform bundle adjustment on all keyframes, all map points
-bool Map::BundleAdjustAll(bool *pbAbortSignal)
+bool Map::FullBundleAdjust(bool *pbAbortSignal)
 {
   // construct the sets of kfs/points to be adjusted:
   // in this case, all of them
@@ -829,7 +833,7 @@ bool Map::BundleAdjustAll(bool *pbAbortSignal)
 
 // Peform a local bundle adjustment which only adjusts
 // recently added key-frames
-bool Map::BundleAdjustRecent(bool *pbAbortSignal)
+bool Map::RecentBundleAdjust(bool *pbAbortSignal)
 {
   if(vpKeyFrames.size() < 8)
   { // Ignore this unless map is big enough
@@ -1090,7 +1094,7 @@ void Map::HandleBadPoints()
  */
 void Map::MoveBadPointsToTrash()
 {
-  for(size_t i = vpPoints.size()-1; i>=0; i--)
+  for(int i = vpPoints.size()-1; i>=0; i--)
   {
     if(vpPoints[i]->bBad)
     {

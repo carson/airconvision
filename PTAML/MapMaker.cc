@@ -183,16 +183,16 @@ void MapMaker::run()
 
     CKECK_ABORTS;
     // Should we run local bundle adjustment?
-    if(!mpMap->HasRecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
+    if(!mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
       mbBundleAbortRequested = false;
-      if (!mpMap->BundleAdjustRecent(&mbBundleAbortRequested)) {
+      if (!mpMap->RecentBundleAdjust(&mbBundleAbortRequested)) {
         mbResetRequested = true;
       }
     }
 
     CKECK_ABORTS;
     // Are there any newly-made map points which need more measurements from older key-frames?
-    if(mpMap->HasRecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
+    if(mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
       mpMap->ReFindNewlyMade();
     }
 
@@ -204,14 +204,14 @@ void MapMaker::run()
     // otherwise the camera loses tracking with fast camera movements -- dhenell
     if (mpMap->QueueSize() == 0) {
       mbBundleAbortRequested = false;
-      if (!mpMap->BundleAdjustAll(&mbBundleAbortRequested)) {
+      if (!mpMap->FullBundleAdjust(&mbBundleAbortRequested)) {
         mbResetRequested = true;
       }
     }
 
     CKECK_ABORTS;
     // Very low priorty: re-find measurements marked as outliers
-    if(mpMap->HasRecentBundleAdjustConverged() && mpMap->HasFullBundleAdjustConverged() &&
+    if(mpMap->RecentBundleAdjustConverged() && mpMap->FullBundleAdjustConverged() &&
         rand()%20 == 0 && mpMap->QueueSize() == 0)
     {
       mpMap->ReFindFromFailureQueue();
