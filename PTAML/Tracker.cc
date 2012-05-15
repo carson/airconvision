@@ -31,10 +31,6 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
-
-extern GLWindow2* gGLWindow;
-
-
 const int NUM_SCALE_MEASUREMENTS = 50;
 
 /**
@@ -556,7 +552,7 @@ void Tracker::GUICommandCallBack(void* ptr, string sCommand, string sParams)
  * @param sCommand command string
  * @param sParams  parameter string
  */
-void Tracker::GUICommandHandler(string sCommand, string sParams)  // Called by the callback func..
+void Tracker::GUICommandHandler(const string& sCommand, const string& sParams)  // Called by the callback func..
 {
   if(sCommand=="Reset")
   {
@@ -580,7 +576,7 @@ void Tracker::GUICommandHandler(string sCommand, string sParams)  // Called by t
  * @param sKey the key pressed
  * @return true if the key was used.
  */
-bool Tracker::HandleKeyPress( string sKey )
+bool Tracker::HandleKeyPress( const string& sKey )
 {
   // KeyPress commands are issued by GLWindow, and passed to Tracker via System
   if(sKey == "Space")
@@ -1170,7 +1166,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
  * @param bMarkOutliers
  * @return
  */
-Vector<6> Tracker::CalcPoseUpdate(vector<TrackerData*> vTD, double dOverrideSigma, bool bMarkOutliers)
+Vector<6> Tracker::CalcPoseUpdate(vector<TrackerData*>& vTD, double dOverrideSigma, bool bMarkOutliers)
 {
   // Which M-estimator are we using?
   int nEstimator = 0;
@@ -1384,7 +1380,7 @@ void Tracker::AssessTrackingQuality()
  * Return the user infor message
  * @return message string
  */
-string Tracker::GetMessageForUser()
+string Tracker::GetMessageForUser() const
 {
   return mMessageForUser.str();
 }

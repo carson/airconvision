@@ -47,131 +47,133 @@ struct Trail    // This struct is used for initial correspondences of the first 
 
 class Tracker
 {
-public:
-  Tracker(CVD::ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker);
-  // TrackFrame is the main working part of the tracker: call this every frame.
-  void TrackFrame(CVD::Image<CVD::byte> &imFrame, bool bDraw);
-  void TrackFrame(CVD::Image<CVD::byte> &imFrame,CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame,bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
-  inline SE3<> GetCurrentPose() { return mse3CamFromWorld; }
-  inline bool IsLost() { return (mnLostFrames > NUM_LOST_FRAMES); }
+  public:
+    Tracker(CVD::ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker);
 
-  inline Vector<3, double> RealWorldCoordinate() const {
-    return project(mMarkerFromWorld * unproject(mse3CamFromWorld.inverse().get_translation()));
-  }
+    // TrackFrame is the main working part of the tracker: call this every frame.
+    void TrackFrame(CVD::Image<CVD::byte> &imFrame, bool bDraw);
+    void TrackFrame(CVD::Image<CVD::byte> &imFrame, CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame, bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
 
-  // Gets messages to be printed on-screen for the user.
-  std::string GetMessageForUser();
+    const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
+    bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
 
-  bool SwitchMap(Map *map);
-  void SetNewMap(Map * map);
-  void ForceRecovery() { if(mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
-  void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
+    Vector<3> RealWorldCoordinate() const {
+//      return project(mMarkerFromWorld * unproject(mse3CamFromWorld.inverse().get_translation()));
+      return mse3CamFromWorld.inverse().get_translation();
+    }
 
-  bool HandleKeyPress( std::string sKey );    // act on a key press (new addition for PTAMM)
+    // Gets messages to be printed on-screen for the user.
+    std::string GetMessageForUser() const;
 
-protected:
-  KeyFrame mCurrentKF;            // The current working frame as a keyframe struct
+    bool SwitchMap(Map *map);
+    void SetNewMap(Map * map);
+    void ForceRecovery() { if(mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
+    void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
 
-  // The major components to which the tracker needs access:
-  std::vector<Map*> & mvpMaps;     // Reference to all of the maps
-  Map *mpMap;                     // The map, consisting of points and keyframes
-  MapMaker &mMapMaker;            // The class which maintains the map
-  ATANCamera mCamera;             // Projection model
-  Relocaliser mRelocaliser;       // Relocalisation module
+    bool HandleKeyPress( const std::string& sKey );    // act on a key press (new addition for PTAMM)
+  private:
+    void ResetCommon();              // Common reset code for the following two functions
+    void RenderGrid();              // Draws the reference grid
+    // The following members are used for initial map tracking (to get the first stereo pair and correspondences):
+    void TrackForInitialMap();      // This is called by TrackFrame if there is not a map yet.
 
-  ARToolkitTracker& mARTracker;
+    void TrailTracking_Start();     // First frame of initial trail tracking. Called by TrackForInitialMap.
+    int  TrailTracking_Advance();   // Steady-state of initial trail tracking. Called by TrackForInitialMap.
 
-  CVD::ImageRef mirSize;          // Image size of whole image
+    // Methods for tracking the map once it has been made:
+    void TrackMap();                // Called by TrackFrame if there is a map.
+    void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
+    void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
+    void UpdateMotionModel();       // Motion model is updated after TrackMap
+    int SearchForPoints(std::vector<TrackerData*> &vTD,
+                        int nRange,
+                        int nFineIts);  // Finds points in the image
+    Vector<6> CalcPoseUpdate(std::vector<TrackerData*>& vTD,
+                             double dOverrideSigma = 0.0,
+                             bool bMarkOutliers = false); // Updates pose from found points.
+    void CalcSBIRotation();
 
-  void ResetCommon();              // Common reset code for the following two functions
-  void RenderGrid();              // Draws the reference grid
+    void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
 
-  // The following members are used for initial map tracking (to get the first stereo pair and correspondences):
-  void TrackForInitialMap();      // This is called by TrackFrame if there is not a map yet.
+    bool AttemptRecovery();         // Called by TrackFrame if tracking is lost.
 
-  enum {TRAIL_TRACKING_NOT_STARTED,
-        TRAIL_TRACKING_STARTED,
-        TRAIL_TRACKING_COMPLETE,
-  	  	MARKER_INIT_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
+    // Scale initialization with markers -- dhenell
+    void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
+    bool PickPointOnGround(
+      const TooN::Vector<2>& pixelCoord,
+      TooN::Vector<3>& pointOnPlane);
 
-  void TrailTracking_Start();     // First frame of initial trail tracking. Called by TrackForInitialMap.
-  int  TrailTracking_Advance();   // Steady-state of initial trail tracking. Called by TrackForInitialMap.
+    void GUICommandHandler(const std::string& sCommand, const std::string& sParams);
+    static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);
 
-  std::list<Trail> mlTrails;      // Used by trail tracking
-  KeyFrame mFirstKF;              // First of the stereo pair
-  KeyFrame mPreviousFrameKF;      // Used by trail tracking to check married matches
+  private:
+    KeyFrame mCurrentKF;            // The current working frame as a keyframe struct
 
-  // Methods for tracking the map once it has been made:
-  void TrackMap();                // Called by TrackFrame if there is a map.
-  void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
-  void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
-  void UpdateMotionModel();       // Motion model is updated after TrackMap
-  int SearchForPoints(std::vector<TrackerData*> &vTD,
-                      int nRange,
-                      int nFineIts);  // Finds points in the image
-  Vector<6> CalcPoseUpdate(std::vector<TrackerData*> vTD,
-                           double dOverrideSigma = 0.0,
-                           bool bMarkOutliers = false); // Updates pose from found points.
-  SE3<> mse3CamFromWorld;           // Camera pose: this is what the tracker updates every frame.
-  SE3<> mse3StartPos;               // What the camera pose was at the start of the frame.
-  Vector<6> mv6CameraVelocity;    // Motion model
-  double mdVelocityMagnitude;     // Used to decide on coarse tracking
-  double mdMSDScaledVelocityMagnitude; // Velocity magnitude scaled by relative scene depth.
-  bool mbDidCoarse;               // Did tracking use the coarse tracking stage?
+    // The major components to which the tracker needs access:
+    std::vector<Map*> & mvpMaps;     // Reference to all of the maps
+    Map *mpMap;                     // The map, consisting of points and keyframes
+    MapMaker &mMapMaker;            // The class which maintains the map
+    ATANCamera mCamera;             // Projection model
+    Relocaliser mRelocaliser;       // Relocalisation module
+    ARToolkitTracker& mARTracker;   // Tracker of markers
 
-  bool mbDraw;                    // Should the tracker draw anything to OpenGL?
+    CVD::ImageRef mirSize;          // Image size of whole image
 
-  // Interface with map maker:
-  int mnFrame;                    // Frames processed since last reset
-  int mnLastKeyFrameDropped;      // Counter of last keyframe inserted.
-  void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
+    enum {TRAIL_TRACKING_NOT_STARTED,
+          TRAIL_TRACKING_STARTED,
+          TRAIL_TRACKING_COMPLETE,
+          MARKER_INIT_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
 
-  // Tracking quality control:
-  int manMeasAttempted[LEVELS];
-  int manMeasFound[LEVELS];
-  enum {BAD, DODGY, GOOD} mTrackingQuality;
-  int mnLostFrames;
+    std::list<Trail> mlTrails;      // Used by trail tracking
+    KeyFrame mFirstKF;              // First of the stereo pair
+    KeyFrame mPreviousFrameKF;      // Used by trail tracking to check married matches
 
-  // Relocalisation functions:
-  bool AttemptRecovery();         // Called by TrackFrame if tracking is lost.
-  bool mbJustRecoveredSoUseCoarse;// Always use coarse tracking after recovery!
+    SE3<> mse3CamFromWorld;           // Camera pose: this is what the tracker updates every frame.
+    SE3<> mse3StartPos;               // What the camera pose was at the start of the frame.
+    Vector<6> mv6CameraVelocity;    // Motion model
+    double mdVelocityMagnitude;     // Used to decide on coarse tracking
+    double mdMSDScaledVelocityMagnitude; // Velocity magnitude scaled by relative scene depth.
+    bool mbDidCoarse;               // Did tracking use the coarse tracking stage?
 
-  // Frame-to-frame motion init:
-  SmallBlurryImage *mpSBILastFrame;
-  SmallBlurryImage *mpSBIThisFrame;
-  void CalcSBIRotation();
-  Vector<6> mv6SBIRot;
-  bool mbUseSBIInit;
+    bool mbDraw;                    // Should the tracker draw anything to OpenGL?
 
-  // User interaction for initial tracking:
-  bool mbUserPressedSpacebar;
-  std::ostringstream mMessageForUser;
+    // Interface with map maker:
+    int mnFrame;                    // Frames processed since last reset
+    int mnLastKeyFrameDropped;      // Counter of last keyframe inserted.
 
-  // GUI interface:
-  void GUICommandHandler(std::string sCommand, std::string sParams);
-  static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);
-  struct Command {std::string sCommand; std::string sParams; };
-  std::vector<Command> mvQueuedCommands;
-  //@hack for serialize tracked frame
-  int frameIndex;
-  int isKeyFrame;
-  bool bSave;
+    // Tracking quality control:
+    int manMeasAttempted[LEVELS];
+    int manMeasFound[LEVELS];
+    enum {BAD, DODGY, GOOD} mTrackingQuality;
+    int mnLostFrames;
 
-private:
-  // Scale initialization with markers -- dhenell
-  void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
-  bool PickPointOnGround(
-    const TooN::Vector<2>& pixelCoord,
-    TooN::Vector<3>& pointOnPlane);
+    // Relocalisation functions:
+    bool mbJustRecoveredSoUseCoarse;// Always use coarse tracking after recovery!
 
-  bool mHasDeterminedScale;
-  std::vector<double> mScaleMeasurements;
-  double mScale;
-  // Transforms coordinates from the AR marker aligned CS to
-  // the internal map CS
-  SE3<> msim3WorldFromNormWorld;
-  Matrix<4,4> mMarkerXForm;
-  Matrix<4,4> mMarkerFromWorld;
+    // Frame-to-frame motion init:
+    SmallBlurryImage *mpSBILastFrame;
+    SmallBlurryImage *mpSBIThisFrame;
+    Vector<6> mv6SBIRot;
+    bool mbUseSBIInit;
+
+    // User interaction for initial tracking:
+    bool mbUserPressedSpacebar;
+    std::ostringstream mMessageForUser;
+
+    // GUI interface:
+    struct Command {std::string sCommand; std::string sParams; };
+    std::vector<Command> mvQueuedCommands;
+    //@hack for serialize tracked frame
+    int frameIndex;
+    int isKeyFrame;
+    bool bSave;
+
+    bool mHasDeterminedScale;
+    std::vector<double> mScaleMeasurements;
+    double mScale;
+    // Transforms coordinates from the AR marker aligned CS to
+    // the internal map CS
+    SE3<> msim3WorldFromNormWorld;
 };
 
 }
