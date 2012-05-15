@@ -34,23 +34,18 @@ class MapSerializer;
 
 class BundleAdjustmentJob {
   public:
-    BundleAdjustmentJob();
     BundleAdjustmentJob(Map *pMap,
                         const std::set<KeyFrame*>& sAdjustSet,
                         const std::set<KeyFrame*>& sFixedSet,
                         const std::set<MapPoint*>& sMapPoints,
                         bool bRecent);
 
-    bool Run();
-    void RequestAbort() { mbBundleAbortRequested = true; }
+    bool Run(bool *pbAbortSignal);
 
   private:
     Map *mpMap;
     Bundle mBundle;
-    bool mbEmptyJob;
     bool mbRecent;
-
-    bool mbBundleAbortRequested;
 
     // The bundle adjuster does different accounting of keyframes and map points;
     // Translation maps are stored:
@@ -58,13 +53,13 @@ class BundleAdjustmentJob {
     std::map<int, KeyFrame*> mBundleID_View;
     std::map<MapPoint*, int> mPoint_BundleID;
     std::map<KeyFrame*, int> mView_BundleID;
-
 };
 
 class Map
 {
-    friend class BundleAdjustmentJob;
-    friend class MapSerializer;
+  friend class BundleAdjustmentJob;
+  friend class MapSerializer;
+
   public:
     Map();
     ~Map();
@@ -81,8 +76,8 @@ class Map
     void AddKeyFrameFromTopOfQueue();
 
     // Bundle adjustments
-    BundleAdjustmentJob BundleAdjustAll();
-    BundleAdjustmentJob BundleAdjustRecent();
+    bool BundleAdjustAll(bool *pbAbortSignal = NULL);
+    bool BundleAdjustRecent(bool *pbAbortSignal = NULL);
 
     void ReFindFromFailureQueue();
     void ReFindNewlyMade();

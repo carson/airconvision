@@ -44,8 +44,6 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
     mbResetRequested(false),
     mbResetDone(true),
     mbBundleAbortRequested(false),
-    mbBundleRunning(false),
-    mbBundleRunningIsRecent(false),
     mbReInitRequested(false),
     mbReInitDone(false),
     mbSwitchRequested(false),
@@ -109,10 +107,8 @@ void MapMaker::Reset(Map * map)
   // This is only called from within the mapmaker thread...
   map->Reset();
 
-  mbBundleRunning = false;
   mbResetDone = true;
   mbResetRequested = false;
-  mbBundleAbortRequested = false;
 }
 
 /**
@@ -125,9 +121,6 @@ void MapMaker::SwitchMap()
   mpMap = mpSwitchMap;
   mpMap->mapLockManager.Register( this );
   //load current state?
-
-  mbBundleRunning = false;
-  mbBundleAbortRequested = false;
 
   //set bools
   mbSwitchRequested = false;
@@ -191,8 +184,8 @@ void MapMaker::run()
     CKECK_ABORTS;
     // Should we run local bundle adjustment?
     if(!mpMap->HasRecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
-      BundleAdjustmentJob bundleJob = mpMap->BundleAdjustRecent();
-      if (!bundleJob.Run()) {
+      mbBundleAbortRequested = false;
+      if (!mpMap->BundleAdjustRecent(&mbBundleAbortRequested)) {
         mbResetRequested = true;
       }
     }
@@ -206,17 +199,23 @@ void MapMaker::run()
     CKECK_ABORTS;
     // Run global bundle adjustment?
     //if(mpMap->bBundleConverged_Recent && !mpMap->bBundleConverged_Full && mpMap->QueueSize() == 0)
-    {
-      BundleAdjustmentJob bundleJob = mpMap->BundleAdjustAll();
-      if (!bundleJob.Run()) {
+
+    // I added this rule to avoid starting a full bundle adjust if there were waiting KFs,
+    // otherwise the camera loses tracking with fast camera movements -- dhenell
+    if (mpMap->QueueSize() == 0) {
+      mbBundleAbortRequested = false;
+      if (!mpMap->BundleAdjustAll(&mbBundleAbortRequested)) {
         mbResetRequested = true;
       }
     }
 
     CKECK_ABORTS;
     // Very low priorty: re-find measurements marked as outliers
-    if(mpMap->HasRecentBundleAdjustConverged() && mpMap->HasFullBundleAdjustConverged() && rand()%20 == 0 && mpMap->QueueSize() == 0)
+    if(mpMap->HasRecentBundleAdjustConverged() && mpMap->HasFullBundleAdjustConverged() &&
+        rand()%20 == 0 && mpMap->QueueSize() == 0)
+    {
       mpMap->ReFindFromFailureQueue();
+    }
 
     CKECK_ABORTS;
     mpMap->HandleBadPoints();
@@ -326,8 +325,8 @@ void MapMaker::AddKeyFrame(const KeyFrame &k)
 
   mpMap->QueueKeyFrame(k);
 
-  if(mbBundleRunning)   // Tell the mapmaker to stop doing low-priority stuff and concentrate on this KF first.
-    mbBundleAbortRequested = true;
+  // Tell the mapmaker to stop doing low-priority stuff and concentrate on this KF first.
+  mbBundleAbortRequested = true;
 }
 
 /*Hack camparijet*/

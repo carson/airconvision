@@ -90,8 +90,6 @@ class MapMaker : protected CVD::Thread
     bool mbResetRequested;            // A reset has been requested
     bool mbResetDone;                 // The reset was done.
     bool mbBundleAbortRequested;      // We should stop bundle adjustment
-    bool mbBundleRunning;             // Bundle adjustment is running
-    bool mbBundleRunningIsRecent;     //    ... and it's a local bundle adjustment.
 
     // Used for requesting map transforms
     SE3<> mse3NewFromOld;

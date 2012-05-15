@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cassert>
 
 using namespace std;
 using namespace TooN;
@@ -21,28 +22,21 @@ using namespace GVars3;
 
 namespace PTAMM {
 
-BundleAdjustmentJob::BundleAdjustmentJob()
-  : mbEmptyJob(true)
-{
-}
-
 BundleAdjustmentJob::BundleAdjustmentJob(Map *pMap,
     const std::set<KeyFrame*>& sAdjustSet, const std::set<KeyFrame*>& sFixedSet,
     const std::set<MapPoint*>& sMapPoints, bool bRecent)
   : mpMap(pMap)
-  , mbEmptyJob(false)
   , mbRecent(bRecent)
-  , mbBundleAbortRequested(false)
 {
   // Add the keyframes' poses to the bundle adjuster. Two parts: first nonfixed, then fixed.
-  for(set<KeyFrame*>::const_iterator it = sAdjustSet.begin(); it!= sAdjustSet.end(); ++it)
+  for(auto it = sAdjustSet.begin(); it!= sAdjustSet.end(); ++it)
   {
     int nBundleID = mBundle.AddCamera((*it)->se3CfromW, (*it)->bFixed);
     mView_BundleID[*it] = nBundleID;
     mBundleID_View[nBundleID] = *it;
   }
 
-  for(set<KeyFrame*>::const_iterator it = sFixedSet.begin(); it!= sFixedSet.end(); ++it)
+  for(auto it = sFixedSet.begin(); it!= sFixedSet.end(); ++it)
   {
     int nBundleID = mBundle.AddCamera((*it)->se3CfromW, true);
     mView_BundleID[*it] = nBundleID;
@@ -50,7 +44,7 @@ BundleAdjustmentJob::BundleAdjustmentJob(Map *pMap,
   }
 
   // Add the points' 3D position
-  for(set<MapPoint*>::const_iterator it = sMapPoints.begin(); it!=sMapPoints.end(); ++it)
+  for(auto it = sMapPoints.begin(); it!=sMapPoints.end(); ++it)
   {
     int nBundleID = mBundle.AddPoint((*it)->v3WorldPos);
     mPoint_BundleID[*it] = nBundleID;
@@ -58,36 +52,38 @@ BundleAdjustmentJob::BundleAdjustmentJob(Map *pMap,
   }
 
   // Add the relevant point-in-keyframe measurements
-  for(unsigned int i=0; i< mpMap->vpKeyFrames.size(); i++)
+  for(size_t i=0; i< mpMap->vpKeyFrames.size();++ i)
   {
     if(mView_BundleID.count(mpMap->vpKeyFrames[i]) == 0)
       continue;
 
     int nKF_BundleID = mView_BundleID[mpMap->vpKeyFrames[i]];
 
-    for(meas_it it= mpMap->vpKeyFrames[i]->mMeasurements.begin();
-        it!= mpMap->vpKeyFrames[i]->mMeasurements.end();
-        ++it)
+    for(auto it = mpMap->vpKeyFrames[i]->mMeasurements.begin();
+        it != mpMap->vpKeyFrames[i]->mMeasurements.end(); ++it)
     {
       if(mPoint_BundleID.count(it->first) == 0)
         continue;
 
       int nPoint_BundleID = mPoint_BundleID[it->first];
 
-      mBundle.AddMeas(nKF_BundleID, nPoint_BundleID, it->second.v2ImplanePos, LevelScale(it->second.nLevel) * LevelScale(it->second.nLevel), it->second.m2CamDerivs);
+      mBundle.AddMeas(nKF_BundleID, nPoint_BundleID, it->second.v2ImplanePos,
+                      LevelScale(it->second.nLevel) * LevelScale(it->second.nLevel),
+                      it->second.m2CamDerivs);
     }
   }
 }
 
-bool BundleAdjustmentJob::Run()
+bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
 {
-  // There is nothing to do bundle adjustment on, so just succeed
-  if (mbEmptyJob) {
-    return true;
+  // Allow NULL as abort signal
+  bool bDummySignal = false;
+  if (!pbAbortSignal) {
+    pbAbortSignal = &bDummySignal;
   }
 
   // Run the bundle adjuster. This returns the number of successful iterations
-  int nAccepted = mBundle.Compute(&mbBundleAbortRequested);
+  int nAccepted = mBundle.Compute(pbAbortSignal);
 
   if(nAccepted < 0)
   {
@@ -100,16 +96,19 @@ bool BundleAdjustmentJob::Run()
     return false;
   }
 
+  bool bPrevRecent = mpMap->bBundleConverged_Recent;
+  bool bPrevFull = mpMap->bBundleConverged_Full;
+
   // Bundle adjustment did some updates, apply these to the map
   if(nAccepted > 0)
   {
-    for(map<MapPoint*,int>::iterator itr = mPoint_BundleID.begin();
+    for(auto itr = mPoint_BundleID.begin();
         itr != mPoint_BundleID.end(); ++itr)
     {
       itr->first->v3WorldPos = mBundle.GetPoint(itr->second);
     }
 
-    for(map<KeyFrame*,int>::iterator itr = mView_BundleID.begin();
+    for(auto itr = mView_BundleID.begin();
         itr != mView_BundleID.end(); itr++)
     {
       itr->first->se3CfromW = mBundle.GetCamera(itr->second);
@@ -129,18 +128,26 @@ bool BundleAdjustmentJob::Run()
     }
   }
 
+  if (mbRecent) {
+    assert(mpMap->bBundleConverged_Recent == mBundle.Converged());
+    assert(mpMap->bBundleConverged_Full == bPrevFull);
+  } else {
+    assert(mpMap->bBundleConverged_Full == mBundle.Converged());
+    assert(mpMap->bBundleConverged_Recent == mBundle.Converged() ? true : bPrevRecent);
+  }
+
   // Handle outlier measurements:
   vector<pair<int,int> > vOutliers_PC_pair = mBundle.GetOutlierMeasurements();
-  for(size_t i=0; i<vOutliers_PC_pair.size(); ++i)
+  for(size_t i=0; i < vOutliers_PC_pair.size(); ++i)
   {
     MapPoint *pp = mBundleID_Point[vOutliers_PC_pair[i].first];
     KeyFrame *pk = mBundleID_View[vOutliers_PC_pair[i].second];
     Measurement &m = pk->mMeasurements[pp];
-    if(pp->pMMData->GoodMeasCount() <= 2 || m.Source == Measurement::SRC_ROOT) {  // Is the original source kf considered an outlier? That's bad.
+
+    // Is the original source kf considered an outlier? That's bad.
+    if(pp->pMMData->GoodMeasCount() <= 2 || m.Source == Measurement::SRC_ROOT) {
       pp->bBad = true;
-    }
-    else
-    {
+    } else {
       // Do we retry it? Depends where it came from!!
       if(m.Source == Measurement::SRC_TRACKER || m.Source == Measurement::SRC_EPIPOLAR) {
         mpMap->vFailureQueue.push_back(pair<KeyFrame*,MapPoint*>(pk,pp));
@@ -395,8 +402,7 @@ bool Map::InitFromStereo(KeyFrame &kF,
       return false;
     }
 
-    auto job = BundleAdjustAll();
-    if (!job.Run()) {
+    if (!BundleAdjustAll()) {
       return false;
     }
 
@@ -591,7 +597,6 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   return true;
 }
-
 
 // Mapmaker's try-to-find-a-point-in-a-keyframe code. This is used to update
 // data association if a bad measurement was detected, or if a point
@@ -801,7 +806,7 @@ void Map::AddSomeMapPoints(int nLevel)
 
 
 // Perform bundle adjustment on all keyframes, all map points
-BundleAdjustmentJob Map::BundleAdjustAll()
+bool Map::BundleAdjustAll(bool *pbAbortSignal)
 {
   // construct the sets of kfs/points to be adjusted:
   // in this case, all of them
@@ -818,17 +823,18 @@ BundleAdjustmentJob Map::BundleAdjustAll()
   for(size_t i=0; i < vpPoints.size(); ++i)
     sMapPoints.insert(vpPoints[i]);
 
-  return BundleAdjustmentJob(this, sAdj, sFixed, sMapPoints, false);
+  BundleAdjustmentJob job(this, sAdj, sFixed, sMapPoints, false);
+  return job.Run(pbAbortSignal);
 }
 
 // Peform a local bundle adjustment which only adjusts
 // recently added key-frames
-BundleAdjustmentJob Map::BundleAdjustRecent()
+bool Map::BundleAdjustRecent(bool *pbAbortSignal)
 {
   if(vpKeyFrames.size() < 8)
   { // Ignore this unless map is big enough
     bBundleConverged_Recent = true;
-    return BundleAdjustmentJob();
+    return true;
   }
 
   // First, make a list of the keyframes we want adjusted in the adjuster.
@@ -876,7 +882,8 @@ BundleAdjustmentJob Map::BundleAdjustRecent()
     }
   }
 
-  return BundleAdjustmentJob(this, sAdjustSet, sFixedSet, sMapPoints, true);
+  BundleAdjustmentJob job(this, sAdjustSet, sFixedSet, sMapPoints, true);
+  return job.Run(pbAbortSignal);
 }
 
 // Find a dominant plane in the map, find an SE3<> to put it as the z=0 plane
@@ -1083,16 +1090,14 @@ void Map::HandleBadPoints()
  */
 void Map::MoveBadPointsToTrash()
 {
-  int nBad = 0;
-  for(int i = vpPoints.size()-1; i>=0; i--)
+  for(size_t i = vpPoints.size()-1; i>=0; i--)
+  {
+    if(vpPoints[i]->bBad)
     {
-      if(vpPoints[i]->bBad)
-        {
-          vpPointsTrash.push_back(vpPoints[i]);
-          vpPoints.erase(vpPoints.begin() + i);
-          nBad++;
-        }
-    };
+      vpPointsTrash.push_back(vpPoints[i]);
+      vpPoints.erase(vpPoints.begin() + i);
+    }
+  }
 }
 
 
@@ -1101,7 +1106,7 @@ void Map::MoveBadPointsToTrash()
  */
 void Map::EmptyTrash()
 {
-  for(unsigned int i=0; i<vpPointsTrash.size(); i++)
+  for(size_t i=0; i<vpPointsTrash.size(); ++i)
     delete vpPointsTrash[i];
   vpPointsTrash.clear();
 }
