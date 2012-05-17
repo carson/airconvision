@@ -14,13 +14,16 @@
 #ifndef __MAPMAKER_H
 #define __MAPMAKER_H
 
+#include "Map.h"
+#include "KeyFrame.h"
+#include "ATANCamera.h"
+
 #include <cvd/image.h>
 #include <cvd/byte.h>
 #include <cvd/thread.h>
 
-#include "Map.h"
-#include "KeyFrame.h"
-#include "ATANCamera.h"
+#include <queue>
+#include <mutex>
 
 namespace PTAMM {
 
@@ -32,9 +35,11 @@ class MapMaker : protected CVD::Thread
     ~MapMaker();
 
     // Make a map from scratch. Called by the tracker.
-    bool InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
+    void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
                         SE3<> &se3CameraPos);
+
+    bool StereoInitDone() const { return mbStereoInitDone; }
 
     void AddKeyFrame(const KeyFrame &k);   // Add a key-frame to the map. Called by the tracker.
     void RequestReset();   // Request that the we reset. Called by the tracker.
@@ -47,7 +52,7 @@ class MapMaker : protected CVD::Thread
     bool ReInitDone();                // Returns true if the ReInit has been done.
     bool RequestSwitch(Map * map);    // Request a switch to map
     bool SwitchDone();                // Returns true if the Switch map has been done
-    void RequestRealignment() { mbRealignmentRequested = true; }
+    void RequestRealignment();
 
     void RequestMapTransformation(const SE3<>& se3NewFromOld);
     void RequestMapScaling(double dScale);
@@ -55,10 +60,7 @@ class MapMaker : protected CVD::Thread
   private:
     virtual void run();      // The MapMaker thread code lives here
 
-    void RealignGroundPlane();
-
     // General Maintenance/Utility:
-    //PTAMM
     void Reset() { Reset(mpMap); }
     void Reset(Map * map);
     void ReInit();                //call this when switching to a new map
@@ -80,29 +82,30 @@ class MapMaker : protected CVD::Thread
     struct Command {std::string sCommand; std::string sParams; };
     std::vector<Command> mvQueuedCommands;
 
-    double mdMaxKFDistWiggleMult;
-    double mdWiggleScale;  // Metric distance between the first two KeyFrames (copied from GVar)
-                          // This sets the scale of the map
-    double mdWiggleScaleDepthNormalized;  // The above normalized against scene depth,
-                                          // this controls keyframe separation
+    // Used for thread synchronization
+    std::mutex m;
 
-    // Thread interaction signalling stuff
-    bool mbMapTransformRequested;
-    bool mbMapScaleRequested;
+    typedef std::function<void()> Action;
+    std::queue<Action> mvQueuedActions;
+
+    // A scaling factor that can be used to tweak the distances between keyframes
+    double mdMaxKFDistWiggleMult;
+    // Metric distance between the first two KeyFrames (copied from GVar)
+    // This sets the scale of the map.
+    double mdWiggleScale;
+    // The above normalized against scene depth, this controls keyframe separation
+    double mdWiggleScaleDepthNormalized;
+
+    bool mbAbortRequested;      // We should stop bundle adjustment and stereo init
+
+    // Thread interaction signaling stuff
     bool mbResetRequested;            // A reset has been requested
     bool mbResetDone;                 // The reset was done.
-    bool mbBundleAbortRequested;      // We should stop bundle adjustment
-    bool mbRealignmentRequested;
-
-    // Used for requesting map transforms
-    SE3<> mse3NewFromOld;
-    double mdMapScaleFactor;
-
-    //PTAMM
     bool mbReInitRequested;           // map reinitialization requested
     bool mbReInitDone;                // map reinitialization done
     bool mbSwitchRequested;           // switch to another map requested
     bool mbSwitchDone;                // switch to another map done
+    bool mbStereoInitDone;
 };
 
 }

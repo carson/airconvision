@@ -121,6 +121,7 @@ class Tracker
 
     enum {TRAIL_TRACKING_NOT_STARTED,
           TRAIL_TRACKING_STARTED,
+          WAITING_FOR_STEREO_INIT,
           TRAIL_TRACKING_COMPLETE,
           MARKER_INIT_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
 

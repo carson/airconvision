@@ -262,8 +262,13 @@ Vector<3> Map::ReprojectPoint(const SE3<>& se3AfromB, const Vector<2> &v2A, cons
 bool Map::InitFromStereo(KeyFrame &kF,
                          KeyFrame &kS,
                          vector<pair<ImageRef, ImageRef> > &vTrailMatches,
-                         SE3<> &se3TrackerPose)
+                         SE3<> &se3TrackerPose, bool *pbAbortSignal)
 {
+  bool bDummyAbortSignal = false;
+  if (!pbAbortSignal) {
+    pbAbortSignal = &bDummyAbortSignal;
+  }
+
   ATANCamera &camera = kF.Camera;
 
   vector<HomographyMatch> vMatches;
@@ -410,10 +415,9 @@ bool Map::InitFromStereo(KeyFrame &kF,
       return false;
     }
 
-    /*
-    if(mbResetRequested || mbReInitRequested || mbSwitchRequested)
+    if(*pbAbortSignal) {
       return false;
-      */
+    }
   }
 
   // Rotate and translate the map so the dominant plane is at z=0:

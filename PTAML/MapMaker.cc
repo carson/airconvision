@@ -39,15 +39,14 @@ using namespace GVars3;
 MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
   : mvpMaps(maps),
     mpMap(m),
-    mbMapTransformRequested(false),
-    mbMapScaleRequested(false),
+    mbAbortRequested(false),
     mbResetRequested(false),
     mbResetDone(true),
-    mbBundleAbortRequested(false),
     mbReInitRequested(false),
     mbReInitDone(false),
     mbSwitchRequested(false),
-    mbSwitchDone(false)
+    mbSwitchDone(false),
+    mbStereoInitDone(false)
 {
   mdWiggleScale = GV3::get<double>("MapMaker.WiggleScale", 0.1, SILENT);
   mdMaxKFDistWiggleMult = GV3::get<double>("MapMaker.MaxKFDistWiggleMult", 1.0, SILENT);
@@ -64,7 +63,7 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
  */
 MapMaker::~MapMaker()
 {
-  mbBundleAbortRequested = true;
+  mbAbortRequested = true;
   stop(); // makes shouldStop() return true
   cout << "Waiting for mapmaker to die.." << endl;
   join();
@@ -164,37 +163,31 @@ void MapMaker::run()
       mvQueuedCommands.erase(mvQueuedCommands.begin());
     }
 
+    // Perform all queued actions
+
+    {
+      std::lock_guard<std::mutex> lock(m);
+      while (!mvQueuedActions.empty()) {
+        CKECK_ABORTS;
+        mvQueuedActions.front()();
+        mvQueuedActions.pop();
+      }
+    }
+
     if(!mpMap->IsGood() || mpMap->bEditLocked )  // Nothing to do if there is no map yet! or is locked
       continue;
+
 
     // From here on, mapmaker does various map-maintenance jobs in a certain priority
     // Hierarchy. For example, if there's a new key-frame to be added (QueueSize() is >0)
     // then that takes high priority.
 
     CKECK_ABORTS;
-    if (mbMapTransformRequested) {
-      mpMap->ApplyGlobalTransformation(mse3NewFromOld);
-      mbMapTransformRequested = false;
-    }
-
-    CKECK_ABORTS;
-    if (mbMapScaleRequested) {
-      mpMap->ApplyGlobalScale(mdMapScaleFactor);
-      mbMapScaleRequested = false;
-    }
-
-    CKECK_ABORTS;
-    if (mbRealignmentRequested) {
-      RealignGroundPlane();
-      mbRealignmentRequested = false;
-    }
-
-    CKECK_ABORTS;
     // Should we run local bundle adjustment?
     if(!mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
-      mbBundleAbortRequested = false;
+      mbAbortRequested = false;
       DEBUG_MAP_MAKER(cout << "START: Recent bundle adjustment" << endl);
-      if (!mpMap->RecentBundleAdjust(&mbBundleAbortRequested)) {
+      if (!mpMap->RecentBundleAdjust(&mbAbortRequested)) {
         mbResetRequested = true;
       }
       DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbBundleAbortRequested << endl);
@@ -215,9 +208,9 @@ void MapMaker::run()
     // I added this rule to avoid starting a full bundle adjust if there were waiting KFs,
     // otherwise the camera loses tracking with fast camera movements -- dhenell
     if (mpMap->QueueSize() == 0) {
-      mbBundleAbortRequested = false;
+      mbAbortRequested = false;
       DEBUG_MAP_MAKER(cout << "START: Full bundle adjustment" << endl);
-      if (!mpMap->FullBundleAdjust(&mbBundleAbortRequested)) {
+      if (!mpMap->FullBundleAdjust(&mbAbortRequested)) {
         mbResetRequested = true;
       }
       DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbBundleAbortRequested << endl);
@@ -240,23 +233,12 @@ void MapMaker::run()
 
     CKECK_ABORTS;
     // Any new key-frames to be added?
-    if(mpMap->QueueSize() > 0) {
+    if(mpMap->QueueSize() > 0) { // this is unnecessary since AddKeyFrameFromTopOfQueue does this check anyway
       DEBUG_MAP_MAKER(cout << "START: Adding key frame" << endl);
       mpMap->AddKeyFrameFromTopOfQueue(); // Integrate into map data struct, and process
       DEBUG_MAP_MAKER(cout << "  END: Adding key frame" << endl);
     }
   }
-}
-
-void MapMaker::RealignGroundPlane()
-{
-  SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner(false);
-
-  // Don't align in the XY-plane!
-  se3GroundAlignment.get_translation()[0] = 0;
-  se3GroundAlignment.get_translation()[1] = 0;
-
-  mpMap->ApplyGlobalTransformation(se3GroundAlignment);
 }
 
 /**
@@ -266,6 +248,7 @@ void MapMaker::RequestReset()
 {
   mbResetDone = false;
   mbResetRequested = true;
+  mbAbortRequested = true;
 }
 
 /**
@@ -323,23 +306,63 @@ bool MapMaker::SwitchDone()
   return mbSwitchDone;
 }
 
-void MapMaker::RequestMapTransformation(const SE3<>& se3NewFromOld)
+void MapMaker::RequestRealignment()
 {
-  mse3NewFromOld = se3NewFromOld;
-  mbMapTransformRequested = true;
+  if(!mpMap->IsGood() || mpMap->bEditLocked ) { // Nothing to do if there is no map yet! or is locked
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(m);
+
+  mvQueuedActions.push([mpMap] () {
+    SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner(false);
+
+    // Don't align in the XY-plane!
+    se3GroundAlignment.get_translation()[0] = 0;
+    se3GroundAlignment.get_translation()[1] = 0;
+
+    mpMap->ApplyGlobalTransformation(se3GroundAlignment);
+  });
+}
+
+void MapMaker::RequestMapTransformation(const SE3<> &se3NewFromOld)
+{
+  if(!mpMap->IsGood() || mpMap->bEditLocked ) { // Nothing to do if there is no map yet! or is locked
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(m);
+
+  mvQueuedActions.push([se3NewFromOld, mpMap] () {
+    mpMap->ApplyGlobalTransformation(se3NewFromOld);
+  });
 }
 
 void MapMaker::RequestMapScaling(double dScale)
 {
-  mdMapScaleFactor = dScale;
-  mbMapScaleRequested = true;
+  if(!mpMap->IsGood() || mpMap->bEditLocked ) { // Nothing to do if there is no map yet! or is locked
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(m);
+
+  mvQueuedActions.push([dScale, mpMap] () {
+    mpMap->ApplyGlobalScale(dScale);
+  });
 }
 
-bool MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
-                    std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
-                    SE3<> &se3CameraPos)
+void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
+                              std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
+                              SE3<> &se3CameraPos)
 {
-  return mpMap->InitFromStereo(kFirst, kSecond, vMatches, se3CameraPos);
+  std::lock_guard<std::mutex> lock(m);
+
+  mbStereoInitDone = false;
+  mbAbortRequested = false;
+  mvQueuedActions.push([kFirst, kSecond, vMatches, se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+    mpMap->InitFromStereo(kFirst, kSecond, vMatches, se3CameraPos, &mbAbortRequested);
+    mbStereoInitDone = true;
+  });
 }
 
 /**
@@ -358,7 +381,7 @@ void MapMaker::AddKeyFrame(const KeyFrame &k)
   mpMap->QueueKeyFrame(k);
 
   // Tell the mapmaker to stop doing low-priority stuff and concentrate on this KF first.
-  mbBundleAbortRequested = true;
+  mbAbortRequested = true;
 }
 
 /*Hack camparijet*/
@@ -369,10 +392,7 @@ bool MapMaker::NeedNewKeyFrame(const KeyFrame &kCurrent)
   double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
   dDist *= (1.0 / kCurrent.dSceneDepthMean);
 
-  if(dDist > mdMaxKFDistWiggleMult * mdWiggleScaleDepthNormalized)
-    return true;
-
-  return false;
+  return dDist > mdMaxKFDistWiggleMult * mdWiggleScaleDepthNormalized;
 }
 
 

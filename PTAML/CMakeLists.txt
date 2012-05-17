@@ -3,8 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 
 # Set default built type
 set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
-    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
-    FORCE)
+    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
     
 # The CDT Error Parser cannot handle error messages that span more than one line, which is the default gcc behavior. 
 # This forces gcc to generate single line error messages with no line wrapping.  
@@ -33,8 +32,7 @@ pkg_check_modules(GSTREAMER REQUIRED gstreamer-0.10)
 
 # AR Toolkit
 set(ARTOOLKIT_DIR "/home/daniel/Code/ARToolKit/" CACHE STRING
-    "Set the installation directory of AR Toolkit."
-    FORCE)
+    "Set the installation directory of AR Toolkit.")
 
 # Include paths
 include_directories(

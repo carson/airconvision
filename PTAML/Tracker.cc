@@ -59,7 +59,6 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
 {
   mCurrentKF.bFixed = false;
   GUI.RegisterCommand("Reset", GUICommandCallBack, this);
-//  GUI.RegisterCommand("KeyPress", GUICommandCallBack, this);
   GUI.RegisterCommand("PokeTracker", GUICommandCallBack, this);
   TrackerData::irImageSize = mirSize;
 
@@ -68,7 +67,6 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
 
   // Most of the initialisation is done in Reset()
   Reset();
-
 }
 
 /**
@@ -640,15 +638,26 @@ void Tracker::TrackForInitialMap()
       for(list<Trail>::iterator i = mlTrails.begin(); i!=mlTrails.end(); ++i)
         vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
 
-      if (mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld)) {  // This will take some time!
-        mnInitialStage = TRAIL_TRACKING_COMPLETE;
-        //mse3CamFromWorld = mCurrent//mFirstKF.se3CfromW;
-        isKeyFrame = 2; //@hack by camaparijet for serializing
-      }
+      mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
+      mnInitialStage = WAITING_FOR_STEREO_INIT;
     }
     else
     {
       mMessageForUser << "Translate the camera slowly sideways, and press spacebar again to perform stereo init.";
+    }
+  }
+
+  if(mnInitialStage == WAITING_FOR_STEREO_INIT) {
+    if (mMapMaker.StereoInitDone()) {
+      if (mpMap->IsGood()) {
+        mnInitialStage = TRAIL_TRACKING_COMPLETE;
+        isKeyFrame = 2; //@hack by camaparijet for serializing
+      } else {
+        Reset();
+      }
+    } else {
+      // Give the user some feedback
+      mMessageForUser << "Waiting for stereo initialization...";
     }
   }
 }

@@ -72,7 +72,7 @@ class Map
     // Make a map from scratch. Called by the tracker.
     bool InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
-                        TooN::SE3<> &se3CameraPos);
+                        TooN::SE3<> &se3CameraPos, bool *pbAbortSignal = NULL);
 
     // Keyframe queue
     size_t QueueSize() const { return vpKeyFrameQueue.size(); } // How many KFs in the queue waiting to be added?
