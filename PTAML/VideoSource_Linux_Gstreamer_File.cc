@@ -50,8 +50,6 @@ using namespace GVars3;
  * ...
  */
 
-static const int GST_MAX_WIDTH = 1280;
-static const int GST_MAX_HEIGHT = 720;
 
 /*!
  * Default constructor for the VideoSource class.
@@ -61,7 +59,6 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
   , mGrayVideoSink(NULL)
   , mSourcePipeline(NULL)
   , mFrameNumber(0)
-  , mirSize(GST_MAX_WIDTH, GST_MAX_HEIGHT)
 {
   gchar *pipelineString = NULL;
 
@@ -70,6 +67,11 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
    */
   gst_init(NULL, NULL);
 
+  int videoWidth = GV3::get<int>("VideoSource.Width", 640, HIDDEN);
+  int videoHeight = GV3::get<int>("VideoSource.Height", 480, HIDDEN);
+  double contrast = GV3::get<double>("VideoSource.Contrast", 1.0, HIDDEN);
+
+  mirSize = ImageRef(videoWidth, videoHeight);
   /*!
    * Setup the source pipeline to read from a file, automatically select the proper decoder,
    * convert each frame to two new color spaces (specified later), scale the video (specified later),
@@ -81,6 +83,7 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
       g_strdup_printf(
         "filesrc location=\"%s\" ! "
         "decodebin ! "
+	"videobalance contrast=%.1f ! "
         "tee ! "
         "videoscale ! "
         "ffmpegcolorspace ! "
@@ -93,8 +96,9 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
         "queue ! "
         "appsink name=grayvideo max-buffers=2 drop=false",
         videoSourceFile.c_str(),
-        1280, 720,
-        1280, 720);
+	contrast,
+        videoWidth, videoHeight,
+        videoWidth, videoHeight);
 
   g_print("gstreamer pipeline:\n%s\n", pipelineString);
   mSourcePipeline = gst_parse_launch(pipelineString, NULL);
