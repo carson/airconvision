@@ -93,6 +93,7 @@ class Tracker
                              bool bMarkOutliers = false); // Updates pose from found points.
     void CalcSBIRotation();
 
+    bool ShouldAddNewKeyFrame();
     void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
 
     bool AttemptRecovery();         // Called by TrackFrame if tracking is lost.
@@ -137,6 +138,8 @@ class Tracker
     bool mbDidCoarse;               // Did tracking use the coarse tracking stage?
 
     bool mbDraw;                    // Should the tracker draw anything to OpenGL?
+
+    bool mbForceAddNewKeyFrame;     // Forces the adding of the next keyframe
 
     // Interface with map maker:
     int mnFrame;                    // Frames processed since last reset

@@ -32,6 +32,8 @@ MKConnection::MKConnection(int comPortId, int baudrate)
   if (!mOpen) {
     cerr << "Failed to open COM port #" << comPortId << " @ " << baudrate << endl;
   }
+
+  Buffer_Init(&mRxBuffer, mRxBufferData, RX_BUFFER_SIZE);
 }
 
 MKConnection::~MKConnection() {
@@ -63,10 +65,30 @@ void MKConnection::ProcessIncoming()
   int readBytes = 0;
 
   do {
+    // Read from the COM port
     readBytes = PollComport(mComPortId, buffer, RX_BUFFER_SIZE);
 
-    if(readBytes > 0) {
-      // @TODO: Handle incoming data!
+    // Handle the incoming data
+    for (int i = 0; i < readBytes; ++i) {
+      if (MKProtocol_CollectSerialFrame(&mRxBuffer, buffer[i])) {
+        SerialMsg_t msg;
+        MKProtocol_DecodeSerialFrameHeader(&mRxBuffer, &msg);
+
+        // Ignore messages not sent to the OnBoardComputer
+        if (msg.Address == OBC_ADDRESS) {
+          switch (msg.CmdID) {
+          case 'H': // Position hold
+            mPositionHoldCallback();
+            break;
+          default:
+            cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
+            break;
+          }
+        }
+
+        // Reset the buffer so it can be used for next message
+        Buffer_Clear(&mRxBuffer);
+      }
     }
 
   } while (readBytes == RX_BUFFER_SIZE);

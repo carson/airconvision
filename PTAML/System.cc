@@ -9,21 +9,18 @@
 #include "ARDriver.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
-#include "MKConnection.h"
 #include "FPSCounter.h"
 
-// hack to print camera coordinates to coord-log.txt
-// FEB-17-2012
-// Carson Reynolds & Chris Raabe
 #include <iostream>
 #include <fstream>
+#include <functional>
 
 #ifdef _LINUX
-#include <fcntl.h>
+#   include <fcntl.h>
 #endif
 
 #ifdef WIN32
-#include <Windows.h>
+#   include <Windows.h>
 #endif
 
 namespace PTAMM {
@@ -102,7 +99,6 @@ System::System(VideoSource* videoSource)
   GUI.RegisterCommand("NextMap", GUICommandCallBack, mpMapViewer);
   GUI.RegisterCommand("PrevMap", GUICommandCallBack, mpMapViewer);
   GUI.RegisterCommand("CurrentMap", GUICommandCallBack, mpMapViewer);
-
   GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, mpARDriver);
 
   //create the menus
@@ -142,8 +138,13 @@ System::System(VideoSource* videoSource)
 
   mbDone = false;
 
-  cout << "  CAR: Opening coordinate log file" << endl;
-  coordfile.open("coord-log.txt");
+  mCoordFile.open("coord-log.txt");
+  if (!mCoordFile) {
+    cerr << "Failed to open coord-log.txt" << endl;
+  }
+
+  // Connect to the MikroKopter over COM
+  ConnectToMK();
 }
 
 
@@ -156,7 +157,22 @@ System::~System()
     mpMap->mapLockManager.UnRegister( this );
   }
 
-  coordfile.close();
+  mCoordFile.close();
+}
+
+void System::ConnectToMK()
+{
+  // Read COM port settings
+  int mkComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, SILENT); // 16 is /dev/ttyUSB0
+  int mkComPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", SILENT);
+
+  // Attempt connecting to the MK NaviCtrl
+  mMkConn = MKConnection(mkComPortId, mkComPortBaudrate);
+  if (!mMkConn) {
+    cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
+  } else {
+    mMkConn.SetPositionHoldCallback(std::bind(&System::BeginPositionHold, this));
+  }
 }
 
 
@@ -168,17 +184,7 @@ void System::Run()
 {
   using namespace std::chrono;
 
-  int logCoordsToFile = GV3::get<bool>("LogCoordsToFile", false, HIDDEN);
-
-  // Read COM port settings
-  int mkComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, HIDDEN); // 16 is /dev/ttyUSB0
-  int mkComPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", HIDDEN);
-
-  // Attempt connecting to the MK NaviCtrl
-  MKConnection mkConn(mkComPortId, mkComPortBaudrate);
-  if (!mkConn) {
-    cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
-  }
+  int logCoordsToFile = GV3::get<bool>("LogCoordsToFile", false, SILENT);
 
   // For FPS counting
   FPSCounter fpsCounter;
@@ -234,20 +240,21 @@ void System::Run()
     //
 
     Vector<3> worldPos;
-    bool logCoords = mkConn || logCoordsToFile;
+    bool logCoords = mMkConn || logCoordsToFile;
 
     if (logCoords) {
       worldPos = mpTracker->RealWorldCoordinate();
     }
 
     if (logCoordsToFile) {
-      coordfile << worldPos << endl;
+      mCoordFile << worldPos << endl;
     }
 
     // Send world position if connect to MK NaviCtrl
-    if (mkConn) {
+    if (mMkConn) {
       Vector<3> worldPos = mpTracker->RealWorldCoordinate();
-      mkConn.SendPosition(worldPos);
+      mMkConn.SendPosition(worldPos);
+      mMkConn.ProcessIncoming();
     }
 
 
@@ -292,6 +299,10 @@ void System::Run()
   }
 }
 
+void System::BeginPositionHold()
+{
+  cout << " >> Position hold requested" << endl;
+}
 
 
 /**

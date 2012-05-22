@@ -321,6 +321,21 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
   }
 }
 
+bool Tracker::ShouldAddNewKeyFrame()
+{
+  if (mbForceAddNewKeyFrame) {
+    mbForceAddNewKeyFrame = false;
+    return true;
+  }
+
+  return mTrackingQuality == GOOD &&
+         mMapMaker.NeedNewKeyFrame(mCurrentKF) &&
+         // HACK for keyframe threshold for incorporation
+         // the parameter here determines how frequently keyframes are incorporateed
+         mnFrame - mnLastKeyFrameDropped > 10  &&
+         mpMap->QueueSize() < 200;
+}
+
 // TrackFrame is called by System.cc with each incoming video frame.
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
@@ -400,14 +415,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
       }
 
       // Heuristics to check if a key-frame should be added to the map:
-      if(mTrackingQuality == GOOD &&
-         mMapMaker.NeedNewKeyFrame(mCurrentKF) &&
-         // HACK for keyframe threshold for incorporation
-         // the parameter 35 here determines how frequently keyframes are incorporateed
-         mnFrame - mnLastKeyFrameDropped > 35  &&
-         mpMap->QueueSize() < 200)
-        //mpMap->QueueSize() < 3) @hack by camaprijet for more rapid motion
-      {
+      if(ShouldAddNewKeyFrame()) {
         mMessageForUser << " Adding key-frame.";
         AddNewKeyFrame();
         isKeyFrame = 1;

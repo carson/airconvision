@@ -10,20 +10,20 @@
 //
 #ifndef __SYSTEM_H
 #define __SYSTEM_H
+
 #include "VideoSource.h"
 #include "GLWindow2.h"
 #include "ARToolkit.h"
+#include "MKConnection.h"
 
 #include <gvars3/instances.h>
-
 #include <cvd/image.h>
 #include <cvd/rgb.h>
 #include <cvd/byte.h>
+#include <TooN/TooN.h>
 
-// HACK: Coordinate log file
 #include <iostream>
 #include <fstream>
-#include <TooN/TooN.h>
 
 namespace PTAMM {
 
@@ -56,6 +56,8 @@ class System
     void StartMapSerialization(std::string sCommand, std::string sParams);   //(de)serialize a map
     void DrawMapInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
+    void ConnectToMK();
+    void BeginPositionHold();
 
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window
@@ -75,13 +77,15 @@ class System
     MapSerializer *mpMapSerializer;                 // The map serializer for saving and loading maps
     ARToolkitTracker mARTracker;
 
+    MKConnection mMkConn;
+
     bool mbDone;                                    // Kill?
 
     GVars3::gvar3<int> mgvnLockMap;                 // Stop a map being edited - i.e. keyframes added, points updated
     GVars3::gvar3<int> mgvnDrawMapInfo;             // Draw map info on the screen
     GVars3::gvar3<int> mgvnDisableRendering;                 // Disable all rendering
 
-    std::ofstream coordfile;                        // HACK: Coordinate log file
+    std::ofstream mCoordFile;                        // HACK: Coordinate log file
 
 #ifdef _LINUX
     GVars3::gvar3<int> mgvnSaveFIFO;                // Output to a FIFO (make a video)
