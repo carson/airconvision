@@ -111,6 +111,9 @@ class Map
     const std::vector<MapPoint*>& GetMapPoints() const { return vpPoints; }
     const std::vector<KeyFrame*>& GetKeyFrames() const { return vpKeyFrames; }
 
+    double GetWiggleScale() const { return mdWiggleScale; }
+    double GetWiggleScaleDepthNormalized() const { return mdWiggleScaleDepthNormalized; }
+
     // camparijets hack for keyframe visualization
     void InitTexture();
 

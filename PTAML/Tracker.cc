@@ -291,13 +291,11 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       }
 
       if (mbUserPressedSpacebar) {
-        mHasDeterminedScale = true;
-        mbUserPressedSpacebar = false;
-
         cout << "SCALE: " << scale << endl;
-
         mMapMaker.RequestMapTransformation(se3WorldFromNormWorld.inverse());
         mMapMaker.RequestMapScaling(scale);
+        mHasDeterminedScale = true;
+        mbUserPressedSpacebar = false;
       }
     }
   }

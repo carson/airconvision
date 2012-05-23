@@ -90,11 +90,6 @@ class MapMaker : protected CVD::Thread
 
     // A scaling factor that can be used to tweak the distances between keyframes
     double mdMaxKFDistWiggleMult;
-    // Metric distance between the first two KeyFrames (copied from GVar)
-    // This sets the scale of the map.
-    double mdWiggleScale;
-    // The above normalized against scene depth, this controls keyframe separation
-    double mdWiggleScaleDepthNormalized;
 
     bool mbAbortRequested;      // We should stop bundle adjustment and stereo init
 

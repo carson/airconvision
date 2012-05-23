@@ -48,7 +48,6 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
     mbSwitchDone(false),
     mbStereoInitDone(false)
 {
-  mdWiggleScale = GV3::get<double>("MapMaker.WiggleScale", 0.1, SILENT);
   mdMaxKFDistWiggleMult = GV3::get<double>("MapMaker.MaxKFDistWiggleMult", 1.0, SILENT);
 
   mpMap->mapLockManager.Register( this );
@@ -392,14 +391,13 @@ bool MapMaker::NeedNewKeyFrame(const KeyFrame &kCurrent)
   double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
   dDist *= (1.0 / kCurrent.dSceneDepthMean);
 
-  return dDist > mdMaxKFDistWiggleMult * mdWiggleScaleDepthNormalized;
+  return dDist > mdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
 }
-
 
 // Is the tracker's camera pose in cloud-cuckoo land?
 bool MapMaker::IsDistanceToNearestKeyFrameExcessive(KeyFrame &kCurrent)
 {
-  return mpMap->DistToNearestKeyFrame(kCurrent) > mdWiggleScale * 10.0;
+  return mpMap->DistToNearestKeyFrame(kCurrent) > mpMap->GetWiggleScale() * 10.0;
 }
 
 

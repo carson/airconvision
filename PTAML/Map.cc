@@ -172,8 +172,10 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
  * Constructor. Calls reset and sets the map ID
  */
 Map::Map()
-  : N(10000),
-    nTex(0)
+  : N(10000)
+  , nTex(0)
+  , mdWiggleScale(0)
+  , mdWiggleScaleDepthNormalized(0)
 {
   static int nMapCounter = 0;
   mnMapNum = nMapCounter++;
@@ -810,8 +812,7 @@ void Map::AddSomeMapPoints(int nLevel)
 
   for(size_t i = 0; i<l.vCandidates.size(); ++i)
     AddPointEpipolar(kSrc, kTarget, nLevel, i);
-};
-
+}
 
 // Perform bundle adjustment on all keyframes, all map points
 bool Map::FullBundleAdjust(bool *pbAbortSignal)
@@ -1187,6 +1188,8 @@ void Map::ApplyGlobalScale(double dScale)
 {
   for(size_t i=0; i < vpKeyFrames.size(); ++i) {
     vpKeyFrames[i]->se3CfromW.get_translation() *= dScale;
+    vpKeyFrames[i]->dSceneDepthMean *= dScale;
+    vpKeyFrames[i]->dSceneDepthSigma *= dScale;
   }
 
   for(size_t i=0; i < vpPoints.size(); ++i) {
@@ -1195,6 +1198,9 @@ void Map::ApplyGlobalScale(double dScale)
     vpPoints[i]->v3PixelDown_W *= dScale;
     vpPoints[i]->RefreshPixelVectors();
   }
+
+  mdWiggleScale *= dScale;
+  //mdWiggleScaleDepthNormalized = mdWiggleScale / vpKeyFrames[0]->dSceneDepthMean; // Should be invariant to scale
 }
 
 void Map::InitTexture()
@@ -1216,7 +1222,7 @@ void Map::MakeTextureFromKF(KeyFrame &k)
 
 void Map::ReleaseTexture()
 {
-  glDeleteTextures(N,&texName[0]);
+  glDeleteTextures(N, &texName[0]);
 }
 
 }
