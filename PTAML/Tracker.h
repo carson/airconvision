@@ -99,10 +99,11 @@ class Tracker
     bool AttemptRecovery();         // Called by TrackFrame if tracking is lost.
 
     // Scale initialization with markers -- dhenell
+    Vector<2> ProjectPoint(const Vector<3> &v3Point);
+    void DrawMarkerPose(const SE3<> &se3WorldFromNormWorld);
     void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
-    bool PickPointOnGround(
-      const TooN::Vector<2>& pixelCoord,
-      TooN::Vector<3>& pointOnPlane);
+    bool PickPointOnGround(const TooN::Vector<2>& pixelCoord,
+                           TooN::Vector<3>& pointOnPlane);
 
     void GUICommandHandler(const std::string& sCommand, const std::string& sParams);
     static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);
@@ -173,11 +174,6 @@ class Tracker
     bool bSave;
 
     bool mHasDeterminedScale;
-    std::vector<double> mScaleMeasurements;
-    double mScale;
-    // Transforms coordinates from the AR marker aligned CS to
-    // the internal map CS
-    SE3<> msim3WorldFromNormWorld;
 };
 
 }

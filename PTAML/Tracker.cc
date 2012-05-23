@@ -54,8 +54,7 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
   mPreviousFrameKF(mCamera),
 
   frameIndex(0), //@hack by camparijet for serialize allframe
-  mHasDeterminedScale(false),
-  mScale(0)
+  mHasDeterminedScale(false)
 {
   mCurrentKF.bFixed = false;
   GUI.RegisterCommand("Reset", GUICommandCallBack, this);
@@ -90,7 +89,6 @@ void Tracker::ResetCommon()
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
   mHasDeterminedScale = false;
-  mScale = 0;
 }
 
 /**
@@ -182,6 +180,54 @@ bool Tracker::PickPointOnGround(
   return false;
 }
 
+Vector<2> Tracker::ProjectPoint(const Vector<3> &v3Point)
+{
+  Vector<3> v3Cam = mse3CamFromWorld * v3Point;
+
+  if(v3Cam[2] < 0.001) {
+    v3Cam[2] = 0.001;
+  }
+
+  return mCamera.Project(project(v3Cam));
+}
+
+void Tracker::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
+{
+  glEnable(GL_LINE_SMOOTH);
+  glDisable(GL_BLEND);
+  glLineWidth(2);
+  glPointSize(15);
+
+  glBegin(GL_POINTS);
+    glColor3f(0,1,1);
+    glVertex(ProjectPoint(se3WorldFromNormWorld.get_translation()));
+  glEnd();
+
+  Vector<3> wo2 = se3WorldFromNormWorld * makeVector(0, 0, 0);
+  Vector<3> wx2 = se3WorldFromNormWorld * makeVector(8, 0, 0);
+  Vector<3> wy2 = se3WorldFromNormWorld * makeVector(0, 8, 0);
+  Vector<3> wz2 = se3WorldFromNormWorld * makeVector(0, 0, 8);
+
+  std::vector<Vector<3> > pts;
+
+  pts.push_back(wo2); pts.push_back(wx2);
+  pts.push_back(wo2); pts.push_back(wy2);
+  pts.push_back(wo2); pts.push_back(wz2);
+
+  glBegin(GL_LINES);
+
+  std::vector<Vector<2> > screenPts;
+  for (auto it = pts.begin(); it != pts.end(); ++it) {
+    glColor3f(1,0,0);
+    glVertex(ProjectPoint(*it));
+  }
+
+  glEnd();
+
+  glLineWidth(1);
+  glPointSize(1);
+}
+
 void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 {
   if (!mHasDeterminedScale) {
@@ -207,12 +253,11 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
         return;
       }
 
-      // Determine scale
-      Vector<3> origin;
+      // Determine scale and origin
+      Vector<3> origin = Zeros;
       double edgeLengthSum = 0;
       Vector<3> prevPoint = pointsOnPlane[3];
-      for (std::vector<Vector<3> >::const_iterator it = pointsOnPlane.begin();
-           it != pointsOnPlane.end(); ++it)
+      for (auto it = pointsOnPlane.begin(); it != pointsOnPlane.end(); ++it)
       {
         origin += *it;
         double edgeLength = norm(*it - prevPoint);
@@ -220,7 +265,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
         prevPoint = *it;
       }
 
-      double scale = edgeLengthSum / (4 * 8.0); // Each edge should be 8 cm
+      // origin is now the sum of all the corner points, so the marker center is the average
       origin *= 0.25;
 
       Vector<3> xAxis = pointsOnPlane[1] + pointsOnPlane[2] - pointsOnPlane[0] - pointsOnPlane[3];
@@ -237,85 +282,25 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       rot[1] = yAxis;
       rot[2] = zAxis;
 
-      msim3WorldFromNormWorld = SE3<>(SO3<>(rot.T()), origin);
+      // The misalignment
+      SE3<> se3WorldFromNormWorld = SE3<>(SO3<>(rot.T()), origin);
 
-      // Save scale measurement
-      mScaleMeasurements.push_back(scale);
+      // The scale
+      static gvar3<double> gvdMarkerSize("Marker.Size", 0.08, SILENT); // Size of the marker in meters
+      double scale = (4.0 * *gvdMarkerSize) / edgeLengthSum;
 
-      // When we have enough values we calculate the scale
-      if (mScaleMeasurements.size() >= (unsigned)NUM_SCALE_MEASUREMENTS) {
-        mScale = RobustMean(mScaleMeasurements, 0.33);
-        mScaleMeasurements.clear();
-        //std::cout << " SCALE: " << mScale << std::endl;
-        //mHasDeterminedScale = true;
-      }
-
-      // Render for debugging
       if (mbDraw) {
-        glEnable(GL_LINE_SMOOTH);
-        glDisable(GL_BLEND);
-        glLineWidth(2);
-        glPointSize(15);
-
-        glBegin(GL_POINTS);
-
-        glColor3f(0,1,1);
-
-        Vector<3> v3Cam = mse3CamFromWorld * origin;
-        if(v3Cam[2] < 0.001) {
-          v3Cam[2] = 0.001;
-        }
-
-        glVertex(mCamera.Project(project(v3Cam)));
-
-        glEnd();
-
-
-        Vector<3> wo2 = (msim3WorldFromNormWorld * makeVector(0, 0, 0));
-        Vector<3> wx2 = (msim3WorldFromNormWorld * makeVector(8, 0, 0));
-        Vector<3> wy2 = (msim3WorldFromNormWorld * makeVector(0, 8, 0));
-        Vector<3> wz2 = (msim3WorldFromNormWorld * makeVector(0, 0, 8));
-
-        std::vector<Vector<3> > pts;
-
-        pts.push_back(wo2); pts.push_back(wx2);
-        pts.push_back(wo2); pts.push_back(wy2);
-        pts.push_back(wo2); pts.push_back(wz2);
-
-        glBegin(GL_LINES);
-
-        int i = 0;
-        std::vector<Vector<2> > screenPts;
-        for (std::vector<Vector<3> >::const_iterator it = pts.begin();
-             it != pts.end(); ++it)
-        {
-          Vector<3> v3Cam = mse3CamFromWorld * (*it);
-
-          if(v3Cam[2] < 0.001) {
-            v3Cam[2] = 0.001;
-          }
-
-          if (i++ < 4) {
-            glColor3f(1,0,0);
-          } else {
-            glColor3f(0,1,0);
-          }
-
-          glVertex(mCamera.Project(project(v3Cam)));
-        }
-
-        glEnd();
-
-        glLineWidth(1);
-        glPointSize(1);
+        DrawMarkerPose(se3WorldFromNormWorld);
       }
 
       if (mbUserPressedSpacebar) {
         mHasDeterminedScale = true;
         mbUserPressedSpacebar = false;
 
-        mMapMaker.RequestMapTransformation(msim3WorldFromNormWorld.inverse());
-        mMapMaker.RequestMapScaling(10 * 1.0/mScale);
+        cout << "SCALE: " << scale << endl;
+
+        mMapMaker.RequestMapTransformation(se3WorldFromNormWorld.inverse());
+        mMapMaker.RequestMapScaling(scale);
       }
     }
   }
@@ -424,7 +409,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
       }
 
       // Added some scale determing code here -- dhenell
-      //DetermineScaleFromMarker(imFrame);
+      DetermineScaleFromMarker(imFrame);
     }
     else  // what if there is a map, but tracking has been lost?
     {
