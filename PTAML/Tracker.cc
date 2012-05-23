@@ -323,16 +323,18 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 
 bool Tracker::ShouldAddNewKeyFrame()
 {
+  /*
   if (mbForceAddNewKeyFrame) {
     mbForceAddNewKeyFrame = false;
     return true;
   }
+  */
 
   return mTrackingQuality == GOOD &&
          mMapMaker.NeedNewKeyFrame(mCurrentKF) &&
          // HACK for keyframe threshold for incorporation
          // the parameter here determines how frequently keyframes are incorporateed
-         mnFrame - mnLastKeyFrameDropped > 10  &&
+         mnFrame - mnLastKeyFrameDropped > 35  &&
          mpMap->QueueSize() < 200;
 }
 
@@ -588,11 +590,6 @@ bool Tracker::HandleKeyPress( const string& sKey )
   if(sKey == "Space")
   {
     mbUserPressedSpacebar = true;
-    return true;
-  }
-  else if(sKey == "r")
-  {
-    Reset();
     return true;
   }
 

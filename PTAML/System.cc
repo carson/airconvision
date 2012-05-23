@@ -33,6 +33,7 @@ using namespace GVars3;
 System::System(VideoSource* videoSource)
   : mGLWindow(videoSource->Size(), "PTAMM")
   , mVideoSource(videoSource)
+  , mbPositionHold(false)
 {
   GUI.RegisterCommand("exit", GUICommandCallBack, this);
   GUI.RegisterCommand("quit", GUICommandCallBack, this);
@@ -252,9 +253,30 @@ void System::Run()
 
     // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
-      Vector<3> worldPos = mpTracker->RealWorldCoordinate();
-      mMkConn.SendPosition(worldPos);
+
+      if (mbPositionHold) {
+        mPositionHold.Update(mpTracker->GetCurrentPose());
+        mMkConn.SendPositionHoldUpdate(mPositionHold.GetTargetOffset(),
+                                       mPositionHold.GetVelocity());
+
+        mCoordFile << mPositionHold.GetTargetOffset() << endl
+                   << mPositionHold.GetVelocity() << endl;
+
+      }
+
       mMkConn.ProcessIncoming();
+    } else {
+
+      if (mbPositionHold) {
+        mPositionHold.Update(mpTracker->GetCurrentPose());
+
+        mCoordFile << mPositionHold.GetTime() << "\t"
+             << mPositionHold.GetTargetOffset() << "\t"
+             << mPositionHold.GetVelocity() << endl;
+
+      }
+
+
     }
 
 
@@ -302,6 +324,8 @@ void System::Run()
 void System::BeginPositionHold()
 {
   cout << " >> Position hold requested" << endl;
+  mPositionHold.Init(mpTracker->GetCurrentPose());
+  mbPositionHold = true;
 }
 
 
@@ -380,6 +404,10 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   }
   else if( sCommand == "KeyPress" )
   {
+    if(sParams == "p") {
+      static_cast<System*>(ptr)->BeginPositionHold();
+    }
+
     if(sParams == "g") {
       static_cast<System*>(ptr)->ToggleDisableRendering();
     }
@@ -390,11 +418,15 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
       return;
     }
 
-    bool bUsed = static_cast<System*>(ptr)->mpTracker->HandleKeyPress( sParams );
-
-    if( !bUsed ) {
-      static_cast<System*>(ptr)->mpARDriver->HandleKeyPress( sParams );
+    if(sParams == "r") {
+      static_cast<System*>(ptr)->mpTracker->Reset();
     }
+
+    if(sParams == "Space") {
+      // TODO: Remove the HandleKeyPress function
+      static_cast<System*>(ptr)->mpTracker->HandleKeyPress( sParams );
+    }
+
   }
 
 

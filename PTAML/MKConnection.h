@@ -17,9 +17,10 @@ class MKConnection {
 
     void ProcessIncoming();
 
-    void SendPosition(const TooN::Vector<3>& v3Position);
+    void SendPositionHoldUpdate(const TooN::Vector<3> &v3OffsetToTargetInCam,
+                                const TooN::Vector<3> &v3VelocityInCam);
 
-    void SetPositionHoldCallback(const std::function<void()>& callback) {
+    void SetPositionHoldCallback(const std::function<void()> &callback) {
       mPositionHoldCallback = callback;
     }
 

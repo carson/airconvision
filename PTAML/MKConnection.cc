@@ -18,7 +18,7 @@ using namespace std;
 namespace PTAMM {
 
 enum Commands : uint8_t {
-  CMD_POSITION = 'p'
+  CMD_POSITION_DELTA = 'p'
 };
 
 MKConnection::MKConnection(int comPortId, int baudrate)
@@ -39,7 +39,8 @@ MKConnection::MKConnection(int comPortId, int baudrate)
 MKConnection::~MKConnection() {
 }
 
-void MKConnection::SendPosition(const TooN::Vector<3>& v3Position)
+void MKConnection::SendPositionHoldUpdate(const TooN::Vector<3>& v3Offset,
+                                          const TooN::Vector<3>& v3Vel)
 {
   assert(mOpen);
 
@@ -48,9 +49,19 @@ void MKConnection::SendPosition(const TooN::Vector<3>& v3Position)
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
   // Build the packet
-  uint8_t positionData[12];
+  uint8_t positionData[24];
+
+  // v3Offset
+  *(int32_t*)&positionData[0] = (int32_t)(v3Offset[0] * 1000 + 0.5);
+  *(int32_t*)&positionData[4] = (int32_t)(v3Offset[1] * 1000 + 0.5);
+  *(int32_t*)&positionData[8] = (int32_t)(v3Offset[2] * 1000 + 0.5);
+  // v3Vel
+  *(int32_t*)&positionData[12] = (int32_t)(v3Vel[0] * 1000 + 0.5);
+  *(int32_t*)&positionData[16] = (int32_t)(v3Vel[1] * 1000 + 0.5);
+  *(int32_t*)&positionData[20] = (int32_t)(v3Vel[2] * 1000 + 0.5);
+
   // @TODO Encode position into positionData. Remember byte order.
-  MKProtocol_CreateSerialFrame(&txBuffer, CMD_POSITION, OBC_ADDRESS, 1, positionData, 12);
+  MKProtocol_CreateSerialFrame(&txBuffer, CMD_POSITION_DELTA, NC_ADDRESS, 1, positionData, 24);
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);

@@ -15,6 +15,7 @@
 #include "GLWindow2.h"
 #include "ARToolkit.h"
 #include "MKConnection.h"
+#include "PositionHold.h"
 
 #include <gvars3/instances.h>
 #include <cvd/image.h>
@@ -34,6 +35,7 @@ class Tracker;
 class ARDriver;
 class MapViewer;
 class MapSerializer;
+
 
 class System
 {
@@ -78,6 +80,9 @@ class System
     ARToolkitTracker mARTracker;
 
     MKConnection mMkConn;
+
+    bool mbPositionHold;                            // Is the MK in position hold mode?
+    PositionHold mPositionHold;
 
     bool mbDone;                                    // Kill?
 

@@ -89,6 +89,7 @@ set(PTAML_SRC
 	MD5Wrapper.cc
 	MiniPatch.cc
 	PatchFinder.cc
+	PositionHold.cc
 	Relocaliser.cc
 	ShiTomasi.cc
 	SmallBlurryImage.cc
