@@ -231,7 +231,7 @@ void Tracker::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
 void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
 {
   if (!mHasDeterminedScale) {
-    if (mARTracker.Track(imFrame)) {
+    if (mARTracker.Track(imFrame, mbDraw)) {
       // Get corner points of the marker in screen space
       std::vector<Vector<2> > imPts;
       mARTracker.GetMarkerCorners(imPts);
@@ -239,9 +239,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       // Project the corners onto the ground plane to get
       // the coordinates in the PTAM world space
       std::vector<Vector<3> > pointsOnPlane;
-      for (std::vector<Vector<2> >::const_iterator it = imPts.begin();
-           it != imPts.end(); ++it)
-      {
+      for (auto it = imPts.begin(); it != imPts.end(); ++it) {
         Vector<3> pointOnPlane;
         if (PickPointOnGround(*it, pointOnPlane)) {
           pointsOnPlane.push_back(pointOnPlane);
@@ -257,8 +255,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       Vector<3> origin = Zeros;
       double edgeLengthSum = 0;
       Vector<3> prevPoint = pointsOnPlane[3];
-      for (auto it = pointsOnPlane.begin(); it != pointsOnPlane.end(); ++it)
-      {
+      for (auto it = pointsOnPlane.begin(); it != pointsOnPlane.end(); ++it) {
         origin += *it;
         double edgeLength = norm(*it - prevPoint);
         edgeLengthSum += edgeLength;

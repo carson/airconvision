@@ -18,7 +18,7 @@ class ARToolkitTracker {
       , mTrackedMarker(0) {}
 
     bool Init(const CVD::ImageRef& imSize);
-    bool Track(const CVD::Image<CVD::byte> &imFrame);
+    bool Track(const CVD::Image<CVD::byte> &imFrame, bool bDraw = false);
     void GetMarkerTrans(TooN::SE3<>& markerTransform);
     void GetMarkerCorners(std::vector<TooN::Vector<2> >& corners);
 

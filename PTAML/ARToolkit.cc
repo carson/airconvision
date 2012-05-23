@@ -67,8 +67,7 @@ void DrawSquare(double vertex[4][2])
                vertex[0][0], vertex[0][1]);
 }
 
-bool ARToolkitTracker::Track(
-    const CVD::Image<CVD::byte> &imFrame)
+bool ARToolkitTracker::Track(const CVD::Image<CVD::byte> &imFrame, bool bDraw)
 {
   mTrackedMarker = 0;
 
@@ -109,11 +108,13 @@ bool ARToolkitTracker::Track(
 
   mTrackedMarker = &markerInfo[k];
 
-  // Draw the found squares
-  glColor3f(1.0, 0.0, 0.0);
-  glLineWidth(6.0);
-  for (int i = 0; i < markerNum; ++i) {
-    DrawSquare(markerInfo[i].vertex);
+  if (bDraw) {
+    // Draw the found squares
+    glColor3f(1.0, 0.0, 0.0);
+    glLineWidth(6.0);
+    for (int i = 0; i < markerNum; ++i) {
+      DrawSquare(markerInfo[i].vertex);
+    }
   }
 
   return true;
