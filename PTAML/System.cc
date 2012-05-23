@@ -272,7 +272,9 @@ void System::Run()
 
         mCoordFile << mPositionHold.GetTime() << "\t"
              << mPositionHold.GetTargetOffset() << "\t"
-             << mPositionHold.GetVelocity() << endl;
+             << mPositionHold.GetTargetOffsetFiltered() << "\t"
+             << mPositionHold.GetVelocity() << "\t"
+             << mPositionHold.GetVelocityFiltered() << endl;
 
       }
 
