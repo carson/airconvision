@@ -70,6 +70,7 @@ set(VIDEO_SOURCE_SRC
 #
 
 set(PTAML_SRC
+	Utils.cc
 	ARDriver.cc
 	ARToolkit.cc
 	ATANCamera.cc
@@ -98,7 +99,6 @@ set(PTAML_SRC
 	tinyxmlerror.cc
 	tinyxmlparser.cc
 	Tracker.cc
-	Utils.cc
 	MKProtocol.cc
 	MKConnection.cc
 	rs232.c

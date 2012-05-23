@@ -9,9 +9,9 @@
 ********************************************************************/
 
 #include "Utils.h"
+#include <gvars3/GStringUtil.h>
 
 #include <sstream>
-#include <gvars3/GStringUtil.h>
 
 namespace PTAMM {
 

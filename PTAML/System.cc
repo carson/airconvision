@@ -25,10 +25,10 @@
 
 namespace PTAMM {
 
-using namespace CVD;
 using namespace std;
+using namespace std::placeholders;
+using namespace CVD;
 using namespace GVars3;
-
 
 System::System(VideoSource* videoSource)
   : mGLWindow(videoSource->Size(), "PTAMM")
@@ -109,10 +109,9 @@ System::System(VideoSource* videoSource)
   GUI.ParseLine("Menu.AddMenuButton Root Reset Reset Root");
   GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
-  GUI.ParseLine("Menu.AddMenuButton Root Demos \"\" Demos");
-  GUI.ParseLine("DrawAR=0");
   GUI.ParseLine("DrawMap=0");
-  GUI.ParseLine("Menu.AddMenuToggle Root \"Draw AR\" DrawAR Root");
+  GUI.ParseLine("DrawMKDebug=0");
+  GUI.ParseLine("Menu.AddMenuToggle Root \"Draw MK\" DrawMKDebug Root");
 
   GUI.ParseLine("GLWindow.AddMenu MapsMenu Maps");
   GUI.ParseLine("MapsMenu.AddMenuButton Root \"New Map\" NewMap Root");
@@ -144,6 +143,9 @@ System::System(VideoSource* videoSource)
     cerr << "Failed to open coord-log.txt" << endl;
   }
 
+  // Set all debug output values to 0
+  mMkDebugOutput = { 0 };
+
   // Connect to the MikroKopter over COM
   ConnectToMK();
 }
@@ -172,7 +174,11 @@ void System::ConnectToMK()
   if (!mMkConn) {
     cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
   } else {
-    mMkConn.SetPositionHoldCallback(std::bind(&System::BeginPositionHold, this));
+    // Hook up all the callback functions
+    mMkConn.SetPositionHoldCallback(std::bind(&System::MKRequestPositionHold, this));
+    mMkConn.SetDebugOutputCallback(std::bind(&System::MKDebugOutput, this, _1));
+    // Request debug data being sent from the MK to this computer
+    mMkConn.SendDebugOutputInterval(10);
   }
 }
 
@@ -240,15 +246,8 @@ void System::Run()
     // Log tracked world position to file and send it to the NaviCtrl
     //
 
-    Vector<3> worldPos;
-    bool logCoords = mMkConn || logCoordsToFile;
-
-    if (logCoords) {
-      worldPos = mpTracker->RealWorldCoordinate();
-    }
-
     if (logCoordsToFile) {
-      mCoordFile << worldPos << endl;
+      mCoordFile << mpTracker->RealWorldCoordinate() << endl;
     }
 
     // Send world position if connect to MK NaviCtrl
@@ -293,6 +292,11 @@ void System::Run()
         DrawMapInfo();
       }
 
+      static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
+      if (*gvnDrawMkDebugOutput) {
+        mGLWindow.DrawMKDebugOutput(mMkDebugOutput);
+      }
+
       string sCaption;
       if(bDrawMap) {
         sCaption = mpMapViewer->GetMessageForUser();
@@ -323,11 +327,16 @@ void System::Run()
   }
 }
 
-void System::BeginPositionHold()
+void System::MKRequestPositionHold()
 {
   cout << " >> Position hold requested" << endl;
   mPositionHold.Init(mpTracker->GetCurrentPose());
   mbPositionHold = true;
+}
+
+void System::MKDebugOutput(const DebugOut_t& debug)
+{
+  mMkDebugOutput = debug;
 }
 
 
@@ -406,8 +415,8 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   }
   else if( sCommand == "KeyPress" )
   {
-    if(sParams == "p") {
-      static_cast<System*>(ptr)->BeginPositionHold();
+    if(sParams == "p") { // This is mainly for debugging without a MK
+      static_cast<System*>(ptr)->MKRequestPositionHold();
     }
 
     if(sParams == "g") {
@@ -428,10 +437,7 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
       // TODO: Remove the HandleKeyPress function
       static_cast<System*>(ptr)->mpTracker->HandleKeyPress( sParams );
     }
-
   }
-
-
 }
 
 

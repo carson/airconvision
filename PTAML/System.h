@@ -59,7 +59,10 @@ class System
     void DrawMapInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
     void ConnectToMK();
-    void BeginPositionHold();
+
+    // Callback handlers for the MK communication
+    void MKRequestPositionHold();
+    void MKDebugOutput(const DebugOut_t& debug);
 
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window
@@ -80,6 +83,7 @@ class System
     ARToolkitTracker mARTracker;
 
     MKConnection mMkConn;
+    DebugOut_t mMkDebugOutput;
 
     bool mbPositionHold;                            // Is the MK in position hold mode?
     PositionHold mPositionHold;

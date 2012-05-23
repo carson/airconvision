@@ -8,6 +8,8 @@
 //  caption line for text display. Also provides some handy GL helpers
 //  and a wrapper for CVD's text display routines.
 
+#include "MKConnection.h"
+
 #include <cvd/glwindow.h>
 #include <TooN/TooN.h>
 
@@ -26,7 +28,7 @@ public:
   void HandlePendingEvents();
   
   // Menu interface:
-  void AddMenu(std::string sName, std::string sTitle);
+  void AddMenu(const std::string &sName, const std::string &sTitle);
   void DrawMenus();
   
   // Some OpenGL helpers:
@@ -37,8 +39,9 @@ public:
   void SetupVideoRasterPosAndZoom();
 
   // Text display functions:
-  const void PrintString(CVD::ImageRef irPos, std::string s) const;
-  void DrawCaption(std::string s);
+  const void PrintString(const CVD::ImageRef& irPos, const std::string& s) const;
+  void DrawCaption(const std::string &s);
+  void DrawMKDebugOutput(const DebugOut_t &s);
   const void DrawBox(int x, int y, int w, int nLines, float fAlpha = 0.5) const;
   
   // Map viewer mouse interface:

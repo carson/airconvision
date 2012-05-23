@@ -314,7 +314,7 @@ bool Tracker::ShouldAddNewKeyFrame()
          mMapMaker.NeedNewKeyFrame(mCurrentKF) &&
          // HACK for keyframe threshold for incorporation
          // the parameter here determines how frequently keyframes are incorporateed
-         mnFrame - mnLastKeyFrameDropped > 35  &&
+         mnFrame - mnLastKeyFrameDropped > 20  &&
          mpMap->QueueSize() < 200;
 }
 

@@ -1,11 +1,13 @@
 // Copyright 2009 Isis Innovation Limited
-#include "OpenGL.h"
 #include "GLWindow2.h"
+#include "OpenGL.h"
 #include "GLWindowMenu.h"
-#include <stdlib.h>
+
 #include <gvars3/GStringUtil.h>
 #include <gvars3/instances.h>
 #include <TooN/helpers.h>
+
+#include <cstdlib>
 
 namespace PTAMM {
 
@@ -13,6 +15,24 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 using namespace TooN;
+
+size_t CountLines(const std::string &s)
+{
+  size_t nLines = 0;
+  std::string sendl("\n");
+  std::string::size_type st = 0;
+
+  while(1) {
+    nLines++;
+    st = s.find(sendl, st);
+    if(st == std::string::npos)
+      break;
+    else
+      st++;
+  }
+
+  return nLines;
+}
 
 GLWindow2::GLWindow2(ImageRef irSize, string sTitle)
   : GLWindow(irSize, sTitle)
@@ -42,7 +62,7 @@ GLWindow2::GLWindow2(ImageRef irSize, string sTitle)
 };
 
 
-void GLWindow2::AddMenu(string sName, string sTitle)
+void GLWindow2::AddMenu(const string &sName, const string &sTitle)
 {
   GLWindowMenu* pMenu = new GLWindowMenu(sName, sTitle); 
   mvpGLWindowMenus.push_back(pMenu);
@@ -56,21 +76,20 @@ void GLWindow2::GUICommandCallBack(void* ptr, string sCommand, string sParams)
 void GLWindow2::GUICommandHandler(string sCommand, string sParams)  // Called by the callback func..
 {
   vector<string> vs=ChopAndUnquoteString(sParams);
-  if(sCommand=="GLWindow.AddMenu")
+  if(sCommand=="GLWindow.AddMenu") {
+    switch(vs.size())
     {
-      switch(vs.size())
-	{
-	case 1:
-	  AddMenu(vs[0], "Root");
-	  return;
-	case 2:
-	  AddMenu(vs[0], vs[1]);
-	  return;
-	default:
-	  cout << "? AddMenu: need one or two params (internal menu name, [caption])." << endl;
-	  return;
-	};
-    };
+    case 1:
+      AddMenu(vs[0], "Root");
+      return;
+    case 2:
+      AddMenu(vs[0], vs[1]);
+      return;
+    default:
+      cout << "? AddMenu: need one or two params (internal menu name, [caption])." << endl;
+      return;
+    }
+  }
   
   // Should have returned to caller by now - if got here, a command which 
   // was not handled was registered....
@@ -141,7 +160,7 @@ void GLWindow2::SetupViewport()
   glViewport(0, 0, size()[0], size()[1]);
 }
 
-const void GLWindow2::PrintString(CVD::ImageRef irPos, std::string s) const
+const void GLWindow2::PrintString(const CVD::ImageRef &irPos, const std::string &s) const
 {
   glMatrixMode(GL_PROJECTION);
   glPushMatrix();
@@ -151,28 +170,15 @@ const void GLWindow2::PrintString(CVD::ImageRef irPos, std::string s) const
   glPopMatrix();
 }
 
-void GLWindow2::DrawCaption(string s)
+void GLWindow2::DrawCaption(const string &s)
 {
-  if(s.length() == 0)
+  if(s.empty())
     return;
   
   SetupWindowOrtho();
+
   // Find out how many lines are in the caption:
-  // Count the endls
-  int nLines = 0;
-  {
-    string sendl("\n");
-    string::size_type st=0;
-    while(1)
-      {
-	nLines++;
-	st = s.find(sendl, st);
-	if(st==string::npos)
-	  break;
-	else
-	  st++;
-      }
-  }
+  size_t nLines = CountLines(s);
   
   int nTopOfBox = size().y - nLines * 17;
   
@@ -191,6 +197,43 @@ void GLWindow2::DrawCaption(string s)
   glColor3f(1,1,0);      
   PrintString(ImageRef(10,nTopOfBox + 13), s);
 }
+
+void GLWindow2::DrawMKDebugOutput(const DebugOut_t &debugOut)
+{
+  stringstream ss;
+
+  for (size_t i = 0; i < 32; ++i) {
+    ss << "Analog" << i << ": " << debugOut.Analog[i] << endl;
+  }
+
+  string s = ss.str();
+
+  SetupWindowOrtho();
+
+  // Find out how many lines are in the caption:
+  size_t nLines = CountLines(s);
+
+  int nLeftOfBox = 5;
+  int nTopOfBox = 5;
+  int nBottomOfBox = nTopOfBox + nLines * 13;
+  int nRightOfBox = 120;
+
+  // Draw a grey background box for the text
+  glColor4f(0.0f,0.0f,0.0f,0.4f);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glBegin(GL_QUADS);
+  glVertex2d(nLeftOfBox, nTopOfBox);
+  glVertex2d(nRightOfBox, nTopOfBox);
+  glVertex2d(nRightOfBox, nBottomOfBox);
+  glVertex2d(nLeftOfBox, nBottomOfBox);
+  glEnd();
+
+  // Draw the caption text in yellow
+  glColor3f(1,1,0);
+  PrintString(ImageRef(10, nTopOfBox + 13), s);
+}
+
 
 
 /**

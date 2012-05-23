@@ -7,8 +7,19 @@
 
 namespace PTAMM {
 
+struct DebugOut_t
+{
+    uint8_t StatusGreen;
+    uint8_t StatusRed;
+    uint16_t Analog[32];
+} __attribute__((packed));
+
+
 class MKConnection {
   public:
+    typedef std::function<void()> PositionHoldCallback;
+    typedef std::function<void(const DebugOut_t&)> DebugOutputCallback;
+
     MKConnection() : mOpen(false) {}
     MKConnection(int comPortId, int baudrate);
     ~MKConnection();
@@ -20,12 +31,19 @@ class MKConnection {
     void SendPositionHoldUpdate(const TooN::Vector<3> &v3OffsetToTargetInCam,
                                 const TooN::Vector<3> &v3VelocityInCam);
 
-    void SetPositionHoldCallback(const std::function<void()> &callback) {
+    void SendDebugOutputInterval(uint8_t interval);
+
+    void SetPositionHoldCallback(const PositionHoldCallback &callback) {
       mPositionHoldCallback = callback;
+    }
+
+    void SetDebugOutputCallback(const DebugOutputCallback &callback) {
+      mDebugOutputCallback = callback;
     }
 
   private:
     void SendBuffer(const Buffer_t& txBuffer);
+    void HandleDebugOutput(const SerialMsg_t& msg);
 
     bool mOpen;
     int mComPortId;
@@ -38,7 +56,8 @@ class MKConnection {
     Buffer_t mRxBuffer;
 
     // Callbacks
-    std::function<void()> mPositionHoldCallback;
+    PositionHoldCallback mPositionHoldCallback;
+    DebugOutputCallback mDebugOutputCallback;
 };
 
 }
