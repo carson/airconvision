@@ -19,7 +19,7 @@ namespace PTAMM {
 
 enum RxCommand : uint8_t {
   RXCMD_POSITION_HOLD = 'H',
-  RXCMD_DEBUG_OUTPUT
+  RXCMD_DEBUG_OUTPUT = 'D'
 };
 
 enum TxCommands : uint8_t {
@@ -108,14 +108,21 @@ void MKConnection::ProcessIncoming()
         MKProtocol_DecodeSerialFrameHeader(&mRxBuffer, &msg);
         MKProtocol_DecodeSerialFrameData(&mRxBuffer, &msg);
 
-        // Ignore messages not sent to the OnBoardComputer
-        if (msg.Address == OBC_ADDRESS) {
+        if (msg.Address == NC_ADDRESS) {
+          // Messages addressed to the NaviCtrl
+          switch (msg.CmdID) {
+          case RXCMD_DEBUG_OUTPUT:
+            HandleDebugOutput(msg);
+            break;
+          default:
+            cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
+            break;
+          }
+        } else if (msg.Address == OBC_ADDRESS) {
+          // Messages addressed to the OnBoardComputer
           switch (msg.CmdID) {
           case RXCMD_POSITION_HOLD:
             mPositionHoldCallback();
-            break;
-          case RXCMD_DEBUG_OUTPUT:
-            HandleDebugOutput(msg);
             break;
           default:
             cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
