@@ -193,11 +193,17 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 
       vector<ImageRef> vTmpCorners;
 
+      int runs = 0;
+
       do {
         vTmpCorners.clear();
         fast_corner_detect_10(lev.im, vTmpCorners, barrier);
         barrier += 5;
-      } while (vTmpCorners.size() > 50000);
+
+        ++runs;
+      } while (vTmpCorners.size() > 3000);
+
+      if (runs) cout << runs << endl;
 
       // Added a ROI for corners just for testing if it had any effects.
       // @dhenell

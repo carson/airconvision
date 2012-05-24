@@ -191,7 +191,7 @@ void System::Run()
 {
   using namespace std::chrono;
 
-  int logCoordsToFile = GV3::get<bool>("LogCoordsToFile", false, SILENT);
+  int logCoordsToFile = GV3::get<int>("LogCoordsToFile", 0, SILENT);
 
   // For FPS counting
   FPSCounter fpsCounter;

@@ -9,6 +9,8 @@
 #include <TooN/TooN.h>
 #include <TooN/se3.h>
 
+#include <gvars3/instances.h>
+
 #include <AR/param.h>
 #include <AR/gsub.h>
 #include <AR/matrix.h>
@@ -17,18 +19,21 @@
 
 namespace PTAMM {
 
-const char CPARAM_NAME[] = "Data/psEye.dat";
-const char PATTERN_NAME[] = "Data/patt.hiro";
+using namespace std;
+using namespace GVars3;
+
 const int MARKER_WIDTH = 80.0;
 double MARKER_CENTER[2] = {0.0, 0.0}; // cant be const because of the AR toolkit api...
-const int THRESH = 100;
 
 bool ARToolkitTracker::Init(const CVD::ImageRef& imSize)
 {
+  string cparamFile = GV3::get<string>("Marker.CParamFile", "Data/psEye.dat", SILENT);
+  string patternFile = GV3::get<string>("Marker.Pattern", "Data/patt.hiro", SILENT);
+
   ARParam wparam, cparam;
 
   // set the initial camera parameters
-  if (arParamLoad(CPARAM_NAME, 1, &wparam) < 0) {
+  if (arParamLoad(cparamFile.c_str(), 1, &wparam) < 0) {
     std::cerr << "Camera parameter load error !!" << std::endl;
     return false;
   }
@@ -38,7 +43,7 @@ bool ARToolkitTracker::Init(const CVD::ImageRef& imSize)
   std::cout << "*** Camera Parameter ***" << std::endl;
   arParamDisp(&cparam);
 
-  if ((mPatternId = arLoadPatt(PATTERN_NAME)) < 0) {
+  if ((mPatternId = arLoadPatt(patternFile.c_str())) < 0) {
     std::cerr << "Pattern file load error !!" << std::endl;
     return false;
   }
@@ -85,8 +90,10 @@ bool ARToolkitTracker::Track(const CVD::Image<CVD::byte> &imFrame, bool bDraw)
   ARMarkerInfo* markerInfo;
   int markerNum;
 
+  int thresh = GV3::get<int>("Marker.Threshold", 100, SILENT);
+
   // Detect markers in the image
-  if (arDetectMarker(dataPtr, THRESH, &markerInfo, &markerNum) < 0) {
+  if (arDetectMarker(dataPtr, thresh, &markerInfo, &markerNum) < 0) {
     return false;
   }
 
