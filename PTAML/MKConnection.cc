@@ -45,6 +45,11 @@ MKConnection::MKConnection(int comPortId, int baudrate)
 MKConnection::~MKConnection() {
 }
 
+int32_t DistanceToInt32(double dist)
+{
+  return int32_t(dist * 1000.0 + 0.5);
+}
+
 void MKConnection::SendPositionHoldUpdate(const TooN::Vector<3>& v3Offset,
                                           const TooN::Vector<3>& v3Vel)
 {
@@ -55,18 +60,26 @@ void MKConnection::SendPositionHoldUpdate(const TooN::Vector<3>& v3Offset,
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
   // Build the packet
-  uint8_t positionData[24];
+  struct PositionHoldData_t {
+    int32_t OffsetX;
+    int32_t OffsetY;
+    int32_t OffsetZ;
+    int32_t VelocityX;
+    int32_t VelocityY;
+    int32_t VelocityZ;
+  } __attribute__((packed));
 
   // v3Offset
-  *(int32_t*)&positionData[0] = (int32_t)(v3Offset[0] * 1000 + 0.5);
-  *(int32_t*)&positionData[4] = (int32_t)(v3Offset[1] * 1000 + 0.5);
-  *(int32_t*)&positionData[8] = (int32_t)(v3Offset[2] * 1000 + 0.5);
+  PositionHoldData_t data;
+  data.OffsetX = DistanceToInt32(v3Offset[0]);
+  data.OffsetY  = DistanceToInt32(v3Offset[1]);
+  data.OffsetZ  = DistanceToInt32(v3Offset[2]);
   // v3Vel
-  *(int32_t*)&positionData[12] = (int32_t)(v3Vel[0] * 1000 + 0.5);
-  *(int32_t*)&positionData[16] = (int32_t)(v3Vel[1] * 1000 + 0.5);
-  *(int32_t*)&positionData[20] = (int32_t)(v3Vel[2] * 1000 + 0.5);
+  data.VelocityX = DistanceToInt32(v3Vel[0]);
+  data.VelocityY = DistanceToInt32(v3Vel[1]);
+  data.VelocityZ = DistanceToInt32(v3Vel[2]);
 
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_POSITION_DELTA, NC_ADDRESS, 1, positionData, 24);
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_POSITION_DELTA, NC_ADDRESS, 1, (uint8_t*)&data, sizeof(PositionHoldData_t));
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);
@@ -108,6 +121,9 @@ void MKConnection::ProcessIncoming()
         MKProtocol_DecodeSerialFrameHeader(&mRxBuffer, &msg);
         MKProtocol_DecodeSerialFrameData(&mRxBuffer, &msg);
 
+        // Reset the buffer so it can be used for next message
+        Buffer_Clear(&mRxBuffer);
+
         if (msg.Address == NC_ADDRESS) {
           // Messages addressed to the NaviCtrl
           switch (msg.CmdID) {
@@ -128,10 +144,9 @@ void MKConnection::ProcessIncoming()
             cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
             break;
           }
+        } else {
+          cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
         }
-
-        // Reset the buffer so it can be used for next message
-        Buffer_Clear(&mRxBuffer);
       }
     }
 

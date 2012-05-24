@@ -31,8 +31,6 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
-const int NUM_SCALE_MEASUREMENTS = 50;
-
 /**
  * The constructor mostly sets up interal reference variables to the other classes..
  * @param irVideoSize video image size

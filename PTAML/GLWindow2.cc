@@ -202,9 +202,18 @@ void GLWindow2::DrawMKDebugOutput(const DebugOut_t &debugOut)
 {
   stringstream ss;
 
+  /*
   for (size_t i = 0; i < 32; ++i) {
     ss << "Analog" << i << ": " << debugOut.Analog[i] << endl;
-  }
+  }*/
+
+
+  ss << "X: " << (int16_t)debugOut.Analog[22] << endl
+     << "Y: " << (int16_t)debugOut.Analog[23] << endl
+     << "VX: " << (int16_t)debugOut.Analog[27] << endl
+     << "VY: " << (int16_t)debugOut.Analog[28] << endl
+     << "CX: " << (int16_t)debugOut.Analog[29] << endl
+     << "CY: " << (int16_t)debugOut.Analog[30] << endl;
 
   string s = ss.str();
 

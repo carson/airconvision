@@ -18,13 +18,23 @@ void PositionHold::Update(const SE3<> &se3Pose, const TimePoint& t)
   double dt = duration_cast<fseconds>(t - mLastUpdate).count(); // delta time in seconds
   mLastUpdate = t;
 
+  // Calculate the yaw-only rotation transformation
+  SO3<> so3Rotation = se3Pose.get_rotation();
+  Vector<3> v3Up = makeVector(0, 0, 1);
+  SO3<> so3StraightenUp(so3Rotation * v3Up, -v3Up);
+  so3Rotation = so3StraightenUp * so3Rotation;
+
+  std::cout << so3Rotation * v3Up << std::endl;
+
+  // Offset calculation
   Vector<3> v3PosInWorld = se3Pose.inverse().get_translation();
   Vector<3> v3OffsetInWorld = mv3TargetPosInWorld - v3PosInWorld;
-  mv3Offset = se3Pose.get_rotation() * v3OffsetInWorld;
+  mv3Offset = so3Rotation * v3OffsetInWorld;
   mOffsetFilter.Update(mv3Offset);
 
+  // Velocity calculation
   Vector<3> v3DeltaPos = v3PosInWorld - mv3PrevPosInWorld;
-  mv3Velocity = se3Pose.get_rotation() * v3DeltaPos * (1.0 / dt);
+  mv3Velocity = so3Rotation * v3DeltaPos * (1.0 / dt);
   mv3PrevPosInWorld = v3PosInWorld;
   mVelocityFilter.Update(mv3Velocity);
 }

@@ -252,23 +252,20 @@ void System::Run()
 
     // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
+      mMkConn.ProcessIncoming();
 
-      if (mbPositionHold) {
+      if (mbPositionHold && !mpTracker->IsLost()) {
         mPositionHold.Update(mpTracker->GetCurrentPose());
-        mMkConn.SendPositionHoldUpdate(mPositionHold.GetTargetOffset(),
-                                       mPositionHold.GetVelocity());
-
-        mCoordFile << mPositionHold.GetTargetOffset() << endl
-                   << mPositionHold.GetVelocity() << endl;
-
+        mMkConn.SendPositionHoldUpdate(mPositionHold.GetTargetOffsetFiltered(),
+                                       mPositionHold.GetVelocityFiltered());
       }
 
-      mMkConn.ProcessIncoming();
     } else {
 
       if (mbPositionHold) {
         mPositionHold.Update(mpTracker->GetCurrentPose());
 
+        // debug
         mCoordFile << mPositionHold.GetTime() << "\t"
              << mPositionHold.GetTargetOffset() << "\t"
              << mPositionHold.GetTargetOffsetFiltered() << "\t"
@@ -323,6 +320,14 @@ void System::Run()
     // Update FPS counter
     if (fpsCounter.Update()) {
       cout << fpsCounter.Fps() << endl;
+
+      // UGLY HACK. I put it here because the fps counter is updated once a second and the
+      // MK has a requirement that it needs at least one request every 8 seconds to not turn
+      // off the debug output.
+      if (mMkConn) {
+        // Request debug data being sent from the MK
+        mMkConn.SendDebugOutputInterval(1);
+      }
     }
   }
 }
