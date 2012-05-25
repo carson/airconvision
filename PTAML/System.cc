@@ -266,11 +266,13 @@ void System::Run()
         mPositionHold.Update(mpTracker->GetCurrentPose());
 
         // debug
+        /*
         mCoordFile << mPositionHold.GetTime() << "\t"
              << mPositionHold.GetTargetOffset() << "\t"
              << mPositionHold.GetTargetOffsetFiltered() << "\t"
              << mPositionHold.GetVelocity() << "\t"
              << mPositionHold.GetVelocityFiltered() << endl;
+             */
 
       }
 
@@ -291,7 +293,32 @@ void System::Run()
 
       static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
       if (*gvnDrawMkDebugOutput) {
-        mGLWindow.DrawMKDebugOutput(mMkDebugOutput);
+
+
+        stringstream ss;
+
+        /*
+        for (size_t i = 0; i < 32; ++i) {
+          ss << "Analog" << i << ": " << debugOut.Analog[i] << endl;
+        }*/
+
+        ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
+           << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
+           << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
+           << "VY: " << mPositionHold.GetVelocityFiltered()[1];
+
+
+        /*
+        ss << "X: " << (int16_t)mMkDebugOutput.Analog[22] << endl
+           << "Y: " << (int16_t)mMkDebugOutput.Analog[23] << endl
+           << "VX: " << (int16_t)mMkDebugOutput.Analog[27] << endl
+           << "VY: " << (int16_t)mMkDebugOutput.Analog[28] << endl
+           << "CX: " << (int16_t)mMkDebugOutput.Analog[29] << endl
+           << "CY: " << (int16_t)mMkDebugOutput.Analog[30] << endl;
+           */
+
+
+        mGLWindow.DrawDebugOutput(ss.str());
       }
 
       string sCaption;

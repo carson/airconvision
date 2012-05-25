@@ -24,8 +24,6 @@ void PositionHold::Update(const SE3<> &se3Pose, const TimePoint& t)
   SO3<> so3StraightenUp(so3Rotation * v3Up, -v3Up);
   so3Rotation = so3StraightenUp * so3Rotation;
 
-  std::cout << so3Rotation * v3Up << std::endl;
-
   // Offset calculation
   Vector<3> v3PosInWorld = se3Pose.inverse().get_translation();
   Vector<3> v3OffsetInWorld = mv3TargetPosInWorld - v3PosInWorld;

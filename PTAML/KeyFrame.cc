@@ -203,8 +203,6 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
         ++runs;
       } while (vTmpCorners.size() > 3000);
 
-      if (runs) cout << runs << endl;
-
       // Added a ROI for corners just for testing if it had any effects.
       // @dhenell
       double border = 0.10f;

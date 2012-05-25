@@ -41,7 +41,7 @@ public:
   // Text display functions:
   const void PrintString(const CVD::ImageRef& irPos, const std::string& s) const;
   void DrawCaption(const std::string &s);
-  void DrawMKDebugOutput(const DebugOut_t &s);
+  void DrawDebugOutput(const std::string &s);
   const void DrawBox(int x, int y, int w, int nLines, float fAlpha = 0.5) const;
   
   // Map viewer mouse interface:
