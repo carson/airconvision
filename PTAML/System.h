@@ -59,6 +59,8 @@ class System
     void DrawMapInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
     void ConnectToMK();
+    void Draw(bool bDrawMap);
+    void LogControlValues();                        // Stores MK probes and other debug values to a file
 
     // Callback handlers for the MK communication
     void MKRequestPositionHold();
@@ -94,7 +96,7 @@ class System
     GVars3::gvar3<int> mgvnDrawMapInfo;             // Draw map info on the screen
     GVars3::gvar3<int> mgvnDisableRendering;                 // Disable all rendering
 
-    std::ofstream mCoordFile;                        // HACK: Coordinate log file
+    std::ofstream mDebugFile;                        // Debug output file handle
 
 #ifdef _LINUX
     GVars3::gvar3<int> mgvnSaveFIFO;                // Output to a FIFO (make a video)
