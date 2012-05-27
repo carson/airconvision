@@ -138,9 +138,9 @@ System::System(VideoSource* videoSource)
 
   mbDone = false;
 
-  mCoordFile.open("coord-log.txt");
-  if (!mCoordFile) {
-    cerr << "Failed to open coord-log.txt" << endl;
+  mDebugFile.open("output.txt", ios_base::out | ios_base::trunc);
+  if (!mDebugFile) {
+    cerr << "Failed to open output.txt" << endl;
   }
 
   // Set all debug output values to 0
@@ -160,7 +160,7 @@ System::~System()
     mpMap->mapLockManager.UnRegister( this );
   }
 
-  mCoordFile.close();
+  mDebugFile.close();
 }
 
 void System::ConnectToMK()
@@ -182,6 +182,22 @@ void System::ConnectToMK()
   }
 }
 
+void System::LogControlValues()
+{
+  mDebugFile
+    << mPositionHold.GetTime() << " "
+    << mPositionHold.GetTargetOffset() << " "
+    << mPositionHold.GetTargetOffsetFiltered() << " "
+    << mPositionHold.GetVelocity() << " "
+    << mPositionHold.GetVelocityFiltered();
+
+  for (size_t i = 0; i < 32; ++i) {
+    mDebugFile << " " << mMkDebugOutput.Analog[i];
+  }
+
+  mDebugFile << endl;
+}
+
 
 /**
  * Run the main system thread.
@@ -191,7 +207,7 @@ void System::Run()
 {
   using namespace std::chrono;
 
-  int logCoordsToFile = GV3::get<int>("LogCoordsToFile", 0, SILENT);
+  bool bWriteDebugValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
 
   // For FPS counting
   FPSCounter fpsCounter;
@@ -241,105 +257,30 @@ void System::Run()
     //@hack by camparijet for adding Image to KeyFrame
     mpTracker->TrackFrame(mimFrameBW, mimFrameRGB, !disableRendering && !bDrawMap);
 
-
-    //
-    // Log tracked world position to file and send it to the NaviCtrl
-    //
-
-    if (logCoordsToFile) {
-      mCoordFile << mpTracker->RealWorldCoordinate() << endl;
-    }
-
     // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
       mMkConn.ProcessIncoming();
 
       if (mbPositionHold && !mpTracker->IsLost()) {
-        mPositionHold.Update(mpTracker->GetCurrentPose());
+        mPositionHold.Update(mpTracker->GetCurrentPose(), high_resolution_clock::now());
         mMkConn.SendPositionHoldUpdate(mPositionHold.GetTargetOffsetFiltered(),
                                        mPositionHold.GetVelocityFiltered());
       }
 
-    } else {
-
-      if (mbPositionHold) {
-        mPositionHold.Update(mpTracker->GetCurrentPose());
-
-        // debug
-        /*
-        mCoordFile << mPositionHold.GetTime() << "\t"
-             << mPositionHold.GetTargetOffset() << "\t"
-             << mPositionHold.GetTargetOffsetFiltered() << "\t"
-             << mPositionHold.GetVelocity() << "\t"
-             << mPositionHold.GetVelocityFiltered() << endl;
-             */
-
+      // Check if the debug values from the MK and position hold code should be written to a log
+      if (bWriteDebugValuesLog) {
+        LogControlValues();
       }
-
-
+    } else {
+      // This control path is only used for debugging position hold without being connected to the MK
+      if (mbPositionHold) {
+        mPositionHold.Update(mpTracker->GetCurrentPose(), high_resolution_clock::now());
+      }
     }
-
 
     // Additional rendering goes here
     if(!disableRendering) {
-
-      if(bDrawMap) {
-        mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
-      }
-
-      if(*mgvnDrawMapInfo) {
-        DrawMapInfo();
-      }
-
-      static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
-      if (*gvnDrawMkDebugOutput) {
-
-
-        stringstream ss;
-
-        /*
-        for (size_t i = 0; i < 32; ++i) {
-          ss << "Analog" << i << ": " << debugOut.Analog[i] << endl;
-        }*/
-
-        ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
-           << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
-           << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
-           << "VY: " << mPositionHold.GetVelocityFiltered()[1];
-
-
-        /*
-        ss << "X: " << (int16_t)mMkDebugOutput.Analog[22] << endl
-           << "Y: " << (int16_t)mMkDebugOutput.Analog[23] << endl
-           << "VX: " << (int16_t)mMkDebugOutput.Analog[27] << endl
-           << "VY: " << (int16_t)mMkDebugOutput.Analog[28] << endl
-           << "CX: " << (int16_t)mMkDebugOutput.Analog[29] << endl
-           << "CY: " << (int16_t)mMkDebugOutput.Analog[30] << endl;
-           */
-
-
-        mGLWindow.DrawDebugOutput(ss.str());
-      }
-
-      string sCaption;
-      if(bDrawMap) {
-        sCaption = mpMapViewer->GetMessageForUser();
-      }
-      else {
-        sCaption = mpTracker->GetMessageForUser();
-      }
-
-      mGLWindow.DrawCaption(sCaption);
-      mGLWindow.DrawMenus();
-
-  #ifdef _LINUX
-      if( *mgvnSaveFIFO )
-      {
-        SaveFIFO();
-      }
-  #endif
-
-      mGLWindow.swap_buffers();
+      Draw(bDrawMap);
     }
 
     mGLWindow.HandlePendingEvents();
@@ -359,10 +300,51 @@ void System::Run()
   }
 }
 
+void System::Draw(bool bDrawMap)
+{
+  if(bDrawMap) {
+    mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
+  }
+
+  if(*mgvnDrawMapInfo) {
+    DrawMapInfo();
+  }
+
+  static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
+  if (*gvnDrawMkDebugOutput) {
+    stringstream ss;
+    ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
+       << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
+       << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
+       << "VY: " << mPositionHold.GetVelocityFiltered()[1];
+    mGLWindow.DrawDebugOutput(ss.str());
+  }
+
+  string sCaption;
+  if(bDrawMap) {
+    sCaption = mpMapViewer->GetMessageForUser();
+  }
+  else {
+    sCaption = mpTracker->GetMessageForUser();
+  }
+
+  mGLWindow.DrawCaption(sCaption);
+  mGLWindow.DrawMenus();
+
+#ifdef _LINUX
+  if( *mgvnSaveFIFO )
+  {
+    SaveFIFO();
+  }
+#endif
+
+  mGLWindow.swap_buffers();
+}
+
 void System::MKRequestPositionHold()
 {
   cout << " >> Position hold requested" << endl;
-  mPositionHold.Init(mpTracker->GetCurrentPose());
+  mPositionHold.Init(mpTracker->GetCurrentPose(), high_resolution_clock::now());
   mbPositionHold = true;
 }
 
