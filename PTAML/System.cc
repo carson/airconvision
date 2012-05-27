@@ -180,6 +180,7 @@ System::~System()
   }
 
   mDebugFile.close();
+  mDebugFile.close();
 }
 
 void System::ConnectToMK()
@@ -226,6 +227,7 @@ void System::Run()
 {
   using namespace std::chrono;
 
+  bool bWriteDebugValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
   bool bWriteDebugValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
   bool bWriteCoordinatesLog = GV3::get<int>("Debug.OutputWorldCoordinates", 0, SILENT);
 
@@ -304,7 +306,6 @@ void System::Run()
       duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
       mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
     }
-
     // Additional rendering goes here
     if(!disableRendering) {
       Draw(bDrawMap);
