@@ -645,6 +645,33 @@ void Tracker::TrackForInitialMap()
   }
 }
 
+void Tracker::SampleTrailPatches(const ImageRef &start, const ImageRef &size, int nFeaturesToAdd)
+{
+  vector<pair<double,ImageRef> > vCornersAndSTScores;
+  for(size_t i = 0; i < mCurrentKF.aLevels[0].vCandidates.size(); i++)  // Copy candidates into a trivially sortable vector
+  {                                                                     // so that we can choose the image corners with max ST score
+    const Candidate &c = mCurrentKF.aLevels[0].vCandidates[i];
+    if (c.irLevelPos.x < start.x || c.irLevelPos.y < start.y || c.irLevelPos.x > start.x + size.x || c.irLevelPos.y > start.y + size.y) {
+      continue;
+    }
+    if(!mCurrentKF.aLevels[0].im.in_image_with_border(c.irLevelPos, MiniPatch::mnHalfPatchSize)) {
+      continue;
+    }
+    vCornersAndSTScores.push_back(pair<double,ImageRef>(-1.0 * c.dSTScore, c.irLevelPos)); // negative so highest score first in sorted list
+  }
+
+  sort(vCornersAndSTScores.begin(), vCornersAndSTScores.end());  // Sort according to Shi-Tomasi score
+
+  for(size_t i = 0; i<vCornersAndSTScores.size() && nFeaturesToAdd > 0; i++) {
+    Trail t;
+    t.mPatch.SampleFromImage(vCornersAndSTScores[i].second, mCurrentKF.aLevels[0].im);
+    t.irInitialPos = vCornersAndSTScores[i].second;
+    t.irCurrentPos = t.irInitialPos;
+    mlTrails.push_back(t);
+    nFeaturesToAdd--;
+  }
+}
+
 /**
  * The current frame is to be the first keyframe!
  */
@@ -652,27 +679,27 @@ void Tracker::TrailTracking_Start()
 {
   mCurrentKF.MakeKeyFrame_Rest();  // This populates the Candidates list, which is Shi-Tomasi thresholded.
   mFirstKF = mCurrentKF;
-  vector<pair<double,ImageRef> > vCornersAndSTScores;
-  for(size_t i=0; i<mCurrentKF.aLevels[0].vCandidates.size(); i++)  // Copy candidates into a trivially sortable vector
-  {                                                                     // so that we can choose the image corners with max ST score
-    Candidate &c = mCurrentKF.aLevels[0].vCandidates[i];
-    if(!mCurrentKF.aLevels[0].im.in_image_with_border(c.irLevelPos, MiniPatch::mnHalfPatchSize))
-      continue;
-    vCornersAndSTScores.push_back(pair<double,ImageRef>(-1.0 * c.dSTScore, c.irLevelPos)); // negative so highest score first in sorted list
+
+  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
+
+  const int CELL_WIDTH = 128;
+  const int CELL_HEIGHT = 120;
+
+  int cellCols = mCurrentKF.aLevels[0].im.size().x / CELL_WIDTH;
+  int cellRows = mCurrentKF.aLevels[0].im.size().y / CELL_HEIGHT;
+
+  int nFeaturesToAddPerCell = nToAdd / (cellCols * cellRows);
+
+  mlTrails.clear();
+
+  for (int y = 0; y < cellRows; ++y) {
+    for (int x = 0; x < cellCols; ++x) {
+      SampleTrailPatches(ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
+                         ImageRef(CELL_WIDTH, CELL_HEIGHT),
+                         nFeaturesToAddPerCell);
+    }
   }
-  sort(vCornersAndSTScores.begin(), vCornersAndSTScores.end());  // Sort according to Shi-Tomasi score
-  int nToAdd = GV2.GetInt("MaxInitialTrails", 1000, SILENT);
-  for(size_t i = 0; i<vCornersAndSTScores.size() && nToAdd > 0; i++)
-  {
-    if(!mCurrentKF.aLevels[0].im.in_image_with_border(vCornersAndSTScores[i].second, MiniPatch::mnHalfPatchSize))
-      continue;
-    Trail t;
-    t.mPatch.SampleFromImage(vCornersAndSTScores[i].second, mCurrentKF.aLevels[0].im);
-    t.irInitialPos = vCornersAndSTScores[i].second;
-    t.irCurrentPos = t.irInitialPos;
-    mlTrails.push_back(t);
-    nToAdd--;
-  }
+
   mPreviousFrameKF = mFirstKF;  // Always store the previous frame so married-matching can work.
 }
 

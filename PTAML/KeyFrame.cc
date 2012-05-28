@@ -4,9 +4,12 @@
 #include "SmallBlurryImage.h"
 #include "LevelHelpers.h"
 #include "MapPoint.h"
+#include "Utils.h"
 
 #include <cvd/vision.h>
 #include <cvd/fast_corner.h>
+
+#include <cassert>
 
 namespace PTAMM {
 
@@ -147,6 +150,105 @@ void KeyFrame::RefreshSceneDepth()
   dSceneDepthSigma = sqrt((dSumDepthSquared / nMeas) - (dSceneDepthMean) * (dSceneDepthMean));
 }
 
+void Level::FindCornersInCell(int barrier, const ImageRef &start, const ImageRef &size)
+{
+  const size_t MAX_CORNERS = 50;
+
+  Image<unsigned char> im2;
+  im2.copy_from(im.sub_image(start, size));
+
+  vector<ImageRef> vTmpCorners;
+  fast_corner_detect_10(im2, vTmpCorners, barrier);
+
+  if (vTmpCorners.size() > MAX_CORNERS) {
+    vector<int> vScores;
+    fast_corner_score_10(im2, vTmpCorners, barrier, vScores);
+
+    vector<size_t> vSortedIndices = ordered(vScores);
+    vSortedIndices.resize(MAX_CORNERS);
+    std::sort(vSortedIndices.begin(), vSortedIndices.end());
+
+    for (size_t i = 0; i < vSortedIndices.size(); ++i) {
+      vCorners.push_back(vTmpCorners[vSortedIndices[i]] + start);
+    }
+
+    mBarrier = vScores[vSortedIndices[MAX_CORNERS - 1]] - 1;
+  }
+  else
+  {
+    for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
+      vCorners.push_back(*it + start);
+    }
+
+    mBarrier = barrier - 1;
+  }
+}
+
+void Level::FindCorners(int barrier)
+{
+  vCandidates.clear();
+  vMaxCorners.clear();
+  vCorners.clear();
+
+  mBarrier = barrier;
+
+  const int CELL_WIDTH = 64;
+  const int CELL_HEIGHT = 60;
+
+  int cellCols = im.size().x / CELL_WIDTH;
+  int cellRows = im.size().y / CELL_HEIGHT;
+
+  for (int y = 0; y < cellRows; ++y) {
+    for (int x = 0; x < cellCols; ++x) {
+      FindCornersInCell(barrier, ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
+                        ImageRef(CELL_WIDTH + 1, CELL_HEIGHT + 1));
+    }
+  }
+
+  std::sort(
+      begin(vCorners), end(vCorners),
+      [&](const ImageRef &a, const ImageRef &b) { return a.x < b.x; }
+  );
+  std::sort(
+      begin(vCorners), end(vCorners),
+      [&](const ImageRef &a, const ImageRef &b) { return a.y < b.y; }
+  );
+
+  // Generate row look-up-table for the FAST corner points: this speeds up
+  // finding close-by corner points later on.
+  vCornerRowLUT.clear();
+  size_t v = 0;
+  size_t numCorners = vCorners.size();
+  for (int y = 0; y < im.size().y; y++) {
+    while ((v < numCorners) && (y > vCorners[v].y)) {
+      v++;
+    }
+    vCornerRowLUT.push_back(v);
+  }
+}
+
+void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
+{
+  // .. find those FAST corners which are maximal..
+  fast_nonmax(im, vCorners, mBarrier, vMaxCorners);
+
+  // .. and then calculate the Shi-Tomasi scores of those, and keep the ones with
+  // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
+  // to make new map points out of.
+  for (auto i = vMaxCorners.begin(); i != vMaxCorners.end(); ++i) {
+    if(!im.in_image_with_border(*i, 10)) {
+      continue;
+    }
+
+    double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
+    if(dSTScore > dCandidateMinSTScore) {
+      Candidate c;
+      c.irLevelPos = *i;
+      c.dSTScore = dSTScore;
+      vCandidates.push_back(c);
+    }
+  }
+}
 
 
 /**
@@ -158,100 +260,42 @@ void KeyFrame::RefreshSceneDepth()
  */
 void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
 {
-
   // First, copy out the image data to the pyramid's zero level.
   aLevels[0].im.resize(im.size());
   copy(im, aLevels[0].im);
 
   // Then, for each level...
   for(int i=0; i<LEVELS; i++)
-    {
-      Level &lev = aLevels[i];
-      if(i!=0)
-        {  // .. make a half-size image from the previous level..
-          lev.im.resize(aLevels[i-1].im.size() / 2);
-          halfSample(aLevels[i-1].im, lev.im);
-        }
-
-      // .. and detect and store FAST corner points.
-      // I use a different threshold on each level; this is a bit of a hack
-      // whose aim is to balance the different levels' relative feature densities.
-      lev.vCandidates.clear();
-      lev.vMaxCorners.clear();
-      lev.vCorners.clear();
-
-      // Removed the if-cases and replaced it with a array lookup @dhenell
-      int barrierPerLevel[] = { 10, 15, 15, 10 };
-      int barrier = barrierPerLevel[i];
-
-      // Sometimes several 100 000 corners are found. This amount of corners make the
-      // program slow and freeze if it is during the stereo initialization. Thus,
-      // this code aims to keep the amount of corners below a certain number.
-      // 50 000 is chosen quite arbitrary but that number seems to work without
-      // freezing the computer.
-      // @dhenell
-
-      vector<ImageRef> vTmpCorners;
-
-      int runs = 0;
-
-      do {
-        vTmpCorners.clear();
-        fast_corner_detect_10(lev.im, vTmpCorners, barrier);
-        barrier += 5;
-
-        ++runs;
-      } while (vTmpCorners.size() > 3000);
-
-      // Added a ROI for corners just for testing if it had any effects.
-      // @dhenell
-      double border = 0.10f;
-      int minBorderX = border * lev.im.size().x;
-      int maxBorderX = (1.0 - border) * lev.im.size().x;
-      int minBorderY = border * lev.im.size().y;
-      int maxBorderY = (1.0 - border) * lev.im.size().y;
-
-      for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
-        //if (it->x > minBorderX && it->y > minBorderY && it->x < maxBorderX && it->y < maxBorderY)
-        {
-          lev.vCorners.push_back(*it);
-        }
+  {
+    Level &lev = aLevels[i];
+    if(i!=0)
+      {  // .. make a half-size image from the previous level..
+        lev.im.resize(aLevels[i-1].im.size() / 2);
+        halfSample(aLevels[i-1].im, lev.im);
       }
 
-     // cout << "Level " << i << " : " << lev.vCorners.size() << "  " << barrier << endl;
+    // .. and detect and store FAST corner points.
+    // I use a different threshold on each level; this is a bit of a hack
+    // whose aim is to balance the different levels' relative feature densities.
 
+    // Removed the if-cases and replaced it with a array lookup @dhenell
+    int barrierPerLevel[] = { 10, 15, 15, 10 };
+    int barrier = barrierPerLevel[i];
 
-      // Generate row look-up-table for the FAST corner points: this speeds up
-      // finding close-by corner points later on.
-      lev.vCornerRowLUT.clear();
-      unsigned int v=0;
-      size_t numCorners = lev.vCorners.size();
-      for(int y=0; y<lev.im.size().y; y++)
-        {
-          while( (v < numCorners) && (y > lev.vCorners[v].y) )
-            v++;
-          lev.vCornerRowLUT.push_back(v);
-        }
-    }
+    lev.FindCorners(barrier);
+  }
 }
 
-  /**
-   * @hack by camparijet
-   * for adding Image to KeyFrame
-   * Method for adding KeyFrame...
-   */
-  void KeyFrame::AddRgbToKeyFrame(BasicImage<CVD::Rgb<CVD::byte> > &im_color){
-     im_cl.resize(im_color.size());
-     copy(im_color, im_cl);
-     //cout << "Raw :" << im_cl[0][0]  << endl; @hack for debugging
-     //cout << "Raw :" << im_cl.size()  << endl; //@hack @todo for debugging
-  }
-  /*void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im, BasicImage<CVD::Rgb<CVD::byte> > &im_color)
+/**
+ * @hack by camparijet
+ * for adding Image to KeyFrame
+ * Method for adding KeyFrame...
+ */
+void KeyFrame::AddRgbToKeyFrame(BasicImage<CVD::Rgb<CVD::byte> > &im_color)
 {
   im_cl.resize(im_color.size());
   copy(im_color, im_cl);
-  MakeKeyFrame_Lite(im);
-  }*/
+}
 
 /**
  * Fills the rest of the keyframe structure needed by the mapmaker:
@@ -262,28 +306,9 @@ void KeyFrame::MakeKeyFrame_Rest()
 {
   static gvar3<double> gvdCandidateMinSTScore("MapMaker.CandidateMinShiTomasiScore", 70, SILENT);
   // For each level...
-  for(int l=0; l<LEVELS; l++)
-    {
-      Level &lev = aLevels[l];
-      // .. find those FAST corners which are maximal..
-      fast_nonmax(lev.im, lev.vCorners, 10, lev.vMaxCorners);
-      // .. and then calculate the Shi-Tomasi scores of those, and keep the ones with
-      // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
-      // to make new map points out of.
-      for(vector<ImageRef>::iterator i=lev.vMaxCorners.begin(); i!=lev.vMaxCorners.end(); i++)
-        {
-          if(!lev.im.in_image_with_border(*i, 10))
-            continue;
-          double dSTScore = FindShiTomasiScoreAtPoint(lev.im, 3, *i);
-          if(dSTScore > *gvdCandidateMinSTScore)
-            {
-              Candidate c;
-              c.irLevelPos = *i;
-              c.dSTScore = dSTScore;
-              lev.vCandidates.push_back(c);
-            }
-        }
-    }
+  for(int l = 0; l < LEVELS; ++l) {
+    aLevels[l].FindMaxCornersAndCandidates(*gvdCandidateMinSTScore);
+  }
 
   // Also, make a SmallBlurryImage of the keyframe: The relocaliser uses these.
   pSBI = new SmallBlurryImage(*this);
@@ -328,7 +353,7 @@ struct LevelHelpersFiller // Code which should be initialised on init goes here;
       }
   }
 };
-static LevelHelpersFiller foo;
 
+static LevelHelpersFiller foo;
 
 }

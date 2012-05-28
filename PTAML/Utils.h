@@ -15,6 +15,8 @@
 #include <iostream>
 #include <iterator>
 #include <vector>
+#include <algorithm>
+#include <numeric>
 
 namespace PTAMM {
 
@@ -30,6 +32,24 @@ template<class T>
   std::copy(v.begin(), v.end(), std::ostream_iterator<T>(os, " "));
   return os;
 }
+
+/**
+ * Returns the indices of the sorted vector.
+ *
+ * Taken from http://stackoverflow.com/questions/10580982/c-sort-keeping-track-of-indices
+ */
+template <typename T>
+std::vector<size_t> ordered(std::vector<T> const& values) {
+    std::vector<size_t> indices(values.size());
+    std::iota(begin(indices), end(indices), static_cast<size_t>(0));
+
+    std::sort(
+        begin(indices), end(indices),
+        [&](size_t a, size_t b) { return values[a] > values[b]; }
+    );
+    return indices;
+}
+
 
 void PruneWhiteSpace(std::string & str);
 

@@ -79,6 +79,7 @@ class Tracker
 
     void TrailTracking_Start();     // First frame of initial trail tracking. Called by TrackForInitialMap.
     int  TrailTracking_Advance();   // Steady-state of initial trail tracking. Called by TrackForInitialMap.
+    void SampleTrailPatches(const CVD::ImageRef &start, const CVD::ImageRef &size, int nFeaturesToAdd);
 
     // Methods for tracking the map once it has been made:
     void TrackMap();                // Called by TrackFrame if there is a map.
