@@ -59,23 +59,33 @@ struct Measurement
 
 // Each keyframe is made of LEVELS pyramid levels, stored in struct Level.
 // This contains image data and corner points.
-struct Level
+class Level
 {
-  inline Level()
-  {
-    bImplaneCornersCached = false;
-  };
+  public:
+    Level() : bImplaneCornersCached(false)
+    {
+    }
 
-  CVD::Image<CVD::byte> im;                // The pyramid level pixels
-  std::vector<CVD::ImageRef> vCorners;     // All FAST corners on this level
-  std::vector<int> vCornerRowLUT;          // Row-index into the FAST corners, speeds up access
-  std::vector<CVD::ImageRef> vMaxCorners;  // The maximal FAST corners
-  Level& operator=(const Level &rhs);
+    Level& operator=(const Level &rhs);
 
-  std::vector<Candidate> vCandidates;   // Potential locations of new map points
+    void FindCorners(int barrier);
+    void FindMaxCornersAndCandidates(double dCandidateMinSTScore);
 
-  bool bImplaneCornersCached;           // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
-  std::vector<Vector<2> > vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
+  public:
+    CVD::Image<CVD::byte> im;                // The pyramid level pixels
+    std::vector<CVD::ImageRef> vCorners;     // All FAST corners on this level
+    std::vector<int> vCornerRowLUT;          // Row-index into the FAST corners, speeds up access
+    std::vector<CVD::ImageRef> vMaxCorners;  // The maximal FAST corners
+    std::vector<Candidate> vCandidates;   // Potential locations of new map points
+
+    bool bImplaneCornersCached;           // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
+    std::vector<Vector<2> > vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
+
+  private:
+    void FindCornersInCell(int barrier, const CVD::ImageRef &start, const CVD::ImageRef &size);
+
+  private:
+    int mBarrier;
 };
 
 // The actual KeyFrame struct. The map contains of a bunch of these. However, the tracker uses this
