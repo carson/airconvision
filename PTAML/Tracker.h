@@ -128,6 +128,9 @@ class Tracker
           MARKER_INIT_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
 
     std::list<Trail> mlTrails;      // Used by trail tracking
+
+    std::vector<CVD::ImageRef> mvDeadTrails;
+
     KeyFrame mFirstKF;              // First of the stereo pair
     KeyFrame mPreviousFrameKF;      // Used by trail tracking to check married matches
 

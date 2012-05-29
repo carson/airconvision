@@ -7,8 +7,7 @@
 #include "PatchFinder.h"
 #include "TrackerData.h"
 #include "ARToolkit.h"
-
-
+#include "Utils.h"
 #include "GLWindow2.h"
 
 #include <cvd/utility.h>
@@ -361,6 +360,16 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
         glVertex(mCurrentKF.aLevels[0].vCorners[i]);
       }
       glEnd();
+
+      /*
+      glColor3f(1,1,1);  glPointSize(1); glBegin(GL_POINTS);
+      for(unsigned int i=0; i<mCurrentKF.aLevels[0].vMaxCorners.size(); i++)
+      {
+        glVertex(mCurrentKF.aLevels[0].vMaxCorners[i]);
+      }
+      glEnd();
+      */
+
     }
   }
   //@hack for initial keyframe
@@ -651,13 +660,13 @@ void Tracker::SampleTrailPatches(const ImageRef &start, const ImageRef &size, in
   for(size_t i = 0; i < mCurrentKF.aLevels[0].vCandidates.size(); i++)  // Copy candidates into a trivially sortable vector
   {                                                                     // so that we can choose the image corners with max ST score
     const Candidate &c = mCurrentKF.aLevels[0].vCandidates[i];
-    if (c.irLevelPos.x < start.x || c.irLevelPos.y < start.y || c.irLevelPos.x > start.x + size.x || c.irLevelPos.y > start.y + size.y) {
+    if (!PointInsideRect(c.irLevelPos, start, size)) {
       continue;
     }
     if(!mCurrentKF.aLevels[0].im.in_image_with_border(c.irLevelPos, MiniPatch::mnHalfPatchSize)) {
       continue;
     }
-    vCornersAndSTScores.push_back(pair<double,ImageRef>(-1.0 * c.dSTScore, c.irLevelPos)); // negative so highest score first in sorted list
+    vCornersAndSTScores.push_back(make_pair(-1.0 * c.dSTScore, c.irLevelPos)); // negative so highest score first in sorted list
   }
 
   sort(vCornersAndSTScores.begin(), vCornersAndSTScores.end());  // Sort according to Shi-Tomasi score
@@ -680,10 +689,12 @@ void Tracker::TrailTracking_Start()
   mCurrentKF.MakeKeyFrame_Rest();  // This populates the Candidates list, which is Shi-Tomasi thresholded.
   mFirstKF = mCurrentKF;
 
+  mvDeadTrails.clear();
+
   int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
 
-  const int CELL_WIDTH = 128;
-  const int CELL_HEIGHT = 120;
+  const int CELL_WIDTH = 64;//128;
+  const int CELL_HEIGHT = 60;//120;
 
   int cellCols = mCurrentKF.aLevels[0].im.size().x / CELL_WIDTH;
   int cellRows = mCurrentKF.aLevels[0].im.size().y / CELL_HEIGHT;
@@ -725,7 +736,8 @@ int Tracker::TrailTracking_Advance()
   Level &lCurrentFrame = mCurrentKF.aLevels[0];
   Level &lPreviousFrame = mPreviousFrameKF.aLevels[0];
 
-  for(list<Trail>::iterator i = mlTrails.begin(); i!=mlTrails.end();) {
+  for (auto i = mlTrails.begin(); i != mlTrails.end(); ) {
+
     list<Trail>::iterator next = i; next++;
 
     Trail &trail = *i;
@@ -757,11 +769,21 @@ int Tracker::TrailTracking_Advance()
     }
     if(!bFound) // Erase from list of trails if not found this frame.
     {
+      mvDeadTrails.push_back(i->irInitialPos);
       mlTrails.erase(i);
     }
     i = next;
   }
   if(mbDraw) {
+    glEnd();
+
+    glBegin(GL_POINTS);
+
+    for (auto it = mvDeadTrails.begin(); it != mvDeadTrails.end(); ++it) {
+      glColor3f(0.5,0.1,0.7);
+      glVertex(*it);
+    }
+
     glEnd();
   }
 
