@@ -33,4 +33,10 @@ void PruneWhiteSpace(std::string & str)
   }
 }
 
+bool PointInsideRect(const CVD::ImageRef &pt, const CVD::ImageRef &start, const CVD::ImageRef &size)
+{
+  return pt.x >= start.x && pt.y >= start.y && pt.x < start.x + size.x && pt.y < start.y + size.y;
+}
+
+
 }
