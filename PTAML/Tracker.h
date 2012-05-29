@@ -143,6 +143,7 @@ class Tracker
 
     bool mbDraw;                    // Should the tracker draw anything to OpenGL?
 
+    bool mbFreezeTracking;
     bool mbForceAddNewKeyFrame;     // Forces the adding of the next keyframe
 
     // Interface with map maker:
