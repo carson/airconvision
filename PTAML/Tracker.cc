@@ -49,6 +49,7 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
   mirSize(irVideoSize),
   mFirstKF(mCamera),
   mPreviousFrameKF(mCamera),
+  mbFreezeTracking(false),
 
   frameIndex(0), //@hack by camparijet for serialize allframe
   mHasDeterminedScale(false)
@@ -288,9 +289,20 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
       }
 
       if (mbUserPressedSpacebar) {
+
         cout << "SCALE: " << scale << endl;
+
+        mbFreezeTracking = true;
+        //mMapMaker.RequestCallback([&] () { } );
         mMapMaker.RequestMapTransformation(se3WorldFromNormWorld.inverse());
         mMapMaker.RequestMapScaling(scale);
+        mMapMaker.RequestCallback([&] () {
+          mse3CamFromWorld = se3WorldFromNormWorld * mse3CamFromWorld;
+          mse3CamFromWorld.get_translation() *= scale;
+          mbFreezeTracking = false;
+//          ForceRecovery();
+        } );
+
         mHasDeterminedScale = true;
         mbUserPressedSpacebar = false;
       }
@@ -376,59 +388,63 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
   //if(mnInitialStage == TRAIL_TRACKING_STARTED)
   //  isKeyFrame = 0;
 
-  // Decide what to do - if there is a map, try to track the map ...
-  if(mpMap->IsGood())
-  {
-    if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
+  if (!mbFreezeTracking) {
+    // Decide what to do - if there is a map, try to track the map ...
+    if(mnInitialStage == TRAIL_TRACKING_COMPLETE)
     {
-      if(mbUseSBIInit) {
-        CalcSBIRotation();
-      }
-      ApplyMotionModel();       //
-      TrackMap();               //  These three lines do the main tracking work.
-      UpdateMotionModel();      //
-
-      AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
-
-      { // Provide some feedback for the user:
-        mMessageForUser << "Tracking Map, quality ";
-        if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
-        if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
-        if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
-        mMessageForUser << " Found:";
-        for(int i=0; i<LEVELS; i++) {
-          mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
-        }
-        mMessageForUser << " Map " << mpMap->MapID() << ": "
-                        << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
-      }
-
-      // Heuristics to check if a key-frame should be added to the map:
-      if(ShouldAddNewKeyFrame()) {
-        mMessageForUser << " Adding key-frame.";
-        AddNewKeyFrame();
-        isKeyFrame = 1;
-      }
-
-      // Added some scale determing code here -- dhenell
-      DetermineScaleFromMarker(imFrame);
-    }
-    else  // what if there is a map, but tracking has been lost?
-    {
-      mMessageForUser << "** Attempting recovery **.";
-      if(AttemptRecovery())
+      if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
       {
-        TrackMap();
-        AssessTrackingQuality();
+        if(mbUseSBIInit) {
+          CalcSBIRotation();
+        }
+        ApplyMotionModel();       //
+        TrackMap();               //  These three lines do the main tracking work.
+        UpdateMotionModel();      //
+
+        AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
+
+        { // Provide some feedback for the user:
+          mMessageForUser << "Tracking Map, quality ";
+          if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
+          if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
+          if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
+          mMessageForUser << " Found:";
+          for(int i=0; i<LEVELS; i++) {
+            mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
+          }
+          mMessageForUser << " Map " << mpMap->MapID() << ": "
+                          << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
+        }
+
+        // Heuristics to check if a key-frame should be added to the map:
+        if(ShouldAddNewKeyFrame()) {
+          mMessageForUser << " Adding key-frame.";
+          AddNewKeyFrame();
+          isKeyFrame = 1;
+        }
+
+        // Added some scale determing code here -- dhenell
+        DetermineScaleFromMarker(imFrame);
+      }
+      else  // what if there is a map, but tracking has been lost?
+      {
+        cout << "Lost tracking..." << endl;
+        mMessageForUser << "** Attempting recovery **.";
+        if(AttemptRecovery())
+        {
+          TrackMap();
+          AssessTrackingQuality();
+        }
+      }
+      if(mbDraw) {
+        RenderGrid();
       }
     }
-    if(mbDraw) {
-      RenderGrid();
+    else // If there is no map, try to make one.
+    {
+      TrackForInitialMap();
     }
-  }
-  else // If there is no map, try to make one.
-  {
-    TrackForInitialMap();
+
   }
 
   // GUI interface
@@ -461,6 +477,8 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, Image<CVD::Rgb<CVD::byte> >&
  */
 bool Tracker::AttemptRecovery()
 {
+  cout << "AttemptRecovery..." << endl;
+
   bool bRelocGood = mRelocaliser.AttemptRecovery( *mpMap, mCurrentKF );
   if(!bRelocGood)
     return false;
@@ -644,6 +662,8 @@ void Tracker::TrackForInitialMap()
       if (mpMap->IsGood()) {
         mnInitialStage = TRAIL_TRACKING_COMPLETE;
         isKeyFrame = 2; //@hack by camaparijet for serializing
+        cout << "Stereo init done, attempting to relocate..." << endl;
+        AttemptRecovery();
       } else {
         Reset();
       }

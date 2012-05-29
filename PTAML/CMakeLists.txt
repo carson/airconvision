@@ -23,7 +23,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     add_definitions(-std=gnu++0x)
     
     # Optimizations etc
-    add_definitions(-D_LINUX -D_REENTRANT -O1 -Wall -march=core2 -msse3 -fno-strict-aliasing)
+    add_definitions(-D_LINUX -D_REENTRANT -O3 -Wall -march=core2 -msse3 -fno-strict-aliasing)
 endif()
 
 # Gstreamer
