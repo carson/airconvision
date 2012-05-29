@@ -172,7 +172,7 @@ void Level::FindCornersInCell(int barrier, const ImageRef &start, const ImageRef
       vCorners.push_back(vTmpCorners[vSortedIndices[i]] + start);
     }
 
-    mBarrier = vScores[vSortedIndices[MAX_CORNERS - 1]] - 1;
+    mBarrier = vScores[vSortedIndices[MAX_CORNERS - 1]];
   }
   else
   {
@@ -180,7 +180,7 @@ void Level::FindCornersInCell(int barrier, const ImageRef &start, const ImageRef
       vCorners.push_back(*it + start);
     }
 
-    mBarrier = barrier - 1;
+    mBarrier = barrier;
   }
 }
 
@@ -201,7 +201,7 @@ void Level::FindCorners(int barrier)
   for (int y = 0; y < cellRows; ++y) {
     for (int x = 0; x < cellCols; ++x) {
       FindCornersInCell(barrier, ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
-                        ImageRef(CELL_WIDTH + 1, CELL_HEIGHT + 1));
+                        ImageRef(CELL_WIDTH + 6, CELL_HEIGHT + 6));
     }
   }
 
@@ -209,7 +209,7 @@ void Level::FindCorners(int barrier)
       begin(vCorners), end(vCorners),
       [&](const ImageRef &a, const ImageRef &b) { return a.x < b.x; }
   );
-  std::sort(
+  std::stable_sort(
       begin(vCorners), end(vCorners),
       [&](const ImageRef &a, const ImageRef &b) { return a.y < b.y; }
   );
@@ -225,22 +225,70 @@ void Level::FindCorners(int barrier)
     }
     vCornerRowLUT.push_back(v);
   }
+
+  fast_nonmax(im, vCorners, mBarrier, vMaxCorners);
+
 }
+
+void Level::FindCandidatesInCell(const ImageRef &start, const ImageRef &size,
+    const vector<pair<double, ImageRef>> &vCornersAndSTScores)
+{
+  const size_t MAX_CANDIDATES = 10;
+
+  vector<pair<double, ImageRef>> vCellCornersAndSTScores;
+  for (auto i = vCornersAndSTScores.begin(); i != vCornersAndSTScores.end(); ++i) {
+    if(PointInsideRect(i->second, start, size)) {
+      vCellCornersAndSTScores.push_back(make_pair(-i->first, i->second)); // Invert score so its sorted in descending order later
+    }
+  }
+
+  sort(vCellCornersAndSTScores.begin(), vCellCornersAndSTScores.end());
+  if (vCellCornersAndSTScores.size() > MAX_CANDIDATES) {
+    vCellCornersAndSTScores.resize(MAX_CANDIDATES);
+  }
+
+  for (auto it = vCellCornersAndSTScores.begin(); it != vCellCornersAndSTScores.end(); ++it) {
+    Candidate c;
+    c.dSTScore = -it->first;
+    c.irLevelPos = it->second;
+    vCandidates.push_back(c);
+  }
+}
+
 
 void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
 {
   // .. find those FAST corners which are maximal..
-  fast_nonmax(im, vCorners, mBarrier, vMaxCorners);
+//  fast_nonmax(im, vCorners, 10, vMaxCorners);
+
+
+  vector<pair<double, ImageRef>> vCornersAndSTScores;
 
   // .. and then calculate the Shi-Tomasi scores of those, and keep the ones with
   // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
   // to make new map points out of.
   for (auto i = vMaxCorners.begin(); i != vMaxCorners.end(); ++i) {
-    if(!im.in_image_with_border(*i, 10)) {
-      continue;
+    if(im.in_image_with_border(*i, 10)) {
+      double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
+      vCornersAndSTScores.push_back(make_pair(dSTScore, *i));
     }
+  }
 
-    double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
+  const int CELL_WIDTH = 64;
+  const int CELL_HEIGHT = 60;
+
+  int cellCols = im.size().x / CELL_WIDTH;
+  int cellRows = im.size().y / CELL_HEIGHT;
+
+  for (int y = 0; y < cellRows; ++y) {
+    for (int x = 0; x < cellCols; ++x) {
+      FindCandidatesInCell(ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
+                           ImageRef(CELL_WIDTH + 6, CELL_HEIGHT + 6),
+                           vCornersAndSTScores);
+    }
+  }
+
+  /*
     if(dSTScore > dCandidateMinSTScore) {
       Candidate c;
       c.irLevelPos = *i;
@@ -248,6 +296,7 @@ void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
       vCandidates.push_back(c);
     }
   }
+  */
 }
 
 

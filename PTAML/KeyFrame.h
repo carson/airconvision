@@ -83,6 +83,8 @@ class Level
 
   private:
     void FindCornersInCell(int barrier, const CVD::ImageRef &start, const CVD::ImageRef &size);
+    void FindCandidatesInCell(const CVD::ImageRef &start, const CVD::ImageRef &size,
+                              const std::vector<std::pair<double, CVD::ImageRef>> &vCornersAndSTScores);
 
   private:
     int mBarrier;
