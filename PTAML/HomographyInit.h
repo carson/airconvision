@@ -46,16 +46,16 @@ struct HomographyDecomposition
 class HomographyInit
 {
 public:
-  bool Compute(std::vector<HomographyMatch> vMatches, double dMaxPixelError, SE3<> &se3SecondCameraPose);
+  bool Compute(const std::vector<HomographyMatch> &vMatches, double dMaxPixelError, SE3<> &se3SecondCameraPose);
 protected:
-  Matrix<3> HomographyFromMatches(std::vector<HomographyMatch> vMatches);
+  Matrix<3> HomographyFromMatches(const std::vector<HomographyMatch> &vMatches);
   void BestHomographyFromMatches_MLESAC();
   void DecomposeHomography();
   void ChooseBestDecomposition();
   void RefineHomographyWithInliers();
   
-  bool IsHomographyInlier(Matrix<3> m3Homography, HomographyMatch match);
-  double MLESACScore(Matrix<3> m3Homography, HomographyMatch match);
+  bool IsHomographyInlier(const Matrix<3> &m3Homography, const HomographyMatch &match) const;
+  double MLESACScore(const Matrix<3> &m3Homography, const HomographyMatch &match) const;
   
   double mdMaxPixelErrorSquared;
   Matrix<3> mm3BestHomography;
