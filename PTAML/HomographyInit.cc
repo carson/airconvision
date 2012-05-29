@@ -11,7 +11,8 @@
 namespace PTAMM {
 
 using namespace std;
-bool HomographyInit::IsHomographyInlier(Matrix<3> m3Homography, HomographyMatch match)
+
+bool HomographyInit::IsHomographyInlier(const Matrix<3> &m3Homography, const HomographyMatch &match) const
 {
   Vector<2> v2Projected = project(m3Homography * unproject(match.v2CamPlaneFirst));
   Vector<2> v2Error = match.v2CamPlaneSecond - v2Projected;
@@ -20,7 +21,7 @@ bool HomographyInit::IsHomographyInlier(Matrix<3> m3Homography, HomographyMatch 
   return (dSquaredError < mdMaxPixelErrorSquared);
 }
 
-double HomographyInit::MLESACScore(Matrix<3> m3Homography, HomographyMatch match)
+double HomographyInit::MLESACScore(const Matrix<3> &m3Homography, const HomographyMatch &match) const
 {
   Vector<2> v2Projected = project(m3Homography * unproject(match.v2CamPlaneFirst));
   Vector<2> v2Error = match.v2CamPlaneSecond - v2Projected;
@@ -32,7 +33,7 @@ double HomographyInit::MLESACScore(Matrix<3> m3Homography, HomographyMatch match
     return dSquaredError;
 }
 
-bool HomographyInit::Compute(vector<HomographyMatch> vMatches, double dMaxPixelError, SE3<> &se3SecondFromFirst)
+bool HomographyInit::Compute(const vector<HomographyMatch> &vMatches, double dMaxPixelError, SE3<> &se3SecondFromFirst)
 {
   mdMaxPixelErrorSquared = dMaxPixelError * dMaxPixelError;
   mvMatches = vMatches;
@@ -62,7 +63,7 @@ bool HomographyInit::Compute(vector<HomographyMatch> vMatches, double dMaxPixelE
   return true;
 }
 
-Matrix<3> HomographyInit::HomographyFromMatches(vector<HomographyMatch> vMatches)
+Matrix<3> HomographyInit::HomographyFromMatches(const vector<HomographyMatch> &vMatches)
 {
   unsigned int nPoints = vMatches.size();
   assert(nPoints >= 4);
@@ -181,6 +182,7 @@ void HomographyInit::BestHomographyFromMatches_MLESAC()
   // Not many matches? Don't do ransac, throw them all in a pot and see what comes out.
   if(mvMatches.size() < 10)
     {
+      cout << "Less than 10 matches. This might be bad?" << endl;
       mm3BestHomography = HomographyFromMatches(mvMatches);
       return;
     }
