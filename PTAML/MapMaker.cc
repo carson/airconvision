@@ -350,6 +350,13 @@ void MapMaker::RequestMapScaling(double dScale)
   });
 }
 
+void MapMaker::RequestCallback(std::function<void()> fn)
+{
+  std::lock_guard<std::mutex> lock(m);
+
+  mvQueuedActions.push([=] () { fn(); });
+}
+
 void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                               std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
                               SE3<> &se3CameraPos)

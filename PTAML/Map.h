@@ -67,6 +67,7 @@ class Map
     int MapID() const { return mnMapNum; }
 
     bool IsGood() const { return bGood; }
+
     void Reset();
 
     // Make a map from scratch. Called by the tracker.

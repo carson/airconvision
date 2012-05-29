@@ -56,6 +56,7 @@ class MapMaker : protected CVD::Thread
 
     void RequestMapTransformation(const SE3<>& se3NewFromOld);
     void RequestMapScaling(double dScale);
+    void RequestCallback(std::function<void()> fn);
 
   private:
     virtual void run();      // The MapMaker thread code lives here
