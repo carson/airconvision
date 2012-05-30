@@ -26,19 +26,22 @@
 #include "MiniPatch.h"
 #include "Relocaliser.h"
 #include "ARToolkit.h"
+#include "TakFrame.h" //@hack by camparijet
+
 #include <TooN/sim3.h>
 
 #include <sstream>
 #include <vector>
 #include <list>
-#include "TakFrame.h" //@hack by camparijet
-
-#define NUM_LOST_FRAMES 3
 
 namespace PTAMM {
 
+const int NUM_LOST_FRAMES = 3;
+
 class TrackerData;
-struct Trail    // This struct is used for initial correspondences of the first stereo pair.
+
+// This struct is used for initial correspondences of the first stereo pair.
+struct Trail
 {
   MiniPatch mPatch;
   CVD::ImageRef irCurrentPos;
@@ -51,14 +54,13 @@ class Tracker
     Tracker(CVD::ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
-    void TrackFrame(CVD::Image<CVD::byte> &imFrame, bool bDraw);
-    void TrackFrame(CVD::Image<CVD::byte> &imFrame, CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame, bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
+    void TrackFrame(const CVD::Image<CVD::byte> &imFrame, bool bDraw);
+    void TrackFrame(const CVD::Image<CVD::byte> &imFrame, CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame, bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
 
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
     bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
 
     Vector<3> RealWorldCoordinate() const {
-//      return project(mMarkerFromWorld * unproject(mse3CamFromWorld.inverse().get_translation()));
       return mse3CamFromWorld.inverse().get_translation();
     }
 
@@ -71,6 +73,7 @@ class Tracker
     void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
 
     bool HandleKeyPress( const std::string& sKey );    // act on a key press (new addition for PTAMM)
+
   private:
     void ResetCommon();              // Common reset code for the following two functions
     void RenderGrid();              // Draws the reference grid
