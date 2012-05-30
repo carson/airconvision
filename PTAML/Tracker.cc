@@ -283,7 +283,7 @@ void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
           mse3CamFromWorld = se3WorldFromNormWorld * mse3CamFromWorld;
           mse3CamFromWorld.get_translation() *= scale;
           mbFreezeTracking = false;
-//          ForceRecovery();
+          ForceRecovery();
         } );
 
         mHasDeterminedScale = true;
