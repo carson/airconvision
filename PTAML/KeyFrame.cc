@@ -17,6 +17,7 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
+
 /**
  * Constructer.
  * @param cam the camera that made this keyframe
@@ -98,7 +99,7 @@ void KeyFrame::ThinCandidates(int nLevel)
   vector<ImageRef> irBusyLevelPos;
   // Make a list of `busy' image locations, which already have features at the same level
   // or at one level higher.
-  for(meas_it it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
+  for(auto it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
   {
     if(!(it->second.nLevel == nLevel || it->second.nLevel == nLevel + 1))
       continue;
@@ -134,7 +135,7 @@ void KeyFrame::RefreshSceneDepth()
   double dSumDepth = 0.0;
   double dSumDepthSquared = 0.0;
   int nMeas = 0;
-  for(meas_it it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
+  for(auto it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
   {
     MapPoint &point = *it->first;
     Vector<3> v3PosK = se3CfromW * point.v3WorldPos;
@@ -152,47 +153,25 @@ void KeyFrame::RefreshSceneDepth()
 
 void Level::FindCornersInCell(int barrier, const ImageRef &start, const ImageRef &size)
 {
-  const size_t MAX_CORNERS = 50;
-
-  Image<unsigned char> im2;
+  Image<byte> im2;
   im2.copy_from(im.sub_image(start, size));
 
   vector<ImageRef> vTmpCorners;
   fast_corner_detect_10(im2, vTmpCorners, barrier);
-
-  if (vTmpCorners.size() > MAX_CORNERS) {
-    vector<int> vScores;
-    fast_corner_score_10(im2, vTmpCorners, barrier, vScores);
-
-    vector<size_t> vSortedIndices = ordered(vScores);
-    vSortedIndices.resize(MAX_CORNERS);
-    std::sort(vSortedIndices.begin(), vSortedIndices.end());
-
-    for (size_t i = 0; i < vSortedIndices.size(); ++i) {
-      vCorners.push_back(vTmpCorners[vSortedIndices[i]] + start);
-    }
-
-    mBarrier = vScores[vSortedIndices[MAX_CORNERS - 1]];
-  }
-  else
-  {
-    for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
-      vCorners.push_back(*it + start);
-    }
-
-    mBarrier = barrier;
+  for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
+    vCorners.push_back(*it + start);
   }
 }
 
 void Level::FindCorners(int barrier)
 {
+  mBarrier = barrier;
+
   vCandidates.clear();
   vMaxCorners.clear();
   vCorners.clear();
 
-  mBarrier = barrier;
-
-  const int CELL_WIDTH = 64;
+  const int CELL_WIDTH = im.size().x;
   const int CELL_HEIGHT = 60;
 
   int cellCols = im.size().x / CELL_WIDTH;
@@ -205,15 +184,6 @@ void Level::FindCorners(int barrier)
     }
   }
 
-  std::sort(
-      begin(vCorners), end(vCorners),
-      [&](const ImageRef &a, const ImageRef &b) { return a.x < b.x; }
-  );
-  std::stable_sort(
-      begin(vCorners), end(vCorners),
-      [&](const ImageRef &a, const ImageRef &b) { return a.y < b.y; }
-  );
-
   // Generate row look-up-table for the FAST corner points: this speeds up
   // finding close-by corner points later on.
   vCornerRowLUT.clear();
@@ -225,33 +195,32 @@ void Level::FindCorners(int barrier)
     }
     vCornerRowLUT.push_back(v);
   }
-
-  fast_nonmax(im, vCorners, mBarrier, vMaxCorners);
-
 }
 
-void Level::FindCandidatesInCell(const ImageRef &start, const ImageRef &size,
-    const vector<pair<double, ImageRef>> &vCornersAndSTScores)
+void Level::FindCandidatesInCell(const ImageRef &start, const ImageRef &size)
 {
   const size_t MAX_CANDIDATES = 10;
 
   vector<pair<double, ImageRef>> vCellCornersAndSTScores;
-  for (auto i = vCornersAndSTScores.begin(); i != vCornersAndSTScores.end(); ++i) {
-    if(PointInsideRect(i->second, start, size)) {
-      vCellCornersAndSTScores.push_back(make_pair(-i->first, i->second)); // Invert score so its sorted in descending order later
+  for (auto i = vMaxCorners.begin(); i != vMaxCorners.end(); ++i) {
+    if(PointInsideRect(*i, start, size)) {
+      double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
+      vCellCornersAndSTScores.emplace_back(-dSTScore, *i); // Invert score so its sorted in descending order later
     }
   }
 
-  sort(vCellCornersAndSTScores.begin(), vCellCornersAndSTScores.end());
+  auto endIt = vCellCornersAndSTScores.end();
+
   if (vCellCornersAndSTScores.size() > MAX_CANDIDATES) {
-    vCellCornersAndSTScores.resize(MAX_CANDIDATES);
+    sort(vCellCornersAndSTScores.begin(), vCellCornersAndSTScores.end());
+    endIt = vCellCornersAndSTScores.begin() + MAX_CANDIDATES;
   }
 
-  for (auto it = vCellCornersAndSTScores.begin(); it != vCellCornersAndSTScores.end(); ++it) {
-    Candidate c;
-    c.dSTScore = -it->first;
-    c.irLevelPos = it->second;
-    vCandidates.push_back(c);
+  for (auto it = vCellCornersAndSTScores.begin(); it != endIt; ++it) {
+    // Same as
+    //   vCandidates.push_back(Candidate(it->second, -it->first));
+    // but faster.
+    vCandidates.emplace_back(it->second, -it->first);
   }
 }
 
@@ -259,20 +228,7 @@ void Level::FindCandidatesInCell(const ImageRef &start, const ImageRef &size,
 void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
 {
   // .. find those FAST corners which are maximal..
-//  fast_nonmax(im, vCorners, 10, vMaxCorners);
-
-
-  vector<pair<double, ImageRef>> vCornersAndSTScores;
-
-  // .. and then calculate the Shi-Tomasi scores of those, and keep the ones with
-  // a suitably high score as Candidates, i.e. points which the mapmaker will attempt
-  // to make new map points out of.
-  for (auto i = vMaxCorners.begin(); i != vMaxCorners.end(); ++i) {
-    if(im.in_image_with_border(*i, 10)) {
-      double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
-      vCornersAndSTScores.push_back(make_pair(dSTScore, *i));
-    }
-  }
+  fast_nonmax(im, vCorners, mBarrier, vMaxCorners);
 
   const int CELL_WIDTH = 64;
   const int CELL_HEIGHT = 60;
@@ -283,20 +239,9 @@ void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
   for (int y = 0; y < cellRows; ++y) {
     for (int x = 0; x < cellCols; ++x) {
       FindCandidatesInCell(ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
-                           ImageRef(CELL_WIDTH + 6, CELL_HEIGHT + 6),
-                           vCornersAndSTScores);
+                           ImageRef(CELL_WIDTH + 6, CELL_HEIGHT + 6));
     }
   }
-
-  /*
-    if(dSTScore > dCandidateMinSTScore) {
-      Candidate c;
-      c.irLevelPos = *i;
-      c.dSTScore = dSTScore;
-      vCandidates.push_back(c);
-    }
-  }
-  */
 }
 
 
@@ -307,31 +252,45 @@ void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
  * mapmaker but not the tracker go in MakeKeyFrame_Rest();
  * @param im image to make keyframe from
  */
-void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im)
+void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCornerBarriers)
 {
   // First, copy out the image data to the pyramid's zero level.
   aLevels[0].im.resize(im.size());
   copy(im, aLevels[0].im);
 
+  const size_t MAX_CORNERS[] = { 10000, 2500, 1000, 250 };
+  const size_t MIN_CORNERS[] = { 5000, 1400, 300, 100 };
+
   // Then, for each level...
-  for(int i=0; i<LEVELS; i++)
-  {
+  for (int i = 0; i < LEVELS; ++i) {
+
     Level &lev = aLevels[i];
-    if(i!=0)
-      {  // .. make a half-size image from the previous level..
-        lev.im.resize(aLevels[i-1].im.size() / 2);
-        halfSample(aLevels[i-1].im, lev.im);
-      }
+    if(i!=0) {
+      // .. make a half-size image from the previous level..
+      lev.im.resize(aLevels[i-1].im.size() / 2);
+      halfSample(aLevels[i-1].im, lev.im);
+    }
 
     // .. and detect and store FAST corner points.
     // I use a different threshold on each level; this is a bit of a hack
     // whose aim is to balance the different levels' relative feature densities.
 
     // Removed the if-cases and replaced it with a array lookup @dhenell
-    int barrierPerLevel[] = { 10, 15, 15, 10 };
-    int barrier = barrierPerLevel[i];
+    //int barrierPerLevel[] = { 10, 15, 15, 10 };
+
+    int barrier = aFastCornerBarriers[i];
 
     lev.FindCorners(barrier);
+
+    size_t nFoundCorners = lev.vCorners.size();
+
+    if (nFoundCorners > MAX_CORNERS[i]) {
+      ++aFastCornerBarriers[i];
+      if (aFastCornerBarriers[i] > 100) { aFastCornerBarriers[i] = 100; }
+    } else if (nFoundCorners < MIN_CORNERS[i]) {
+      --aFastCornerBarriers[i];
+      if (aFastCornerBarriers[i] < 5) { aFastCornerBarriers[i] = 5; }
+    }
   }
 }
 
