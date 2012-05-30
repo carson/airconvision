@@ -307,7 +307,7 @@ void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
  * mapmaker but not the tracker go in MakeKeyFrame_Rest();
  * @param im image to make keyframe from
  */
-void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
+void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im)
 {
   // First, copy out the image data to the pyramid's zero level.
   aLevels[0].im.resize(im.size());
@@ -340,7 +340,7 @@ void KeyFrame::MakeKeyFrame_Lite(BasicImage<CVD::byte> &im)
  * for adding Image to KeyFrame
  * Method for adding KeyFrame...
  */
-void KeyFrame::AddRgbToKeyFrame(BasicImage<CVD::Rgb<CVD::byte> > &im_color)
+void KeyFrame::AddRgbToKeyFrame(const BasicImage<CVD::Rgb<CVD::byte> > &im_color)
 {
   im_cl.resize(im_color.size());
   copy(im_color, im_cl);
