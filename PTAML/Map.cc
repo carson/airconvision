@@ -291,13 +291,24 @@ bool Map::InitFromStereo(KeyFrame &kF,
     return false;
   }
 
+  cout << "Homography: " << endl << se3 << endl;
+
+  // Check that the initialiser estimated has more XY movement than Z movement,
+  // meaning the camera was translated parallell to the plane and not orthogonal
+  const Vector<3> &v3Trans = se3.get_translation();
+  if (v3Trans[0] * v3Trans[0] + v3Trans[1] * v3Trans[1] < v3Trans[2] * v3Trans[2]) {
+    cout << "  Estimated homography is zoom, try again." << endl;
+    return false;
+  }
+
   // Check that the initialiser estimated a non-zero baseline
   double dTransMagn = sqrt(se3.get_translation() * se3.get_translation());
-  if(dTransMagn == 0)
+  if(dTransMagn < 0.00001)
   {
     cout << "  Estimated zero baseline from stereo pair, try again." << endl;
     return false;
   }
+
   // change the scale of the map so the second camera is wiggleScale away from the first
   se3.get_translation() *= mdWiggleScale/dTransMagn;
 
@@ -384,7 +395,6 @@ bool Map::InitFromStereo(KeyFrame &kF,
   pkFirst->MakeKeyFrame_Rest();
   pkSecond->MakeKeyFrame_Rest();
 
-
   for(int i=0; i<5; i++)
     FullBundleAdjust();
 
@@ -392,13 +402,17 @@ bool Map::InitFromStereo(KeyFrame &kF,
   // (Needed for epipolar search)
   pkFirst->RefreshSceneDepth();
   pkSecond->RefreshSceneDepth();
+
+  ApplyGlobalScale(1.0 / pkFirst->dSceneDepthMean);
+
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
-
+/*
   AddSomeMapPoints(0);
   AddSomeMapPoints(3);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
+  */
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -424,6 +438,9 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   // Rotate and translate the map so the dominant plane is at z=0:
   ApplyGlobalTransformation(CalcPlaneAligner(true));
+
+  RemoveNonGroundPoints();
+
   bGood = true;
 
   se3TrackerPose = pkSecond->se3CfromW;
@@ -432,6 +449,25 @@ bool Map::InitFromStereo(KeyFrame &kF,
   cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;
 
   return true;
+}
+
+void Map::RemoveNonGroundPoints()
+{
+  // Did the tracker see this point as an outlier more often than as an inlier?
+  for (size_t i = 0; i < vpPoints.size(); ++i)
+  {
+    MapPoint *p = vpPoints[i];
+    if(p->v3WorldPos[2] * p->v3WorldPos[2] > 0.1) {
+      p->bBad = true;
+    }
+  }
+
+  // All points marked as bad will be erased - erase all records of them
+  // from keyframes in which they might have been measured.
+  RemoveBadPointsFromKeyFrames();
+
+  // Move bad points to the trash list.
+  MoveBadPointsToTrash();
 }
 
 
@@ -544,6 +580,8 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   }
 
   if(nBest == -1)   return false;   // Nothing found.
+
+  if (nBestZMSSD > 10000) return false; // Chosen pretty arbitrary -- dhenell
 
   //  Found a likely candidate along epipolar ray
   Finder.MakeSubPixTemplate();
@@ -797,6 +835,8 @@ void Map::AddKeyFrameFromTopOfQueue()
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
+
+  RemoveNonGroundPoints();
 }
 
 // Adds map points by epipolar search to the last-added key-frame, at a single
@@ -1096,7 +1136,9 @@ void Map::HandleBadPoints()
   for (size_t i = 0; i < vpPoints.size(); ++i)
   {
     MapPoint *p = vpPoints[i];
-    if(p->nMEstimatorOutlierCount > 20 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
+
+    // DEFAULT VALUE: 20
+    if(p->nMEstimatorOutlierCount > 5 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
       p->bBad = true;
     }
   }
@@ -1190,6 +1232,7 @@ void Map::ApplyGlobalScale(double dScale)
     vpKeyFrames[i]->se3CfromW.get_translation() *= dScale;
     vpKeyFrames[i]->dSceneDepthMean *= dScale;
     vpKeyFrames[i]->dSceneDepthSigma *= dScale;
+    //vpKeyFrames[i]->RefreshSceneDepth();
   }
 
   for(size_t i=0; i < vpPoints.size(); ++i) {
