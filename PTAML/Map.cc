@@ -481,7 +481,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 //     }
 
   int nLevelScale = LevelScale(nLevel);
-  Candidate &candidate = kSrc.aLevels[nLevel].vCandidates[nCandidate];
+  const Candidate &candidate = kSrc.aLevels[nLevel].GetCandidates()[nCandidate];
   ImageRef irLevelPos = candidate.irLevelPos;
   Vector<2> v2RootPos = LevelZeroPos(irLevelPos, nLevel);
 
@@ -539,7 +539,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   if(Finder.TemplateBad())  return false;
 
   vector<Vector<2> > &vv2Corners = kTarget.aLevels[nLevel].vImplaneCorners;
-  vector<ImageRef> &vIR = kTarget.aLevels[nLevel].vCorners;
+  const vector<ImageRef> &vIR = kTarget.aLevels[nLevel].GetCorners();
   if(!kTarget.aLevels[nLevel].bImplaneCornersCached)
   {
     for(unsigned int i=0; i<vIR.size(); i++)   // over all corners in target img..
@@ -805,7 +805,7 @@ void Map::AddKeyFrameFromTopOfQueue()
   vpKeyFrames.push_back(pK);
 
   // Any measurements? Update the relevant point's measurement counter status map
-  for(meas_it it = pK->mMeasurements.begin();
+  for(auto it = pK->mMeasurements.begin();
       it!=pK->mMeasurements.end();
       ++it)
   {
@@ -838,8 +838,10 @@ void Map::AddSomeMapPoints(int nLevel)
 
   kSrc.ThinCandidates(nLevel);
 
-  for(size_t i = 0; i<l.vCandidates.size(); ++i)
+  size_t nCandidates = l.GetCandidates().size();
+  for (size_t i = 0; i < nCandidates; ++i) {
     AddPointEpipolar(kSrc, kTarget, nLevel, i);
+  }
 }
 
 // Perform bundle adjustment on all keyframes, all map points
@@ -907,7 +909,7 @@ bool Map::RecentBundleAdjust(bool *pbAbortSignal)
 
     bool bInclude = false;
 
-    for(meas_it jiter = (*it)->mMeasurements.begin(); jiter!= (*it)->mMeasurements.end(); ++jiter) {
+    for(auto jiter = (*it)->mMeasurements.begin(); jiter!= (*it)->mMeasurements.end(); ++jiter) {
       if(sMapPoints.count(jiter->first)) {
         bInclude = true;
         break;
@@ -1040,6 +1042,12 @@ double Map::KeyFrameLinearDist(const KeyFrame &k1, const KeyFrame &k2) const
   Vector<3> v3KF1_CamPos = k1.se3CfromW.inverse().get_translation();
   Vector<3> v3KF2_CamPos = k2.se3CfromW.inverse().get_translation();
   Vector<3> v3Diff = v3KF2_CamPos - v3KF1_CamPos;
+
+  // UGLY HACK! -- dhenell
+  // Moving closer and further away from the ground does not change the view as much as
+  // moving around in the XY plane, thus it doesn't need as many keyframes in that direction
+  v3Diff[2] *= 0.1;
+
   return sqrt(v3Diff * v3Diff); // Dist
 }
 

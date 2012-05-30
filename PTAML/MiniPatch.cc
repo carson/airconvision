@@ -7,15 +7,15 @@ using namespace CVD;
 using namespace std;
 
 // Scoring function
-inline int MiniPatch::SSDAtPoint(CVD::BasicImage<CVD::byte> &im, const CVD::ImageRef &ir)
+inline int MiniPatch::SSDAtPoint(const CVD::BasicImage<CVD::byte> &im, const CVD::ImageRef &ir)
 {
   if(!im.in_image_with_border(ir, mnHalfPatchSize))
     return mnMaxSSD + 1;
   ImageRef irImgBase = ir - ImageRef(mnHalfPatchSize, mnHalfPatchSize);
   int nRows = mimOrigPatch.size().y;
   int nCols = mimOrigPatch.size().x;
-  byte *imagepointer;
-  byte *templatepointer;
+  const byte *imagepointer;
+  const byte *templatepointer;
   int nDiff;
   int nSumSqDiff = 0;
   for(int nRow = 0; nRow < nRows; nRow++)
@@ -35,16 +35,16 @@ inline int MiniPatch::SSDAtPoint(CVD::BasicImage<CVD::byte> &im, const CVD::Imag
 // If available, a row-corner LUT is used to speed up search through the
 // FAST corners
 bool MiniPatch::FindPatch(CVD::ImageRef &irPos,
-                          CVD::BasicImage<CVD::byte> &im,
+                          const CVD::BasicImage<CVD::byte> &im,
                           int nRange,
-                          vector<ImageRef> &vCorners,
+                          const vector<ImageRef> &vCorners,
                           std::vector<int> *pvRowLUT)
 {
   ImageRef irBest;
   int nBestSSD = mnMaxSSD + 1;
   ImageRef irBBoxTL = irPos - ImageRef(nRange, nRange);
   ImageRef irBBoxBR = irPos + ImageRef(nRange, nRange);
-  vector<ImageRef>::iterator i;
+  vector<ImageRef>::const_iterator i;
   if(!pvRowLUT)
     {
       for(i = vCorners.begin(); i!=vCorners.end(); i++)
@@ -84,7 +84,7 @@ bool MiniPatch::FindPatch(CVD::ImageRef &irPos,
 }
 
 // Define the patch from an input image
-void MiniPatch::SampleFromImage(ImageRef irPos, BasicImage<CVD::byte> &im)
+void MiniPatch::SampleFromImage(const ImageRef &irPos, const BasicImage<CVD::byte> &im)
 {
   assert(im.in_image_with_border(irPos, mnHalfPatchSize));
   CVD::ImageRef irPatchSize( 2 * mnHalfPatchSize + 1 , 2 * mnHalfPatchSize + 1);

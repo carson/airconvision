@@ -87,6 +87,10 @@ void Tracker::ResetCommon()
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
   mHasDeterminedScale = false;
+
+  for (size_t i = 0; i < LEVELS; ++i) {
+    maFastCornerBarriers[i] = 15;
+  }
 }
 
 /**
@@ -319,7 +323,7 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
   // Take the input video image, and convert it into the tracker's keyframe struct
   // This does things like generate the image pyramid and find FAST corners
   mCurrentKF.mMeasurements.clear();
-  mCurrentKF.MakeKeyFrame_Lite(imFrame);
+  mCurrentKF.MakeKeyFrame_Lite(imFrame, maFastCornerBarriers);
 
   // Update the small images for the rotation estimator
   static gvar3<double> gvdSBIBlur("Tracker.RotationEstimatorBlur", 0.75, SILENT);
@@ -346,9 +350,10 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
     if(GV2.GetInt("Tracker.DrawFASTCorners",0, SILENT))
     {
       glColor3f(1,0,1);  glPointSize(1); glBegin(GL_POINTS);
-      for(unsigned int i=0; i<mCurrentKF.aLevels[0].vCorners.size(); i++)
-      {
-        glVertex(mCurrentKF.aLevels[0].vCorners[i]);
+
+      const std::vector<ImageRef> &vCorners = mCurrentKF.aLevels[0].GetCorners();
+      for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
+        glVertex(*c);
       }
       glEnd();
 
@@ -387,6 +392,12 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
           if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
           if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
           if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
+
+          mMessageForUser << " F:";
+          for(int i=0; i<LEVELS; i++) {
+            mMessageForUser << "/" << maFastCornerBarriers[i];
+          }
+
           mMessageForUser << " Found:";
           for(int i=0; i<LEVELS; i++) {
             mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
@@ -656,16 +667,16 @@ void Tracker::TrackForInitialMap()
 void Tracker::SampleTrailPatches(const ImageRef &start, const ImageRef &size, int nFeaturesToAdd)
 {
   vector<pair<double,ImageRef> > vCornersAndSTScores;
-  for(size_t i = 0; i < mCurrentKF.aLevels[0].vCandidates.size(); i++)  // Copy candidates into a trivially sortable vector
-  {                                                                     // so that we can choose the image corners with max ST score
-    const Candidate &c = mCurrentKF.aLevels[0].vCandidates[i];
-    if (!PointInsideRect(c.irLevelPos, start, size)) {
+  const std::vector<Candidate>& vCandidates = mCurrentKF.aLevels[0].GetCandidates();
+  for (auto c = vCandidates.begin(); c != vCandidates.end(); ++c)  // Copy candidates into a trivially sortable vector
+  {                                                                // so that we can choose the image corners with max ST score
+    if (!PointInsideRect(c->irLevelPos, start, size)) {
       continue;
     }
-    if(!mCurrentKF.aLevels[0].im.in_image_with_border(c.irLevelPos, MiniPatch::mnHalfPatchSize)) {
+    if(!mCurrentKF.aLevels[0].im.in_image_with_border(c->irLevelPos, MiniPatch::mnHalfPatchSize)) {
       continue;
     }
-    vCornersAndSTScores.push_back(make_pair(-1.0 * c.dSTScore, c.irLevelPos)); // negative so highest score first in sorted list
+    vCornersAndSTScores.emplace_back(-1.0 * c->dSTScore, c->irLevelPos); // negative so highest score first in sorted list
   }
 
   sort(vCornersAndSTScores.begin(), vCornersAndSTScores.end());  // Sort according to Shi-Tomasi score
@@ -742,13 +753,13 @@ int Tracker::TrailTracking_Advance()
     Trail &trail = *i;
     ImageRef irStart = trail.irCurrentPos;
     ImageRef irEnd = irStart;
-    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.vCorners);
+    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.GetCorners());
     if(bFound)
     {
       // Also find backwards in a married-matches check
       BackwardsPatch.SampleFromImage(irEnd, lCurrentFrame.im);
       ImageRef irBackWardsFound = irEnd;
-      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.vCorners);
+      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.GetCorners());
       if((irBackWardsFound - irStart).mag_squared() > 2)
         bFound = false;
 
