@@ -104,9 +104,10 @@ class KeyFrame
     void ThinCandidates(int nLevel);
     void RefreshSceneDepth();
 
-    void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im);   // This takes an image and calculates pyramid levels etc to fill the
+    void MakeKeyFrame_Lite(const CVD::BasicImage<CVD::byte> &im);   // This takes an image and calculates pyramid levels etc to fill the
                                                             // keyframe data structures with everything that's needed by the tracker..
-    void AddRgbToKeyFrame(CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
+    void AddRgbToKeyFrame(const CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
+
     //void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im, CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
 
     void MakeKeyFrame_Rest();                                 // ... while this calculates the rest of the data which the mapmaker needs.

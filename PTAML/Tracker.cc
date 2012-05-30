@@ -118,27 +118,6 @@ void Tracker::Reset()
   }
 }
 
-double RobustMean(const std::vector<double>& values, double fringe)
-{
-  // Calculate the mean of the 1/3rd median values
-
-  std::vector<double> sortedValues = values;
-
-  std::sort(sortedValues.begin(), sortedValues.end());
-
-  size_t numElems = static_cast<size_t>(values.size() * fringe);
-  double value = 0;
-  for (std::vector<double>::const_iterator it = sortedValues.begin() + numElems;
-       it != sortedValues.end() - numElems; ++it)
-  {
-    value += *it;
-  }
-
-  value /= (values.size() - 2*numElems);
-
-  return value;
-}
-
 bool Tracker::PickPointOnGround(
   const TooN::Vector<2>& pixelCoord,
   TooN::Vector<3>& pointOnPlane)
@@ -331,7 +310,7 @@ bool Tracker::ShouldAddNewKeyFrame()
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
-void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
+void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
 {
   isKeyFrame = 0;//@hack by camparijet for serialize
   mbDraw = bDraw;
@@ -460,7 +439,7 @@ void Tracker::TrackFrame(Image<CVD::byte> &imFrame, bool bDraw)
  * for adding Image to KeyFrame
  * Method for adding KeyFrame...
  */
-void Tracker::TrackFrame(Image<CVD::byte> &imFrame, Image<CVD::Rgb<CVD::byte> >&im_clFrame,bool bDraw)
+void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, Image<CVD::Rgb<CVD::byte> >&im_clFrame,bool bDraw)
 {
   mCurrentKF.AddRgbToKeyFrame(im_clFrame);
   TrackFrame(imFrame,bDraw);

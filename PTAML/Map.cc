@@ -96,9 +96,6 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
     return false;
   }
 
-  bool bPrevRecent = mpMap->bBundleConverged_Recent;
-  bool bPrevFull = mpMap->bBundleConverged_Full;
-
   // Bundle adjustment did some updates, apply these to the map
   if(nAccepted > 0)
   {
@@ -128,17 +125,6 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
     }
   }
 
-  // Added this to make sure this is the actual logic of this function
-  // Im leaving it for a while to test it out thoroughly -- dhenell
-  /*
-  if (mbRecent) {
-    assert(mpMap->bBundleConverged_Recent == mBundle.Converged());
-    assert(mpMap->bBundleConverged_Full == bPrevFull);
-  } else {
-    assert(mpMap->bBundleConverged_Full == mBundle.Converged());
-    assert(mpMap->bBundleConverged_Recent == mBundle.Converged() ? true : bPrevRecent);
-  }
-  */
 
   // Handle outlier measurements:
   vector<pair<int,int> > vOutliers_PC_pair = mBundle.GetOutlierMeasurements();
@@ -453,6 +439,8 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
 void Map::RemoveNonGroundPoints()
 {
+  return; // The removal of non ground points is not really neccessary
+
   // Did the tracker see this point as an outlier more often than as an inlier?
   for (size_t i = 0; i < vpPoints.size(); ++i)
   {
