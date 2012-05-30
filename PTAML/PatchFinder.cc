@@ -215,12 +215,15 @@ bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned i
   vector<ImageRef>::const_iterator i;
   vector<ImageRef>::const_iterator i_end;
   
-  i = L.vCorners.begin() + L.vCornerRowLUT[nTop];
+  const std::vector<CVD::ImageRef>& vCorners = L.GetCorners();
+  const std::vector<int>& vCornerRowLUT = L.GetCornerRowLUT();
+
+  i = vCorners.begin() + vCornerRowLUT[nTop];
   
   if(nBottomPlusOne >= L.im.size().y)
-    i_end = L.vCorners.end();
+    i_end = vCorners.end();
   else 
-    i_end = L.vCorners.begin() + L.vCornerRowLUT[nBottomPlusOne];
+    i_end = vCorners.begin() + vCornerRowLUT[nBottomPlusOne];
   
   ImageRef irBest;             // Best match so far
   int nBestSSD = mnMaxSSD + 1; // Best score so far is beyond the max allowed

@@ -135,7 +135,7 @@ void MapMaker::SwitchMap()
 
 #define CKECK_ABORTS CHECK_RESET CHECK_REINIT CHECK_SWITCH CHECK_UNLOCK
 
-#define DEBUG_MAP_MAKER(x)
+#define DEBUG_MAP_MAKER(x) x
 
 /**
  * Run the map maker thread
@@ -189,7 +189,7 @@ void MapMaker::run()
       if (!mpMap->RecentBundleAdjust(&mbAbortRequested)) {
         mbResetRequested = true;
       }
-      DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbBundleAbortRequested << endl);
+      DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbAbortRequested << endl);
     }
 
     CKECK_ABORTS;
@@ -202,17 +202,17 @@ void MapMaker::run()
 
     CKECK_ABORTS;
     // Run global bundle adjustment?
-    //if(mpMap->bBundleConverged_Recent && !mpMap->bBundleConverged_Full && mpMap->QueueSize() == 0)
+    if(mpMap->RecentBundleAdjustConverged() && !mpMap->FullBundleAdjustConverged() && mpMap->QueueSize() == 0) {
 
     // I added this rule to avoid starting a full bundle adjust if there were waiting KFs,
     // otherwise the camera loses tracking with fast camera movements -- dhenell
-    if (mpMap->QueueSize() == 0) {
+    //if (mpMap->QueueSize() == 0) {
       mbAbortRequested = false;
       DEBUG_MAP_MAKER(cout << "START: Full bundle adjustment" << endl);
       if (!mpMap->FullBundleAdjust(&mbAbortRequested)) {
         mbResetRequested = true;
       }
-      DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbBundleAbortRequested << endl);
+      DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbAbortRequested << endl);
     }
 
     CKECK_ABORTS;

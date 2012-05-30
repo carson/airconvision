@@ -37,11 +37,14 @@ using namespace TooN;
 struct MapPoint;
 class SmallBlurryImage;
 
-#define LEVELS 4
+const int LEVELS = 4;
 
 // Candidate: a feature in an image which could be made into a map point
 struct Candidate
 {
+  Candidate() {}
+  Candidate(const CVD::ImageRef &irLevelPos, double dSTScore)
+    : irLevelPos(irLevelPos), dSTScore(dSTScore) {}
   CVD::ImageRef irLevelPos;
   double dSTScore;
 };
@@ -61,6 +64,8 @@ struct Measurement
 // This contains image data and corner points.
 class Level
 {
+  friend class KeyFrame;
+
   public:
     Level() : bImplaneCornersCached(false)
     {
@@ -71,22 +76,27 @@ class Level
     void FindCorners(int barrier);
     void FindMaxCornersAndCandidates(double dCandidateMinSTScore);
 
+    const std::vector<CVD::ImageRef>& GetCorners() const { return vCorners; }
+    const std::vector<int>& GetCornerRowLUT() const { return vCornerRowLUT; }
+    const std::vector<CVD::ImageRef>& GetMaxCorners() const { return vMaxCorners; }
+    const std::vector<Candidate>& GetCandidates() const { return vCandidates; }
+
   public:
     CVD::Image<CVD::byte> im;                // The pyramid level pixels
-    std::vector<CVD::ImageRef> vCorners;     // All FAST corners on this level
-    std::vector<int> vCornerRowLUT;          // Row-index into the FAST corners, speeds up access
-    std::vector<CVD::ImageRef> vMaxCorners;  // The maximal FAST corners
-    std::vector<Candidate> vCandidates;   // Potential locations of new map points
 
     bool bImplaneCornersCached;           // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
     std::vector<Vector<2> > vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
 
   private:
     void FindCornersInCell(int barrier, const CVD::ImageRef &start, const CVD::ImageRef &size);
-    void FindCandidatesInCell(const CVD::ImageRef &start, const CVD::ImageRef &size,
-                              const std::vector<std::pair<double, CVD::ImageRef>> &vCornersAndSTScores);
+    void FindCandidatesInCell(const CVD::ImageRef &start, const CVD::ImageRef &size);
 
   private:
+    std::vector<CVD::ImageRef> vCorners;     // All FAST corners on this level
+    std::vector<int> vCornerRowLUT;          // Row-index into the FAST corners, speeds up access
+    std::vector<CVD::ImageRef> vMaxCorners;  // The maximal FAST corners
+    std::vector<Candidate> vCandidates;      // Potential locations of new map points
+
     int mBarrier;
 };
 
@@ -98,19 +108,21 @@ class KeyFrame
   public:
     KeyFrame(const ATANCamera &cam);
     KeyFrame(const KeyFrame &k);
-    KeyFrame& operator=(const KeyFrame &rhs);
     ~KeyFrame();
+
+    KeyFrame& operator=(const KeyFrame &rhs);
 
     void ThinCandidates(int nLevel);
     void RefreshSceneDepth();
 
-    void MakeKeyFrame_Lite(const CVD::BasicImage<CVD::byte> &im);   // This takes an image and calculates pyramid levels etc to fill the
-                                                            // keyframe data structures with everything that's needed by the tracker..
-    void AddRgbToKeyFrame(const CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
+    // This takes an image and calculates pyramid levels etc to fill the
+    // keyframe data structures with everything that's needed by the tracker..
+    void MakeKeyFrame_Lite(const CVD::BasicImage<CVD::byte> &im, int* aFastCornerBarriers);
+    // ... while this calculates the rest of the data which the mapmaker needs.
+    void MakeKeyFrame_Rest();
 
-    //void MakeKeyFrame_Lite(CVD::BasicImage<CVD::byte> &im, CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);//@hack by camparijet for pixel and Keyframe
-
-    void MakeKeyFrame_Rest();                                 // ... while this calculates the rest of the data which the mapmaker needs.
+    //@hack by camparijet for pixel and Keyframe
+    void AddRgbToKeyFrame(const CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);
 
   public:
     SE3<> se3CfromW;    // The coordinate frame of this key-frame as a Camera-From-World transformation
@@ -127,8 +139,6 @@ class KeyFrame
     CVD::Image< CVD::Rgb < CVD::byte> > im_cl; //@hack by camparijet for pixel and Keyframe
     int tIndex; //@hack by camaparijet for texture indexing...
 };
-
-typedef std::map<MapPoint*, Measurement>::iterator meas_it;  // For convenience, and to work around an emacs paren-matching bug
 
 }
 
