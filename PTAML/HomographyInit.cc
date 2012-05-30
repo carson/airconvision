@@ -194,7 +194,7 @@ void HomographyInit::BestHomographyFromMatches_MLESAC()
   double dBestError = 999999999999999999.9;
 
   // Do 300 MLESAC trials.
-  for(int nR = 0; nR < 300 ; nR++)
+  for(int nR = 0; nR < 500 ; nR++)
     {
       // Find set of four unique matches
       for(int i=0; i<4; i++)

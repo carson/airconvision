@@ -301,7 +301,8 @@ void System::Run()
 
     // Update FPS counter
     if (fpsCounter.Update()) {
-      cout << fpsCounter.Fps() << endl;
+      stringstream ss; ss << "PTAML - " << setiosflags(ios::fixed) << setprecision(2) << fpsCounter.Fps() << " fps";
+      mGLWindow.set_title(ss.str());
 
       // UGLY HACK. I put it here because the fps counter is updated once a second and the
       // MK has a requirement that it needs at least one request every 8 seconds to not turn
@@ -389,8 +390,8 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
   else if(sCommand == "Realign")
   {
     System* sys = static_cast<System*>(ptr);
-    Vector<3> v3CamPos = sys->mpTracker->RealWorldCoordinate();
-    sys->mpMap->RemoveFarAwayMapPoints(v3CamPos, abs(v3CamPos[2])*2);
+    //Vector<3> v3CamPos = sys->mpTracker->RealWorldCoordinate();
+    //sys->mpMap->RemoveFarAwayMapPoints(v3CamPos, abs(v3CamPos[2])*2);
     sys->mpMapMaker->RequestRealignment();
 
     return;

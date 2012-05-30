@@ -129,6 +129,9 @@ class Map
     TooN::Vector<3> ReprojectPoint(const TooN::SE3<>& se3AfromB,
                                    const TooN::Vector<2> &v2A,
                                    const TooN::Vector<2> &v2B) const;
+
+    void RemoveNonGroundPoints();
+
     // For map generation
     void AddSomeMapPoints(int nLevel);
     bool AddPointEpipolar(KeyFrame &kSrc, KeyFrame &kTarget, int nLevel, int nCandidate);
