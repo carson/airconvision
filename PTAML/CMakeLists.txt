@@ -131,4 +131,5 @@ target_link_libraries(CameraCalibrator ${LIBS})
 # Data Files
 #
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/settings.cfg ${CMAKE_CURRENT_BINARY_DIR}/settings.cfg COPYONLY)
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/settings.cfg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
