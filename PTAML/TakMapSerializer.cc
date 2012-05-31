@@ -1031,7 +1031,7 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
     try {
       img_save(kf->aLevels[0].im, os.str());
     }
-    catch(CVD::Exceptions::All err) {
+    catch(CVD::Exceptions::All& err) {
       cerr << " Failed to save image " <<  os.str() << ": " << err.what << endl;
       return false;
     }

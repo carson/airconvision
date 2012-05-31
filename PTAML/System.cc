@@ -17,6 +17,7 @@
 
 #ifdef _LINUX
 #   include <fcntl.h>
+#   include <pthread.h>
 #endif
 
 #ifdef WIN32
@@ -90,11 +91,23 @@ System::System(VideoSource* videoSource)
   mvpMaps.push_back( mpMap );
   mpMap->mapLockManager.Register(this);
 
+  // Force the program to run on CPU0
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(0, &cpuset);
+  CPU_SET(1, &cpuset);
+  pthread_t thread = pthread_self();
+  if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
+    cerr << "pthread_setaffinity_np failed for main thread" << endl;
+  }
+
   mpMapMaker = new MapMaker( mvpMaps, mpMap );
   mpTracker = new Tracker(videoSize, *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
   mpARDriver = new ARDriver(*mpCamera, videoSize, mGLWindow, *mpMap);
   mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
   mpMapSerializer = new MapSerializer( mvpMaps );
+
+
 
   //These commands have to be registered here as they call the classes created above
   GUI.RegisterCommand("NextMap", GUICommandCallBack, mpMapViewer);
