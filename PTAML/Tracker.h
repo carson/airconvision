@@ -58,7 +58,6 @@ class Tracker
     bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
 
     Vector<3> RealWorldCoordinate() const {
-//      return project(mMarkerFromWorld * unproject(mse3CamFromWorld.inverse().get_translation()));
       return mse3CamFromWorld.inverse().get_translation();
     }
 

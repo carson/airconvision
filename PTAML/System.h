@@ -94,8 +94,9 @@ class System
 
     GVars3::gvar3<int> mgvnLockMap;                 // Stop a map being edited - i.e. keyframes added, points updated
     GVars3::gvar3<int> mgvnDrawMapInfo;             // Draw map info on the screen
-    GVars3::gvar3<int> mgvnDisableRendering;                 // Disable all rendering
+    GVars3::gvar3<int> mgvnDisableRendering;        // Disable all rendering
 
+    std::ofstream mCoordinateLogFile;                  // Debug output file handle
     std::ofstream mDebugFile;                        // Debug output file handle
 
 #ifdef _LINUX

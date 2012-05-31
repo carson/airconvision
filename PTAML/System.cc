@@ -138,10 +138,16 @@ System::System(VideoSource* videoSource)
 
   mbDone = false;
 
-  mDebugFile.open("output.txt", ios_base::out | ios_base::trunc);
+  mDebugFile.open("output.txt", ios::out | ios::trunc);
   if (!mDebugFile) {
     cerr << "Failed to open output.txt" << endl;
   }
+
+  mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
+  if (!mCoordinateLogFile) {
+    cerr << "Failed to open coordinates.txt" << endl;
+  }
+
 
   // Set all debug output values to 0
   mMkDebugOutput = { 0 };
@@ -208,9 +214,12 @@ void System::Run()
   using namespace std::chrono;
 
   bool bWriteDebugValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
+  bool bWriteCoordinatesLog = GV3::get<int>("Debug.OutputWorldCoordinates", 0, SILENT);
 
   // For FPS counting
   FPSCounter fpsCounter;
+
+  auto startTime = high_resolution_clock::now();
 
   while(!mbDone)
   {
@@ -276,6 +285,11 @@ void System::Run()
       if (mbPositionHold) {
         mPositionHold.Update(mpTracker->GetCurrentPose(), high_resolution_clock::now());
       }
+    }
+
+    if (bWriteCoordinatesLog) {
+      duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
+      mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
     }
 
     // Additional rendering goes here
