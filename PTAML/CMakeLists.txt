@@ -98,6 +98,7 @@ set(PTAML_SRC
 	ShiTomasi.cc
 	SmallBlurryImage.cc
 	System.cc
+	Timing.cc
 	tinyxml.cc
 	tinyxmlerror.cc
 	tinyxmlparser.cc
@@ -129,6 +130,18 @@ set(CC_SRC
 
 add_executable(CameraCalibrator ${CC_SRC})
 target_link_libraries(CameraCalibrator ${LIBS})
+
+#
+# Other programs
+#
+
+set(FASTTEST_SRC
+	Timing.cc
+	FastTest.cc
+)
+
+add_executable(FastTest ${FASTTEST_SRC})
+target_link_libraries(FastTest ${LIBS})
 
 #
 # Data Files

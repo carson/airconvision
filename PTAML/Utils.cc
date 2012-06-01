@@ -11,7 +11,10 @@
 #include "Utils.h"
 #include <gvars3/GStringUtil.h>
 
+#include <iostream>
 #include <sstream>
+
+using namespace std;
 
 namespace PTAMM {
 
@@ -37,6 +40,5 @@ bool PointInsideRect(const CVD::ImageRef &pt, const CVD::ImageRef &start, const 
 {
   return pt.x >= start.x && pt.y >= start.y && pt.x < start.x + size.x && pt.y < start.y + size.y;
 }
-
 
 }

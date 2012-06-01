@@ -70,6 +70,7 @@ class System
     GLWindow2 mGLWindow;                            // The OpenGL window
 
     VideoSource* mVideoSource;                       // The video image source
+    bool mbFreezeVideo;
 
     CVD::Image<CVD::Rgb<CVD::byte> > mimFrameRGB;   // The RGB image used for AR
     CVD::Image<CVD::byte> mimFrameBW;               // The Black and white image for tracking/mapping

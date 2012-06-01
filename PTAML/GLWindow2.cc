@@ -7,6 +7,9 @@
 #include <gvars3/instances.h>
 #include <TooN/helpers.h>
 
+#include <GL/gl.h>
+#include <GL/glut.h>
+
 #include <cstdlib>
 
 namespace PTAMM {
@@ -34,6 +37,16 @@ size_t CountLines(const std::string &s)
   return nLines;
 }
 
+void print_bitmap_string(void* font, const char* s)
+{
+  if (s && strlen(s)) {
+    while (*s) {
+      glutBitmapCharacter(font, *s);
+      s++;
+    }
+  }
+}
+
 GLWindow2::GLWindow2(ImageRef irSize, string sTitle)
   : GLWindow(irSize, sTitle)
 {
@@ -59,6 +72,10 @@ GLWindow2::GLWindow2(ImageRef irSize, string sTitle)
   glSetFont("sans");
   mvMCPoseUpdate=Zeros;
   mvLeftPoseUpdate=Zeros;
+
+  int argc = 0;
+  char* argv[] = {"abc"};
+  glutInit(&argc, argv);
 };
 
 
@@ -160,14 +177,34 @@ void GLWindow2::SetupViewport()
   glViewport(0, 0, size()[0], size()[1]);
 }
 
-const void GLWindow2::PrintString(const CVD::ImageRef &irPos, const std::string &s) const
+const void GLWindow2::PrintString(const CVD::ImageRef &irPos, const std::string &str) const
 {
+  /*
   glMatrixMode(GL_PROJECTION);
   glPushMatrix();
   glTranslatef(static_cast<float>(irPos.x), static_cast<float>(irPos.y), 0.0f);
   glScalef(8,-8,1);
   glDrawText(s, NICE, 1.6, 0.1);
   glPopMatrix();
+  */
+
+  glPixelZoom(1.0f, 1.0f);
+  glRasterPos2f(static_cast<float>(irPos.x), static_cast<float>(irPos.y));
+
+  int nLines = 0;
+  const char *s = str.c_str();
+
+  if (s && strlen(s)) {
+    while (*s) {
+      if (*s == '\n') {
+        ++nLines;
+        glRasterPos2f(static_cast<float>(irPos.x), static_cast<float>(irPos.y + nLines * 13));
+      } else {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_10, *s);
+      }
+      s++;
+    }
+  }
 }
 
 void GLWindow2::DrawCaption(const string &s)

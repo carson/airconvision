@@ -57,7 +57,6 @@ void PruneWhiteSpace(std::string & str);
 
 bool PointInsideRect(const CVD::ImageRef &pt, const CVD::ImageRef &start, const CVD::ImageRef &size);
 
-
 }
 
 #endif

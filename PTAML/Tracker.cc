@@ -9,6 +9,7 @@
 #include "ARToolkit.h"
 #include "Utils.h"
 #include "GLWindow2.h"
+#include "Timing.h"
 
 #include <cvd/utility.h>
 #include <cvd/gl_helpers.h>
@@ -88,7 +89,7 @@ void Tracker::ResetCommon()
   mbJustRecoveredSoUseCoarse = false;
   mHasDeterminedScale = false;
 
-  for (size_t i = 0; i < LEVELS; ++i) {
+  for (int i = 0; i < LEVELS; ++i) {
     maFastCornerBarriers[i] = 15;
   }
 }
@@ -323,12 +324,16 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
   // Take the input video image, and convert it into the tracker's keyframe struct
   // This does things like generate the image pyramid and find FAST corners
   mCurrentKF.mMeasurements.clear();
+
   mCurrentKF.MakeKeyFrame_Lite(imFrame, maFastCornerBarriers);
 
   // Update the small images for the rotation estimator
   static gvar3<double> gvdSBIBlur("Tracker.RotationEstimatorBlur", 0.75, SILENT);
   static gvar3<int> gvnUseSBI("Tracker.UseRotationEstimator", 1, SILENT);
-  mbUseSBIInit = *gvnUseSBI;
+  mbUseSBIInit = false; //*gvnUseSBI;
+
+  gSBIInitTimer.Start();
+
   if(!mpSBIThisFrame)
   {
     mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
@@ -341,6 +346,8 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
     mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
   }
 
+  gSBIInitTimer.Stop();
+
   // From now on we only use the keyframe struct!
   mnFrame++;
 
@@ -350,27 +357,13 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
     if(GV2.GetInt("Tracker.DrawFASTCorners",0, SILENT))
     {
       glColor3f(1,0,1);  glPointSize(1); glBegin(GL_POINTS);
-
       const std::vector<ImageRef> &vCorners = mCurrentKF.aLevels[0].GetCorners();
       for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
         glVertex(*c);
       }
       glEnd();
-
-      /*
-      glColor3f(1,1,1);  glPointSize(1); glBegin(GL_POINTS);
-      for(unsigned int i=0; i<mCurrentKF.aLevels[0].vMaxCorners.size(); i++)
-      {
-        glVertex(mCurrentKF.aLevels[0].vMaxCorners[i]);
-      }
-      glEnd();
-      */
-
     }
   }
-  //@hack for initial keyframe
-  //if(mnInitialStage == TRAIL_TRACKING_STARTED)
-  //  isKeyFrame = 0;
 
   if (!mbFreezeTracking) {
     // Decide what to do - if there is a map, try to track the map ...
@@ -378,14 +371,23 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
     {
       if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
       {
+        gSBITimer.Start();
         if(mbUseSBIInit) {
           CalcSBIRotation();
         }
+        gSBITimer.Stop();
+
         ApplyMotionModel();       //
+
+        gTrackTimer.Start();
         TrackMap();               //  These three lines do the main tracking work.
+        gTrackTimer.Stop();
+
         UpdateMotionModel();      //
 
+        gTrackingQualityTimer.Start();
         AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
+        gTrackingQualityTimer.Stop();
 
         { // Provide some feedback for the user:
           mMessageForUser << "Tracking Map, quality ";
@@ -414,7 +416,7 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
         }
 
         // Added some scale determing code here -- dhenell
-        DetermineScaleFromMarker(imFrame);
+        //DetermineScaleFromMarker(imFrame);
       }
       else  // what if there is a map, but tracking has been lost?
       {
@@ -427,7 +429,9 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
         }
       }
       if(mbDraw) {
+        gDrawGridTimer.Start();
         RenderGrid();
+        gDrawGridTimer.Stop();
       }
     }
     else // If there is no map, try to make one.
@@ -444,17 +448,6 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
     mvQueuedCommands.erase(mvQueuedCommands.begin());
   }
 };
-
-/**
- * @hack by camparijet
- * for adding Image to KeyFrame
- * Method for adding KeyFrame...
- */
-void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, Image<CVD::Rgb<CVD::byte> >&im_clFrame,bool bDraw)
-{
-  mCurrentKF.AddRgbToKeyFrame(im_clFrame);
-  TrackFrame(imFrame,bDraw);
-}
 
 /**
  * Try to relocalise in case tracking was lost.
@@ -493,7 +486,7 @@ void Tracker::RenderGrid()
     glColor4f(0.0f,0.0f,0.0f,0.6f);
 
   // The grid is projected manually, i.e. GL receives projected 2D coords to draw.
-  int nHalfCells = 100;
+  int nHalfCells = 4;
   int nTot = nHalfCells * 2 + 1;
   Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
   for(int i=0; i<nTot; i++)
@@ -512,9 +505,10 @@ void Tracker::RenderGrid()
     }
   }
   glEnable(GL_LINE_SMOOTH);
-  glEnable(GL_BLEND);
+  //glEnable(GL_BLEND);
+  glDisable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glLineWidth(2);
+  glLineWidth(1);
   for(int i=0; i<nTot; i++)
   {
     glBegin(GL_LINE_STRIP);
@@ -1071,8 +1065,8 @@ void Tracker::TrackMap()
     v6LastUpdate = v6Update;
   }
 
-  if(mbDraw) {
-    glPointSize(6);
+  if(mbDraw && false) {
+    glPointSize(4);
     glEnable(GL_BLEND);
     glEnable(GL_POINT_SMOOTH);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
