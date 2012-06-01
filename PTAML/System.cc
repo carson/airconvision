@@ -1,8 +1,6 @@
 // Copyright 2009 Isis Innovation Limited
 #include "System.h"
 #include "OpenGL.h"
-#include <gvars3/GStringUtil.h>
-#include <stdlib.h>
 #include "ATANCamera.h"
 #include "MapMaker.h"
 #include "Tracker.h"
@@ -10,7 +8,14 @@
 #include "MapViewer.h"
 #include "MapSerializer.h"
 #include "FPSCounter.h"
+#include "Timing.h"
 
+#include "KeyFrame.h" // REMOVE THIS
+
+#include <gvars3/GStringUtil.h>
+#include <cvd/image_io.h>
+
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <functional>
@@ -26,6 +31,18 @@
 
 namespace PTAMM {
 
+TimingTimer gFrameTimer;
+TimingTimer gVideoSourceTimer;
+TimingTimer gFeatureTimer;
+TimingTimer gTrackTimer;
+TimingTimer gSBIInitTimer;
+TimingTimer gSBITimer;
+TimingTimer gTrackingQualityTimer;
+TimingTimer gDrawGridTimer;
+TimingTimer gDrawUITimer;
+TimingTimer gGLSwapTimer;
+TimingTimer gTrackFullTimer;
+
 using namespace std;
 using namespace std::placeholders;
 using namespace CVD;
@@ -34,6 +51,7 @@ using namespace GVars3;
 System::System(VideoSource* videoSource)
   : mGLWindow(videoSource->Size(), "PTAMM")
   , mVideoSource(videoSource)
+  , mbFreezeVideo(false)
   , mbPositionHold(false)
 {
   GUI.RegisterCommand("exit", GUICommandCallBack, this);
@@ -91,11 +109,11 @@ System::System(VideoSource* videoSource)
   mvpMaps.push_back( mpMap );
   mpMap->mapLockManager.Register(this);
 
+
   // Force the program to run on CPU0
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(0, &cpuset);
-  CPU_SET(1, &cpuset);
   pthread_t thread = pthread_self();
   if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
     cerr << "pthread_setaffinity_np failed for main thread" << endl;
@@ -123,7 +141,7 @@ System::System(VideoSource* videoSource)
   GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
   GUI.ParseLine("DrawMap=0");
-  GUI.ParseLine("DrawMKDebug=0");
+  GUI.ParseLine("DrawMKDebug=1");
   GUI.ParseLine("Menu.AddMenuToggle Root \"Draw MK\" DrawMKDebug Root");
 
   GUI.ParseLine("GLWindow.AddMenu MapsMenu Maps");
@@ -234,10 +252,14 @@ void System::Run()
 
   auto startTime = high_resolution_clock::now();
 
+  bool bSaveFrame = false;
+
   while(!mbDone)
   {
     //Check if the map has been locked by another thread, and wait for release.
     bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
+
+    gFrameTimer.Start();
 
     /* This is a rather hacky way of getting this feedback,
        but GVars cannot be assigned to different variables
@@ -252,12 +274,15 @@ void System::Run()
     // and one RGB, for drawing.
 
     // Grab new video frame...
-    mVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
-    static bool bFirstFrame = true;
-    if(bFirstFrame)
-    {
-      mpMap->InitTexture();//@hack for texture
-      bFirstFrame = false;
+    if (!mbFreezeVideo) {
+      gVideoSourceTimer.Start();
+      mVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
+      gVideoSourceTimer.Stop();
+      bSaveFrame = true;
+    } else if (bSaveFrame) {
+
+      img_save<CVD::byte>(mimFrameBW, "freeze.png");
+      bSaveFrame = false;
     }
 
     bool disableRendering = *mgvnDisableRendering;
@@ -266,7 +291,6 @@ void System::Run()
       mGLWindow.SetupViewport();
       mGLWindow.SetupVideoOrtho();
       mGLWindow.SetupVideoRasterPosAndZoom();
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
     if(bWasLocked) {
@@ -276,9 +300,11 @@ void System::Run()
     static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
     bool bDrawMap = !disableRendering && mpMap->IsGood() && *gvnDrawMap;
 
-    //@hack by camparijet for adding Image to KeyFrame
-    mpTracker->TrackFrame(mimFrameBW, mimFrameRGB, !disableRendering && !bDrawMap);
+    gTrackFullTimer.Start();
+    mpTracker->TrackFrame(mimFrameBW, !disableRendering && !bDrawMap);
+    gTrackFullTimer.Stop();
 
+    /*
     // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
       mMkConn.ProcessIncoming();
@@ -303,11 +329,13 @@ void System::Run()
     if (bWriteCoordinatesLog) {
       duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
       mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
-    }
+    }*/
 
     // Additional rendering goes here
     if(!disableRendering) {
+      gDrawUITimer.Start();
       Draw(bDrawMap);
+      gDrawUITimer.Stop();
     }
 
     mGLWindow.HandlePendingEvents();
@@ -320,11 +348,15 @@ void System::Run()
       // UGLY HACK. I put it here because the fps counter is updated once a second and the
       // MK has a requirement that it needs at least one request every 8 seconds to not turn
       // off the debug output.
+      /*
       if (mMkConn) {
         // Request debug data being sent from the MK
         mMkConn.SendDebugOutputInterval(1);
       }
+      */
     }
+
+    gFrameTimer.Stop();
   }
 }
 
@@ -341,10 +373,30 @@ void System::Draw(bool bDrawMap)
   static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
   if (*gvnDrawMkDebugOutput) {
     stringstream ss;
+    /*
     ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
        << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
        << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
        << "VY: " << mPositionHold.GetVelocityFiltered()[1];
+       */
+
+    ss << "Frame: " << gFrameTimer.Milliseconds() << endl
+       << "Video: " << gVideoSourceTimer.Milliseconds() << endl
+       << "Feature: " << gFeatureTimer.Milliseconds() << endl
+       << "Track: " << gTrackTimer.Milliseconds() << endl
+       << "FullTrack: " << gTrackFullTimer.Milliseconds() << endl
+       //<< "SBI Init: " << gSBIInitTimer.Milliseconds() << endl
+       //<< "SBI: " << gSBITimer.Milliseconds() << endl
+       //<< "TrackQ: " << gTrackingQualityTimer.Milliseconds() << endl
+       //<< "Grid: " << gDrawGridTimer.Milliseconds() << endl
+       << "UI: " << gDrawUITimer.Milliseconds() << endl;
+       //<< "GLSwap: " << gGLSwapTimer.Milliseconds() << endl;
+
+
+    for (int i = 0; i < LEVELS; ++i) {
+      //ss << g_nNumFeaturesFound[i] << endl;
+    }
+
     mGLWindow.DrawDebugOutput(ss.str());
   }
 
@@ -357,7 +409,7 @@ void System::Draw(bool bDrawMap)
   }
 
   mGLWindow.DrawCaption(sCaption);
-  mGLWindow.DrawMenus();
+  //mGLWindow.DrawMenus();
 
 #ifdef _LINUX
   if( *mgvnSaveFIFO )
@@ -366,7 +418,9 @@ void System::Draw(bool bDrawMap)
   }
 #endif
 
+  gGLSwapTimer.Start();
   mGLWindow.swap_buffers();
+  gGLSwapTimer.Stop();
 }
 
 void System::MKRequestPositionHold()
@@ -478,6 +532,10 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     if(sParams == "Space") {
       // TODO: Remove the HandleKeyPress function
       static_cast<System*>(ptr)->mpTracker->HandleKeyPress( sParams );
+    }
+
+    if(sParams == "f") {
+      static_cast<System*>(ptr)->mbFreezeVideo = !static_cast<System*>(ptr)->mbFreezeVideo;
     }
   }
 }

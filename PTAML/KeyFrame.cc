@@ -5,17 +5,25 @@
 #include "LevelHelpers.h"
 #include "MapPoint.h"
 #include "Utils.h"
+#include "Timing.h"
 
 #include <cvd/vision.h>
 #include <cvd/fast_corner.h>
 
 #include <cassert>
 
+namespace CVD
+{
+void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+}
+
 namespace PTAMM {
 
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
+
+int g_nNumFeaturesFound[LEVELS] = { 0 };
 
 
 /**
@@ -83,7 +91,6 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
     pSBI = NULL;
   }
 
-  im_cl = rhs.im_cl;//@hack by camparijet for adding keyframe to color
   return *this;
 }
 
@@ -171,22 +178,23 @@ void Level::FindCorners(int barrier)
   vMaxCorners.clear();
   vCorners.clear();
 
-  const int CELL_WIDTH = im.size().x;
+  /*
   const int CELL_HEIGHT = 60;
 
-  int cellCols = im.size().x / CELL_WIDTH;
   int cellRows = im.size().y / CELL_HEIGHT;
 
   for (int y = 0; y < cellRows; ++y) {
-    for (int x = 0; x < cellCols; ++x) {
-      FindCornersInCell(barrier, ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
-                        ImageRef(CELL_WIDTH + 6, CELL_HEIGHT + 6));
-    }
+      FindCornersInCell(barrier, ImageRef(0, y * CELL_HEIGHT),
+                        ImageRef(im.size().x, CELL_HEIGHT + 6));
   }
+  */
+
+  fast_corner_detect_10(im, vCorners, barrier);
 
   // Generate row look-up-table for the FAST corner points: this speeds up
   // finding close-by corner points later on.
   vCornerRowLUT.clear();
+  vCornerRowLUT.reserve(vCorners.size());
   size_t v = 0;
   size_t numCorners = vCorners.size();
   for (int y = 0; y < im.size().y; y++) {
@@ -258,8 +266,13 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
   aLevels[0].im.resize(im.size());
   copy(im, aLevels[0].im);
 
-  const size_t MAX_CORNERS[] = { 10000, 2500, 1000, 250 };
-  const size_t MIN_CORNERS[] = { 5000, 1400, 300, 100 };
+  gFeatureTimer.Start();
+
+  const size_t MAX_CORNERS_LEVEL0 = 2000;
+  const size_t MIN_CORNERS_LEVEL0 = 1000;
+
+  const size_t MAX_CORNERS[] = { MAX_CORNERS_LEVEL0, MAX_CORNERS_LEVEL0 >> 2, MAX_CORNERS_LEVEL0 >> 4, MAX_CORNERS_LEVEL0 >> 6};
+  const size_t MIN_CORNERS[] = { MIN_CORNERS_LEVEL0, MIN_CORNERS_LEVEL0 >> 2, MIN_CORNERS_LEVEL0 >> 4, MIN_CORNERS_LEVEL0 >> 6 };
 
   // Then, for each level...
   for (int i = 0; i < LEVELS; ++i) {
@@ -284,25 +297,16 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
 
     size_t nFoundCorners = lev.vCorners.size();
 
+    g_nNumFeaturesFound[i] = nFoundCorners;
+
     if (nFoundCorners > MAX_CORNERS[i]) {
-      ++aFastCornerBarriers[i];
-      if (aFastCornerBarriers[i] > 100) { aFastCornerBarriers[i] = 100; }
+      aFastCornerBarriers[i] = min(aFastCornerBarriers[i] + 1, 100);
     } else if (nFoundCorners < MIN_CORNERS[i]) {
-      --aFastCornerBarriers[i];
-      if (aFastCornerBarriers[i] < 5) { aFastCornerBarriers[i] = 5; }
+      aFastCornerBarriers[i] = max(aFastCornerBarriers[i] - 1, 5);
     }
   }
-}
 
-/**
- * @hack by camparijet
- * for adding Image to KeyFrame
- * Method for adding KeyFrame...
- */
-void KeyFrame::AddRgbToKeyFrame(const BasicImage<CVD::Rgb<CVD::byte> > &im_color)
-{
-  im_cl.resize(im_color.size());
-  copy(im_color, im_cl);
+  gFeatureTimer.Stop();
 }
 
 /**

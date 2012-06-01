@@ -158,9 +158,7 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
  * Constructor. Calls reset and sets the map ID
  */
 Map::Map()
-  : N(10000)
-  , nTex(0)
-  , mdWiggleScale(0)
+  : mdWiggleScale(0)
   , mdWiggleScaleDepthNormalized(0)
 {
   static int nMapCounter = 0;
@@ -371,9 +369,6 @@ bool Map::InitFromStereo(KeyFrame &kF,
     pkSecond->mMeasurements[p] = mSecond;
     p->pMMData->sMeasurementKFs.insert(pkSecond);
   }
-
-  MakeTextureFromKF(*pkFirst);//@hack
-  MakeTextureFromKF(*pkSecond);//@hack
 
   vpKeyFrames.push_back(pkFirst);
   vpKeyFrames.push_back(pkSecond);
@@ -608,7 +603,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
    *@hack by camparijet
    * added color for painting
    */
-  pNew->pColor = kSrc.im_cl[pNew->irCenter];
+  pNew->pColor = Rgb<byte>(255, 255, 255); // kSrc.im_cl[pNew->irCenter];
   /*@hack end*/
 
   vpPoints.push_back(pNew);
@@ -787,7 +782,6 @@ void Map::QueueKeyFrame(const KeyFrame &k)
     pK->pSBI = NULL; // Mapmaker uses a different SBI than the tracker, so will re-gen its own
   }
 
-  MakeTextureFromKF(*pK);//@hack
   vpKeyFrameQueue.push_back(pK);
 }
 
@@ -1240,28 +1234,6 @@ void Map::ApplyGlobalScale(double dScale)
 
   mdWiggleScale *= dScale;
   //mdWiggleScaleDepthNormalized = mdWiggleScale / vpKeyFrames[0]->dSceneDepthMean; // Should be invariant to scale
-}
-
-void Map::InitTexture()
-{
-  nTex = 0;
-  glGenTextures(N,&texName[0]);//@hack by camparijet for adding keyframe
-}
-
-void Map::MakeTextureFromKF(KeyFrame &k)
-{
-  glBindTexture(GL_TEXTURE_2D, texName[nTex]);
-  glTexImage2D(k.im_cl);
-  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-  k.tIndex = nTex;
-  //cout << "Added Keyframe : " << nTex << endl;
-  nTex++;
-}
-
-void Map::ReleaseTexture()
-{
-  glDeleteTextures(N, &texName[0]);
 }
 
 }

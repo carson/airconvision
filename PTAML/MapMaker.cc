@@ -61,7 +61,6 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(2, &cpuset);
-  CPU_SET(3, &cpuset);
 
   if (pthread_setaffinity_np(getID(), sizeof(cpu_set_t), &cpuset) != 0) {
     cerr << "pthread_setaffinity_np failed for map maker thread" << endl;
@@ -146,7 +145,11 @@ void MapMaker::SwitchMap()
 
 #define CKECK_ABORTS CHECK_RESET CHECK_REINIT CHECK_SWITCH CHECK_UNLOCK
 
-#define DEBUG_MAP_MAKER(x) x
+#if 0
+#   define DEBUG_MAP_MAKER(x) x
+#else
+#   define DEBUG_MAP_MAKER(x)
+#endif
 
 /**
  * Run the map maker thread
@@ -162,6 +165,11 @@ void MapMaker::run()
 
   while(!shouldStop())  // ShouldStop is a CVD::Thread func which return true if the thread is told to exit.
   {
+    if (mpMap->bEditLocked) {
+      sleep(5); // Sleep not really necessary, especially if mapmaker is busy
+      continue;
+    }
+
     CKECK_ABORTS;
     sleep(5); // Sleep not really necessary, especially if mapmaker is busy
     CKECK_ABORTS;

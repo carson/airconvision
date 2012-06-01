@@ -70,6 +70,7 @@ class System
     GLWindow2 mGLWindow;                            // The OpenGL window
 
     VideoSource* mVideoSource;                       // The video image source
+    bool mbFreezeVideo;
 
     CVD::Image<CVD::Rgb<CVD::byte> > mimFrameRGB;   // The RGB image used for AR
     CVD::Image<CVD::byte> mimFrameBW;               // The Black and white image for tracking/mapping
@@ -96,7 +97,8 @@ class System
     GVars3::gvar3<int> mgvnDrawMapInfo;             // Draw map info on the screen
     GVars3::gvar3<int> mgvnDisableRendering;        // Disable all rendering
 
-    std::ofstream mCoordinateLogFile;                // Debug output file handle
+    std::ofstream mCoordinateLogFile;
+    // Debug output file handle
     std::ofstream mDebugFile;                        // Debug output file handle
 
 #ifdef _LINUX

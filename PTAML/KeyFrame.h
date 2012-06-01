@@ -39,6 +39,8 @@ class SmallBlurryImage;
 
 const int LEVELS = 4;
 
+extern int g_nNumFeaturesFound[LEVELS];
+
 // Candidate: a feature in an image which could be made into a map point
 struct Candidate
 {
@@ -121,9 +123,6 @@ class KeyFrame
     // ... while this calculates the rest of the data which the mapmaker needs.
     void MakeKeyFrame_Rest();
 
-    //@hack by camparijet for pixel and Keyframe
-    void AddRgbToKeyFrame(const CVD::BasicImage<CVD::Rgb<CVD::byte> > &im_color);
-
   public:
     SE3<> se3CfromW;    // The coordinate frame of this key-frame as a Camera-From-World transformation
     bool bFixed;      // Is the coordinate frame of this keyframe fixed? (only true for first KF!)
@@ -136,8 +135,6 @@ class KeyFrame
     SmallBlurryImage *pSBI; // The relocaliser uses this
 
     ATANCamera Camera;                                        // The camera model which this KF came from
-    CVD::Image< CVD::Rgb < CVD::byte> > im_cl; //@hack by camparijet for pixel and Keyframe
-    int tIndex; //@hack by camaparijet for texture indexing...
 };
 
 }

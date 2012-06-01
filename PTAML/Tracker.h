@@ -55,7 +55,6 @@ class Tracker
 
     // TrackFrame is the main working part of the tracker: call this every frame.
     void TrackFrame(const CVD::Image<CVD::byte> &imFrame, bool bDraw);
-    void TrackFrame(const CVD::Image<CVD::byte> &imFrame, CVD::Image<CVD::Rgb<CVD::byte> >&im_clFrame, bool bDraw); //@hack by camparijet for adding Pictures to Keyframes
 
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
     bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }

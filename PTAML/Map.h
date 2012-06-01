@@ -115,9 +115,6 @@ class Map
     double GetWiggleScale() const { return mdWiggleScale; }
     double GetWiggleScaleDepthNormalized() const { return mdWiggleScaleDepthNormalized; }
 
-    // camparijets hack for keyframe visualization
-    void InitTexture();
-
   public:
     // What is the point of this?? -- dhenell
     bool bEditLocked;                                // Is the map locked from being edited?
@@ -147,10 +144,6 @@ class Map
     void RemoveBadPointsFromKeyFrames();
     void MoveBadPointsToTrash();
 
-    // camparijets hack for keyframe visualization
-    void MakeTextureFromKF(KeyFrame &k);
-    void ReleaseTexture();
-
   private:
     std::vector<MapPoint*> vpPoints;
     std::vector<KeyFrame*> vpKeyFrames;
@@ -166,13 +159,10 @@ class Map
     bool bGood;                                      // Is the map valid (has content)?
 
     std::string sSaveFile;                           // where the map was loaded from
-    GLuint texName[10000];//@hack by camparijet for texture
-    int N;//@hack for texture number
 
     std::vector<TakFrame> poolAllFrame; //@hack for serialize
 
     int mnMapNum;                                    // The map number
-    int nTex;//@hack for index of texture
 
     double mdWiggleScale; // Distance between keyframes
     double mdWiggleScaleDepthNormalized;
