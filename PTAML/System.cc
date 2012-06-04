@@ -34,6 +34,7 @@ namespace PTAMM {
 TimingTimer gFrameTimer;
 TimingTimer gVideoSourceTimer;
 TimingTimer gFeatureTimer;
+TimingTimer gPvsTimer;
 TimingTimer gTrackTimer;
 TimingTimer gSBIInitTimer;
 TimingTimer gSBITimer;
@@ -306,7 +307,6 @@ void System::Run()
     mpTracker->TrackFrame(mimFrameBW, !disableRendering && !bDrawMap);
     gTrackFullTimer.Stop();
 
-    /*
     // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
       mMkConn.ProcessIncoming();
@@ -331,7 +331,7 @@ void System::Run()
     if (bWriteCoordinatesLog) {
       duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
       mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
-    }*/
+    }
     // Additional rendering goes here
     if(!disableRendering) {
       gDrawUITimer.Start();
@@ -349,12 +349,10 @@ void System::Run()
       // UGLY HACK. I put it here because the fps counter is updated once a second and the
       // MK has a requirement that it needs at least one request every 8 seconds to not turn
       // off the debug output.
-      /*
       if (mMkConn) {
         // Request debug data being sent from the MK
         mMkConn.SendDebugOutputInterval(1);
       }
-      */
     }
 
     gFrameTimer.Stop();
@@ -384,6 +382,7 @@ void System::Draw(bool bDrawMap)
     ss << "Frame: " << gFrameTimer.Milliseconds() << endl
        << "Video: " << gVideoSourceTimer.Milliseconds() << endl
        << "Feature: " << gFeatureTimer.Milliseconds() << endl
+       << "PVS: " << gPvsTimer.Milliseconds() << endl
        << "Track: " << gTrackTimer.Milliseconds() << endl
        << "FullTrack: " << gTrackFullTimer.Milliseconds() << endl
        //<< "SBI Init: " << gSBIInitTimer.Milliseconds() << endl
@@ -410,7 +409,7 @@ void System::Draw(bool bDrawMap)
   }
 
   mGLWindow.DrawCaption(sCaption);
-  //mGLWindow.DrawMenus();
+  mGLWindow.DrawMenus();
 
 #ifdef _LINUX
   if( *mgvnSaveFIFO )

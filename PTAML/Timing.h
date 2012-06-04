@@ -38,6 +38,7 @@ extern TimingTimer gSBITimer;
 extern TimingTimer gTrackingQualityTimer;
 extern TimingTimer gDrawGridTimer;
 extern TimingTimer gTrackFullTimer;
+extern TimingTimer gPvsTimer;
 
 }
 
