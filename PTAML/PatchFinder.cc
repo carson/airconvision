@@ -3,6 +3,7 @@
 #include "SmallMatrixOpts.h"
 #include "KeyFrame.h"
 
+#include <gvars3/instances.h>
 #include <cvd/vision.h>
 #include <cvd/vector_image_ref.h>
 #include <cvd/image_interpolate.h>
@@ -17,6 +18,7 @@ namespace PTAMM {
 
 using namespace CVD;
 using namespace std;
+using namespace GVars3;
 
 PatchFinder::PatchFinder(int nPatchSize)
   : mimTemplate(ImageRef(nPatchSize,nPatchSize))
@@ -244,7 +246,9 @@ bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned i
     }
   } // done looping over corners
 
-  if(nBestSSD < mnMaxSSD && nBestSSD < 16000)      // Found a valid match?
+  static int nTrackerSSDThreshold = GV3::get<int>("Tracker.PatchSSDThreshold", 20000, SILENT);
+
+  if(nBestSSD < mnMaxSSD && nBestSSD < nTrackerSSDThreshold)      // Found a valid match?
   {
     mv2CoarsePos= LevelZeroPos(irBest, mnSearchLevel);
     mbFound = true;

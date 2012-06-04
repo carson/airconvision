@@ -564,7 +564,9 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   if(nBest == -1)   return false;   // Nothing found.
 
-  if (nBestZMSSD > 6000) return false; // Chosen pretty arbitrary -- dhenell
+  static int nMapSSDThreshold = GV3::get<int>("Map.PatchSSDThreshold", 6000, SILENT);
+
+  if (nBestZMSSD > nMapSSDThreshold) return false; // Chosen pretty arbitrary -- dhenell
 
   //  Found a likely candidate along epipolar ray
   Finder.MakeSubPixTemplate();
