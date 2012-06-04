@@ -244,7 +244,7 @@ bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned i
     }
   } // done looping over corners
 
-  if(nBestSSD < mnMaxSSD)      // Found a valid match?
+  if(nBestSSD < mnMaxSSD && nBestSSD < 16000)      // Found a valid match?
   {
     mv2CoarsePos= LevelZeroPos(irBest, mnSearchLevel);
     mbFound = true;
