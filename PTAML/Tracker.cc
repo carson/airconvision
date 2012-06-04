@@ -795,7 +795,6 @@ int Tracker::TrailTracking_Advance()
   return nGoodTrails;
 }
 
-
 /**
  * TrackMap is the main purpose of the Tracker.
  * It first projects all map points into the image to find a potentially-visible-set (PVS);
@@ -813,6 +812,8 @@ void Tracker::TrackMap()
   // Some accounting which will be used for tracking quality assessment:
   for(int i=0; i<LEVELS; i++)
     manMeasAttempted[i] = manMeasFound[i] = 0;
+
+  gPvsTimer.Start();
 
   // The Potentially-Visible-Set (PVS) is split into pyramid levels.
   vector<TrackerData*> avPVS[LEVELS];
@@ -854,6 +855,8 @@ void Tracker::TrackMap()
   // First, randomly shuffle the individual levels of the PVS.
   for(int i=0; i<LEVELS; i++)
     random_shuffle(avPVS[i].begin(), avPVS[i].end());
+
+  gPvsTimer.Stop();
 
   // The next two data structs contain the list of points which will next
   // be searched for in the image, and then used in pose update.
@@ -1065,7 +1068,7 @@ void Tracker::TrackMap()
     v6LastUpdate = v6Update;
   }
 
-  if(mbDraw && false) {
+  if(mbDraw) {
     glPointSize(4);
     glEnable(GL_BLEND);
     glEnable(GL_POINT_SMOOTH);
