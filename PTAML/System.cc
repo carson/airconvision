@@ -35,6 +35,8 @@ TimingTimer gFrameTimer;
 TimingTimer gVideoSourceTimer;
 TimingTimer gFeatureTimer;
 TimingTimer gPvsTimer;
+TimingTimer gCoarseTimer;
+TimingTimer gFineTimer;
 TimingTimer gTrackTimer;
 TimingTimer gSBIInitTimer;
 TimingTimer gSBITimer;
@@ -382,6 +384,8 @@ void System::Draw(bool bDrawMap)
        << "Video: " << gVideoSourceTimer.Milliseconds() << endl
        << "Feature: " << gFeatureTimer.Milliseconds() << endl
        << "PVS: " << gPvsTimer.Milliseconds() << endl
+       << "Coarse: " << gCoarseTimer.Milliseconds() << endl
+       << "Fine: " << gFineTimer.Milliseconds() << endl
        << "Track: " << gTrackTimer.Milliseconds() << endl
        << "FullTrack: " << gTrackFullTimer.Milliseconds() << endl
        //<< "SBI Init: " << gSBIInitTimer.Milliseconds() << endl

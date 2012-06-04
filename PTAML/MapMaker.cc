@@ -414,9 +414,12 @@ void MapMaker::AddKeyFrame(const KeyFrame &k)
 bool MapMaker::NeedNewKeyFrame(const KeyFrame &kCurrent)
 {
   KeyFrame *pClosest = mpMap->ClosestKeyFrame(kCurrent);
+  if (pClosest == NULL) {
+    return false;
+  }
+
   double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
   dDist *= (1.0 / kCurrent.dSceneDepthMean);
-
   return dDist > mdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
 }
 

@@ -1070,20 +1070,22 @@ KeyFrame* Map::ClosestKeyFrame(const KeyFrame &k)
 {
   double dClosestDist = 9999999999.9;
   int nClosest = -1;
-  for(size_t i=0; i < vpKeyFrames.size(); ++i)
-  {
+  for (size_t i=0; i < vpKeyFrames.size(); ++i) {
     if(vpKeyFrames[i] == &k)
       continue;
 
     double dDist = KeyFrameLinearDist(k, *vpKeyFrames[i]);
-    if(dDist < dClosestDist)
-    {
+    if(dDist < dClosestDist) {
       dClosestDist = dDist;
       nClosest = i;
     }
   }
 
-  assert(nClosest != -1);
+  //assert(nClosest != -1);
+
+  if (nClosest == -1) {
+    return NULL;
+  }
 
   return vpKeyFrames[nClosest];
 }

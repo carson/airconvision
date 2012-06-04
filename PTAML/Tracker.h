@@ -85,6 +85,13 @@ class Tracker
 
     // Methods for tracking the map once it has been made:
     void TrackMap();                // Called by TrackFrame if there is a map.
+
+    void FindPVS(std::vector<TrackerData*> avPVS[]);
+    void TrackCoarse(std::vector<TrackerData*> avPVS[]);
+    void TrackFine(std::vector<TrackerData*> avPVS[]);
+    void UpdateCurrentKeyframeWithNewTrackingData();
+    void DrawMapPoints() const;
+
     void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
     void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
     void UpdateMotionModel();       // Motion model is updated after TrackMap
@@ -135,6 +142,8 @@ class Tracker
 
     KeyFrame mFirstKF;              // First of the stereo pair
     KeyFrame mPreviousFrameKF;      // Used by trail tracking to check married matches
+
+    std::vector<TrackerData*> mvIterationSet;
 
     int maFastCornerBarriers[LEVELS];
 
