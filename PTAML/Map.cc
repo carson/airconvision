@@ -564,7 +564,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   if(nBest == -1)   return false;   // Nothing found.
 
-  if (nBestZMSSD > 10000) return false; // Chosen pretty arbitrary -- dhenell
+  if (nBestZMSSD > 6000) return false; // Chosen pretty arbitrary -- dhenell
 
   //  Found a likely candidate along epipolar ray
   Finder.MakeSubPixTemplate();

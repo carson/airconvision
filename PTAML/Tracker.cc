@@ -1173,8 +1173,9 @@ void Tracker::TrackMap()
 int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixIts)
 {
   int nFound = 0;
-  for(unsigned int i=0; i<vTD.size(); i++)   // for each point..
-  {
+
+  //#pragma omp parallel for
+  for (size_t i = 0; i < vTD.size(); ++i) {  // for each point..
     // First, attempt a search at pixel locations which are FAST corners.
     // (PatchFinder::FindPatchCoarse)
     TrackerData &TD = *vTD[i];
@@ -1222,8 +1223,9 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
       TD.bDidSubPix = false;
     }
   }
+
   return nFound;
-};
+}
 
 
 /**
@@ -1409,13 +1411,8 @@ void Tracker::AssessTrackingQuality()
     else
       dLargeFracFound = dTotalFracFound;
 
-    // Original
-    //static gvar3<double> gvdQualityGood("Tracker.TrackingQualityGood", 0.3, SILENT);
-    //static gvar3<double> gvdQualityLost("Tracker.TrackingQualityLost", 0.13, SILENT);
-
-    // I think camparijet changed the default values -- dhenell
-    static gvar3<double> gvdQualityGood("Tracker.TrackingQualityGood", 0.003, SILENT);
-    static gvar3<double> gvdQualityLost("Tracker.TrackingQualityLost", 0.001, SILENT);
+    static gvar3<double> gvdQualityGood("Tracker.TrackingQualityGood", 0.3, SILENT);
+    static gvar3<double> gvdQualityLost("Tracker.TrackingQualityLost", 0.13, SILENT);
 
     /**
      *@hack for adding key frame condition*/
@@ -1425,10 +1422,11 @@ void Tracker::AssessTrackingQuality()
       mTrackingQuality = BAD;
     else
       mTrackingQuality = DODGY;
-    /*if(nTotalFound > 30)
-      mTrackingQuality = GOOD;
-    else
-      mTrackingQuality = BAD;*/
+
+    if (nTotalFound < 30) {
+      mTrackingQuality = BAD;
+    }
+
     //@hack endof evaluation
   }
 
