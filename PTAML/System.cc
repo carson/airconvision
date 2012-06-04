@@ -309,6 +309,8 @@ void System::Run()
     mpTracker->TrackFrame(mimFrameBW, !disableRendering && !bDrawMap);
     gTrackFullTimer.Stop();
 
+    mpTracker->Draw();
+
     // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
       mMkConn.ProcessIncoming();

@@ -351,20 +351,6 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
   // From now on we only use the keyframe struct!
   mnFrame++;
 
-  if(mbDraw)
-  {
-    glDrawPixels(mCurrentKF.aLevels[0].im);
-    if(GV2.GetInt("Tracker.DrawFASTCorners",0, SILENT))
-    {
-      glColor3f(1,0,1);  glPointSize(1); glBegin(GL_POINTS);
-      const std::vector<ImageRef> &vCorners = mCurrentKF.aLevels[0].GetCorners();
-      for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
-        glVertex(*c);
-      }
-      glEnd();
-    }
-  }
-
   if (!mbFreezeTracking) {
     // Decide what to do - if there is a map, try to track the map ...
     if(mnInitialStage == TRAIL_TRACKING_COMPLETE)
@@ -417,28 +403,19 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
 
         // Added some scale determing code here -- dhenell
         //DetermineScaleFromMarker(imFrame);
-      }
-      else  // what if there is a map, but tracking has been lost?
-      {
+
+      } else {
+        // what if there is a map, but tracking has been lost?
         cout << "Lost tracking..." << endl;
         mMessageForUser << "** Attempting recovery **.";
-        if(AttemptRecovery())
-        {
+        if (AttemptRecovery()) {
           TrackMap();
           AssessTrackingQuality();
         }
       }
-      if(mbDraw) {
-        gDrawGridTimer.Start();
-        RenderGrid();
-        gDrawGridTimer.Stop();
-      }
-    }
-    else // If there is no map, try to make one.
-    {
+    } else { // If there is no map, try to make one.
       TrackForInitialMap();
     }
-
   }
 
   // GUI interface
@@ -473,10 +450,72 @@ bool Tracker::AttemptRecovery()
   return true;
 }
 
+void Tracker::Draw()
+{
+  glDrawPixels(mCurrentKF.aLevels[0].im);
+
+  if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
+    DrawCorners();
+  }
+
+  if (mnInitialStage == TRAIL_TRACKING_COMPLETE) {
+
+    // Draw grid and time it
+    gDrawGridTimer.Start();
+    DrawGrid();
+    gDrawGridTimer.Stop();
+
+    // Draw all the matched map points
+    DrawMapPoints();
+
+  } else if (mnInitialStage == TRAIL_TRACKING_STARTED) {
+    DrawTrails();
+  }
+}
+
+void Tracker::DrawTrails() const
+{
+  glPointSize(5);
+  glLineWidth(2);
+  glEnable(GL_POINT_SMOOTH);
+  glEnable(GL_LINE_SMOOTH);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_BLEND);
+
+  glBegin(GL_LINES);
+  for (auto i = mlTrails.begin(); i != mlTrails.end(); ++i) {
+    glColor3f(1,1,0);
+    glVertex(i->irInitialPos);
+    glColor3f(1,0,0);
+    glVertex(i->irCurrentPos);
+  }
+
+  glEnd();
+
+  glBegin(GL_POINTS);
+  for (auto it = mvDeadTrails.begin(); it != mvDeadTrails.end(); ++it) {
+    glColor3f(0.5,0.1,0.7);
+    glVertex(*it);
+  }
+  glEnd();
+}
+
+void Tracker::DrawCorners() const
+{
+  glColor3f(1,0,1);
+  glPointSize(1);
+  glBegin(GL_POINTS);
+  const std::vector<ImageRef> &vCorners = mCurrentKF.aLevels[0].GetCorners();
+  for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
+    glVertex(*c);
+  }
+  glEnd();
+}
+
 /**
  * Draw the reference grid to give the user an idea of wether tracking is OK or not.
  */
-void Tracker::RenderGrid()
+void Tracker::DrawGrid()
 {
   // The colour of the ref grid shows if the coarse stage of tracking was used
   // (it's turned off when the camera is sitting still to reduce jitter.)
@@ -504,7 +543,7 @@ void Tracker::RenderGrid()
       imVertices[i][j] = mCamera.Project(project(v3Cam));
     }
   }
-  glEnable(GL_LINE_SMOOTH);
+  //glEnable(GL_LINE_SMOOTH);
   //glEnable(GL_BLEND);
   glDisable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -725,16 +764,6 @@ void Tracker::TrailTracking_Start()
 int Tracker::TrailTracking_Advance()
 {
   int nGoodTrails = 0;
-  if(mbDraw)
-  {
-    glPointSize(5);
-    glLineWidth(2);
-    glEnable(GL_POINT_SMOOTH);
-    glEnable(GL_LINE_SMOOTH);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glBegin(GL_LINES);
-  }
 
   MiniPatch BackwardsPatch;
   Level &lCurrentFrame = mCurrentKF.aLevels[0];
@@ -761,34 +790,12 @@ int Tracker::TrailTracking_Advance()
       nGoodTrails++;
     }
 
-    if(mbDraw)
-    {
-      if(!bFound)
-        glColor3f(0,1,1); // Failed trails flash purple before dying.
-      else
-        glColor3f(1,1,0);
-      glVertex(trail.irInitialPos);
-      if(bFound) glColor3f(1,0,0);
-      glVertex(trail.irCurrentPos);
-    }
     if(!bFound) // Erase from list of trails if not found this frame.
     {
       mvDeadTrails.push_back(i->irInitialPos);
       mlTrails.erase(i);
     }
     i = next;
-  }
-  if(mbDraw) {
-    glEnd();
-
-    glBegin(GL_POINTS);
-
-    for (auto it = mvDeadTrails.begin(); it != mvDeadTrails.end(); ++it) {
-      glColor3f(0.5,0.1,0.7);
-      glVertex(*it);
-    }
-
-    glEnd();
   }
 
   mPreviousFrameKF = mCurrentKF;
@@ -1154,10 +1161,6 @@ void Tracker::TrackMap()
   gFineTimer.Stop();
 
   UpdateCurrentKeyframeWithNewTrackingData();
-
-  if(mbDraw) {
-    DrawMapPoints();
-  }
 }
 
 /**

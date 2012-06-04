@@ -56,6 +56,9 @@ class Tracker
     // TrackFrame is the main working part of the tracker: call this every frame.
     void TrackFrame(const CVD::Image<CVD::byte> &imFrame, bool bDraw);
 
+    // Render output from the tracker including the frame
+    void Draw();
+
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
     bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
 
@@ -75,7 +78,6 @@ class Tracker
 
   private:
     void ResetCommon();              // Common reset code for the following two functions
-    void RenderGrid();              // Draws the reference grid
     // The following members are used for initial map tracking (to get the first stereo pair and correspondences):
     void TrackForInitialMap();      // This is called by TrackFrame if there is not a map yet.
 
@@ -90,6 +92,10 @@ class Tracker
     void TrackCoarse(std::vector<TrackerData*> avPVS[]);
     void TrackFine(std::vector<TrackerData*> avPVS[]);
     void UpdateCurrentKeyframeWithNewTrackingData();
+
+    void DrawTrails() const;
+    void DrawGrid();                // Draws the reference grid
+    void DrawCorners() const;
     void DrawMapPoints() const;
 
     void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
