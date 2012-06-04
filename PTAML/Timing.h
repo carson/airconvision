@@ -39,6 +39,8 @@ extern TimingTimer gTrackingQualityTimer;
 extern TimingTimer gDrawGridTimer;
 extern TimingTimer gTrackFullTimer;
 extern TimingTimer gPvsTimer;
+extern TimingTimer gCoarseTimer;
+extern TimingTimer gFineTimer;
 
 }
 

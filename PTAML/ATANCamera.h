@@ -68,6 +68,7 @@ class CalibImage;
 class ATANCamera
 {
   public:
+    ATANCamera(const ATANCamera& rhs );
     ATANCamera(const std::string& sName );
     ATANCamera(const std::string& sName, const CVD::ImageRef& irSize, const Vector<NUMTRACKERCAMPARAMETERS>& vParams);
     
