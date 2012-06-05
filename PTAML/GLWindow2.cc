@@ -61,11 +61,7 @@ GLWindow2::GLWindow2(ImageRef irSize, string sTitle)
   glSetFont("sans");
   mvMCPoseUpdate=Zeros;
   mvLeftPoseUpdate=Zeros;
-
-  int argc = 0;
-  char* argv[] = {"abc"};
-  glutInit(&argc, argv);
-};
+}
 
 
 void GLWindow2::AddMenu(const string &sName, const string &sTitle)
