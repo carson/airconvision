@@ -16,6 +16,11 @@ void PositionHold::Init(const SE3<> &se3Pose, const TimePoint& t)
 void PositionHold::Update(const SE3<> &se3Pose, const TimePoint& t)
 {
   double dt = duration_cast<fseconds>(t - mLastUpdate).count(); // delta time in seconds
+
+  if (dt < 0.00001) {
+    return;
+  }
+
   mLastUpdate = t;
 
   // Calculate the yaw-only rotation transformation

@@ -9,8 +9,7 @@
 #include "MapSerializer.h"
 #include "FPSCounter.h"
 #include "Timing.h"
-
-#include "KeyFrame.h" // REMOVE THIS
+#include "MKController.h"
 
 #include <gvars3/GStringUtil.h>
 #include <cvd/image_io.h>
@@ -51,11 +50,49 @@ using namespace std::placeholders;
 using namespace CVD;
 using namespace GVars3;
 
+/**
+ * Parse and allocate a single integer variable from a string parameter
+ * @param nAnswer the result
+ * @param sCommand the command (used to display usage info)
+ * @param sParams  the parameters to parse
+ * @return success or failure.
+ */
+bool GetSingleParam(int &nAnswer, string sCommand, string sParams)
+{
+  vector<string> vs = ChopAndUnquoteString(sParams);
+
+  if(vs.size() == 1)
+  {
+    //is param a number?
+    bool bIsNum = true;
+    for( size_t i = 0; i < vs[0].size(); i++ ) {
+      bIsNum = isdigit( vs[0][i] ) && bIsNum;
+    }
+
+    if( !bIsNum )
+    {
+      return false;
+    }
+
+    int *pN = ParseAndAllocate<int>(vs[0]);
+    if( pN )
+    {
+      nAnswer = *pN;
+      delete pN;
+      return true;
+    }
+  }
+
+  cout << sCommand << " usage: " << sCommand << " value" << endl;
+
+  return false;
+}
+
+
 System::System(VideoSource* videoSource)
   : mGLWindow(videoSource->Size(), "PTAMM")
   , mVideoSource(videoSource)
   , mbFreezeVideo(false)
-  , mbPositionHold(false)
 {
   GUI.RegisterCommand("exit", GUICommandCallBack, this);
   GUI.RegisterCommand("quit", GUICommandCallBack, this);
@@ -94,8 +131,7 @@ System::System(VideoSource* videoSource)
   mpCamera = new ATANCamera("Camera");
   mpCamera->SetImageSize(mVideoSource->Size());
 
-  if(vTest == ATANCamera::mvDefaultParams)
-  {
+  if(vTest == ATANCamera::mvDefaultParams) {
     cout << endl;
     cout << "! Camera.Parameters is not set, need to run the CameraCalibrator tool" << endl;
     cout << "  and/or put the Camera.Parameters= line into the appropriate .cfg file." << endl;
@@ -129,14 +165,13 @@ System::System(VideoSource* videoSource)
   mpARDriver = new ARDriver(*mpCamera, videoSize, mGLWindow, *mpMap);
   mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
   mpMapSerializer = new MapSerializer( mvpMaps );
-
-
+  mpMKController = new MKController();
 
   //These commands have to be registered here as they call the classes created above
-  GUI.RegisterCommand("NextMap", GUICommandCallBack, mpMapViewer);
-  GUI.RegisterCommand("PrevMap", GUICommandCallBack, mpMapViewer);
-  GUI.RegisterCommand("CurrentMap", GUICommandCallBack, mpMapViewer);
-  GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, mpARDriver);
+  GUI.RegisterCommand("NextMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("PrevMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("CurrentMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, this);
 
   //create the menus
   GUI.ParseLine("GLWindow.AddMenu Menu Menu");
@@ -171,27 +206,21 @@ System::System(VideoSource* videoSource)
   GUI.ParseLine("MapViewerMenu.AddMenuButton Root Previous PrevMap Root");
   GUI.ParseLine("MapViewerMenu.AddMenuButton Root Current CurrentMap Root");
 
+  GUI.ParseLine("EnableMouseControl=0");
+  GUI.ParseLine("GLWindow.AddMenu HelicopterMenu Helicopter");
+  GUI.ParseLine("HelicopterMenu.AddMenuToggle Root \"Mouse control\" EnableMouseControl Root");
+  GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Clear path\" ClearPath Root");
+  GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Fly path\" FlyPath Root");
+  GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Add waypoint\" AddWaypoint Root");
+  GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Position Hold\" PositionHold Root");
 
   mbDone = false;
-
-  mDebugFile.open("output.txt", ios::out | ios::trunc);
-  if (!mDebugFile) {
-    cerr << "Failed to open output.txt" << endl;
-  }
 
   mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
   if (!mCoordinateLogFile) {
     cerr << "Failed to open coordinates.txt" << endl;
   }
-
-
-  // Set all debug output values to 0
-  mMkDebugOutput = { 0 };
-
-  // Connect to the MikroKopter over COM
-  ConnectToMK();
 }
-
 
 /**
  * Destructor
@@ -201,45 +230,7 @@ System::~System()
   if( mpMap != NULL )  {
     mpMap->mapLockManager.UnRegister( this );
   }
-
-  mDebugFile.close();
 }
-
-void System::ConnectToMK()
-{
-  // Read COM port settings
-  int mkComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, SILENT); // 16 is /dev/ttyUSB0
-  int mkComPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", SILENT);
-
-  // Attempt connecting to the MK NaviCtrl
-  mMkConn = MKConnection(mkComPortId, mkComPortBaudrate);
-  if (!mMkConn) {
-    cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
-  } else {
-    // Hook up all the callback functions
-    mMkConn.SetPositionHoldCallback(std::bind(&System::MKRequestPositionHold, this));
-    mMkConn.SetDebugOutputCallback(std::bind(&System::MKDebugOutput, this, _1));
-    // Request debug data being sent from the MK to this computer
-    mMkConn.SendDebugOutputInterval(10);
-  }
-}
-
-void System::LogControlValues()
-{
-  mDebugFile
-    << mPositionHold.GetTime() << " "
-    << mPositionHold.GetTargetOffset() << " "
-    << mPositionHold.GetTargetOffsetFiltered() << " "
-    << mPositionHold.GetVelocity() << " "
-    << mPositionHold.GetVelocityFiltered();
-
-  for (size_t i = 0; i < 32; ++i) {
-    mDebugFile << " " << mMkDebugOutput.Analog[i];
-  }
-
-  mDebugFile << endl;
-}
-
 
 /**
  * Run the main system thread.
@@ -249,14 +240,10 @@ void System::Run()
 {
   using namespace std::chrono;
 
-  bool bWriteDebugValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
   bool bWriteCoordinatesLog = GV3::get<int>("Debug.OutputWorldCoordinates", 0, SILENT);
 
-  // For FPS counting
   FPSCounter fpsCounter;
-
   auto startTime = high_resolution_clock::now();
-
   bool bSaveFrame = false;
 
   while(!mbDone)
@@ -274,74 +261,45 @@ void System::Run()
     */
     mpMap->bEditLocked = *mgvnLockMap; //sync up the maps edit lock with the gvar bool.
 
-    // We use two versions of each video frame:
-    // One black and white (for processing by the tracker etc)
-    // and one RGB, for drawing.
-
     // Grab new video frame...
     if (!mbFreezeVideo) {
+      // We use two versions of each video frame:
+      // One black and white (for processing by the tracker etc)
+      // and one RGB, for drawing.
+
       gVideoSourceTimer.Start();
       mVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
       gVideoSourceTimer.Stop();
+
       bSaveFrame = true;
     } else if (bSaveFrame) {
-
       img_save<CVD::byte>(mimFrameBW, "freeze.png");
       bSaveFrame = false;
     }
 
-    bool disableRendering = *mgvnDisableRendering;
-
-    if (!disableRendering) {
-      mGLWindow.SetupViewport();
-      mGLWindow.SetupVideoOrtho();
-      mGLWindow.SetupVideoRasterPosAndZoom();
-    }
-
-    if(bWasLocked) {
+    if (bWasLocked) {
       mpTracker->ForceRecovery();
     }
 
-    static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
-    bool bDrawMap = !disableRendering && mpMap->IsGood() && *gvnDrawMap;
-
     gTrackFullTimer.Start();
-    mpTracker->TrackFrame(mimFrameBW, !disableRendering && !bDrawMap);
+    mpTracker->TrackFrame(mimFrameBW, false);
     gTrackFullTimer.Stop();
 
-    mpTracker->Draw();
+    if (!*mgvnDisableRendering) {
+      static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
+      bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
 
-    // Send world position if connect to MK NaviCtrl
-    if (mMkConn) {
-      mMkConn.ProcessIncoming();
-
-      if (mbPositionHold && !mpTracker->IsLost()) {
-        mPositionHold.Update(mpTracker->GetCurrentPose(), high_resolution_clock::now());
-        mMkConn.SendPositionHoldUpdate(mPositionHold.GetTargetOffsetFiltered(),
-                                       mPositionHold.GetVelocityFiltered());
-      }
-
-      // Check if the debug values from the MK and position hold code should be written to a log
-      if (bWriteDebugValuesLog) {
-        LogControlValues();
-      }
-    } else {
-      // This control path is only used for debugging position hold without being connected to the MK
-      if (mbPositionHold) {
-        mPositionHold.Update(mpTracker->GetCurrentPose(), high_resolution_clock::now());
-      }
+      // Additional rendering goes here
+      gDrawUITimer.Start();
+      Draw(bDrawMap);
+      gDrawUITimer.Stop();
     }
+
+    mpMKController->Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
 
     if (bWriteCoordinatesLog) {
       duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
       mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
-    }
-
-    // Additional rendering goes here
-    if(!disableRendering) {
-      gDrawUITimer.Start();
-      Draw(bDrawMap);
-      gDrawUITimer.Stop();
     }
 
     mGLWindow.HandlePendingEvents();
@@ -350,14 +308,6 @@ void System::Run()
     if (fpsCounter.Update()) {
       stringstream ss; ss << "PTAML - " << setiosflags(ios::fixed) << setprecision(2) << fpsCounter.Fps() << " fps";
       mGLWindow.set_title(ss.str());
-
-      // UGLY HACK. I put it here because the fps counter is updated once a second and the
-      // MK has a requirement that it needs at least one request every 8 seconds to not turn
-      // off the debug output.
-      if (mMkConn) {
-        // Request debug data being sent from the MK
-        mMkConn.SendDebugOutputInterval(1);
-      }
     }
 
     gFrameTimer.Stop();
@@ -366,8 +316,14 @@ void System::Run()
 
 void System::Draw(bool bDrawMap)
 {
+  mGLWindow.SetupViewport();
+  mGLWindow.SetupVideoOrtho();
+  mGLWindow.SetupVideoRasterPosAndZoom();
+
   if(bDrawMap) {
     mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
+  } else {
+    mpTracker->Draw();
   }
 
   if(*mgvnDrawMapInfo) {
@@ -430,19 +386,6 @@ void System::Draw(bool bDrawMap)
   gGLSwapTimer.Stop();
 }
 
-void System::MKRequestPositionHold()
-{
-  cout << " >> Position hold requested" << endl;
-  mPositionHold.Init(mpTracker->GetCurrentPose(), high_resolution_clock::now());
-  mbPositionHold = true;
-}
-
-void System::MKDebugOutput(const DebugOut_t& debug)
-{
-  mMkDebugOutput = debug;
-}
-
-
 /**
  * Parse commands sent via the GVars command system.
  * @param ptr Object callback
@@ -451,56 +394,54 @@ void System::MKDebugOutput(const DebugOut_t& debug)
  */
 void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
 {
-  if(sCommand=="quit" || sCommand == "exit") {
-    static_cast<System*>(ptr)->mbDone = true;
+  System* pSystem = static_cast<System*>(ptr);
+
+  if( sCommand=="quit" || sCommand == "exit" ) {
+    pSystem->Quit();
   }
-  else if( sCommand == "SwitchMap")
-  {
+  else if( sCommand == "SwitchMap" ) {
     int nMapNum = -1;
-    if( static_cast<System*>(ptr)->GetSingleParam(nMapNum, sCommand, sParams) ) {
-      static_cast<System*>(ptr)->SwitchMap( nMapNum );
+    if( GetSingleParam(nMapNum, sCommand, sParams) ) {
+      pSystem->SwitchMap( nMapNum );
     }
   }
-  else if(sCommand == "Realign")
-  {
-    System* sys = static_cast<System*>(ptr);
-    //Vector<3> v3CamPos = sys->mpTracker->RealWorldCoordinate();
-    //sys->mpMap->RemoveFarAwayMapPoints(v3CamPos, abs(v3CamPos[2])*2);
-    sys->mpMapMaker->RequestRealignment();
-
-    return;
+  else if(sCommand == "Realign") {
+    pSystem->mpMapMaker->RequestRealignment();
   }
-  else if(sCommand == "ResetAll")
-  {
-    static_cast<System*>(ptr)->ResetAll();
-    return;
+  else if(sCommand == "ResetAll") {
+    pSystem->ResetAll();
   }
-  else if( sCommand == "NewMap")
-  {
-    cout << "Making new map..." << endl;
-    static_cast<System*>(ptr)->NewMap();
+  else if( sCommand == "NewMap") {
+    pSystem->NewMap();
   }
-  else if( sCommand == "DeleteMap")
-  {
+  else if( sCommand == "DeleteMap") {
     int nMapNum = -1;
     if( sParams.empty() ) {
-        static_cast<System*>(ptr)->DeleteMap( static_cast<System*>(ptr)->mpMap->MapID() );
-    }
-    else if( static_cast<System*>(ptr)->GetSingleParam(nMapNum, sCommand, sParams) ) {
-      static_cast<System*>(ptr)->DeleteMap( nMapNum );
+      pSystem->DeleteMap( pSystem->mpMap->MapID() );
+    } else if ( GetSingleParam(nMapNum, sCommand, sParams) ) {
+      pSystem->DeleteMap( nMapNum );
     }
   }
   else if( sCommand == "NextMap")  {
-    static_cast<MapViewer*>(ptr)->ViewNextMap();
+    pSystem->mpMapViewer->ViewNextMap();
   }
   else if( sCommand == "PrevMap")  {
-    static_cast<MapViewer*>(ptr)->ViewPrevMap();
+    pSystem->mpMapViewer->ViewPrevMap();
   }
   else if( sCommand == "CurrentMap")  {
-    static_cast<MapViewer*>(ptr)->ViewCurrentMap();
+    pSystem->mpMapViewer->ViewCurrentMap();
   }
   else if( sCommand == "SaveMap" || sCommand == "SaveMaps" || sCommand == "LoadMap")  {
-    static_cast<System*>(ptr)->StartMapSerialization( sCommand, sParams );
+    pSystem->StartMapSerialization( sCommand, sParams );
+  }
+  else if( sCommand == "PositionHold")  {
+    pSystem->mpMKController->GoToPosition(pSystem->mpTracker->GetCurrentPose());
+  }
+  else if( sCommand == "AddWaypoint")  {
+    pSystem->mpMKController->AddWaypoint(pSystem->mpTracker->GetCurrentPose());
+  }
+  else if( sCommand == "ClearWaypoints")  {
+    pSystem->mpMKController->ClearWaypoints();
   }
   else if( sCommand == "Mouse.Click" ) {
     vector<string> vs = ChopAndUnquoteString(sParams);
@@ -513,77 +454,29 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     int nButton;
     ImageRef irWin;
     is >> nButton >> irWin.x >> irWin.y;
-    static_cast<ARDriver*>(ptr)->HandleClick( nButton, irWin );
+
+    //static_cast<ARDriver*>(ptr)->HandleClick( nButton, irWin );
 
   }
   else if( sCommand == "KeyPress" )
   {
-    if(sParams == "p") { // This is mainly for debugging without a MK
-      static_cast<System*>(ptr)->MKRequestPositionHold();
-    }
-
     if(sParams == "g") {
-      static_cast<System*>(ptr)->ToggleDisableRendering();
+      pSystem->ToggleDisableRendering();
     }
-
-    if(sParams == "q" || sParams == "Escape")
-    {
+    else if(sParams == "q" || sParams == "Escape") {
       GUI.ParseLine("quit");
-      return;
     }
-
-    if(sParams == "r") {
-      static_cast<System*>(ptr)->mpTracker->Reset();
+    else if(sParams == "r") {
+      pSystem->mpTracker->Reset();
     }
-
-    if(sParams == "Space") {
+    else if(sParams == "Space") {
       // TODO: Remove the HandleKeyPress function
-      static_cast<System*>(ptr)->mpTracker->HandleKeyPress( sParams );
+      pSystem->mpTracker->HandleKeyPress( sParams );
     }
-
-    if(sParams == "f") {
-      static_cast<System*>(ptr)->mbFreezeVideo = !static_cast<System*>(ptr)->mbFreezeVideo;
-    }
-  }
-}
-
-
-/**
- * Parse and allocate a single integer variable from a string parameter
- * @param nAnswer the result
- * @param sCommand the command (used to display usage info)
- * @param sParams  the parameters to parse
- * @return success or failure.
- */
-bool System::GetSingleParam(int &nAnswer, string sCommand, string sParams)
-{
-  vector<string> vs = ChopAndUnquoteString(sParams);
-
-  if(vs.size() == 1)
-  {
-    //is param a number?
-    bool bIsNum = true;
-    for( size_t i = 0; i < vs[0].size(); i++ ) {
-      bIsNum = isdigit( vs[0][i] ) && bIsNum;
-    }
-
-    if( !bIsNum )
-    {
-      return false;
-    }
-
-    int *pN = ParseAndAllocate<int>(vs[0]);
-    if( pN )
-    {
-      nAnswer = *pN;
-      delete pN;
-      return true;
+    else if(sParams == "f") {
+      pSystem->mbFreezeVideo = !pSystem->mbFreezeVideo;
     }
   }
-
-  cout << sCommand << " usage: " << sCommand << " value" << endl;
-
-  return false;
 }
 
 
