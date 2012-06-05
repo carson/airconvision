@@ -1174,7 +1174,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
 {
   int nFound = 0;
 
-  //#pragma omp parallel for
+  //#pragma omp parallel for schedule(dynamic,5)
   for (size_t i = 0; i < vTD.size(); ++i) {  // for each point..
     // First, attempt a search at pixel locations which are FAST corners.
     // (PatchFinder::FindPatchCoarse)
