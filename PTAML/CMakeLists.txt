@@ -5,6 +5,11 @@ cmake_minimum_required(VERSION 2.8)
 set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
     
+# Target platfrom
+set(TARGET_PLATFORM "HexaMac" CACHE STRING
+    "Set the target platform (HexaMac/Other).")
+    
+    
 # The CDT Error Parser cannot handle error messages that span more than one line, which is the default gcc behavior. 
 # This forces gcc to generate single line error messages with no line wrapping.  
 IF(CMAKE_COMPILER_IS_GNUCC)
@@ -23,7 +28,13 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     add_definitions(-std=gnu++0x)
     
     # Optimizations etc
-    add_definitions(-pthread -O3 -Wall -march=core2 -mtune=core2 -msse3)
+    if(TARGET_PLATFORM STREQUAL "HexaMac")
+    	message(STATUS "Building with a performance profile optimized for the HexaMac")
+    	add_definitions(-pthread -O6 -Wall -march=corei7 -mtune=corei7 -msse4.2 -mfpmath=sse)
+    else()
+    	message(STATUS "Building with a general peformance profile: ${TARGET_PLATFORM}")
+    	add_definitions(-pthread -O3 -Wall -march=core2 -mtune=core2 -msse3)
+    endif()
     
     #set(CMAKE_EXE_LINKER_FLAGS -fopenmp) 
 endif()
@@ -39,9 +50,15 @@ endif()
 find_package(PkgConfig)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-0.10)
 
-# AR Toolkit
-set(ARTOOLKIT_DIR "/home/daniel/Code/ARToolKit/" CACHE STRING
-    "Set the installation directory of AR Toolkit.")
+# AR Toolkit   
+find_path(ARTOOLKIT_DIR 
+	NAMES include/AR 
+	HINTS ~/ARToolKit ~/Code/ARToolKit
+	DOC "Set the installation directory of AR Toolkit.")
+	
+if(NOT ARTOOLKIT_DIR)
+	message(FATAL_ERROR "Could not find ARToolKit, please set 'ARTOOLKIT_DIR' manually")
+endif()
 
 # Include paths
 include_directories(
@@ -62,7 +79,6 @@ set(LIBS
 	cvd
 	ARgsub
 	AR 
-	glut
 	GLU 
 	GL
 	lapack
@@ -153,5 +169,8 @@ target_link_libraries(FastTest ${LIBS})
 # Data Files
 #
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/settings.cfg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/settings.cfg)
+	file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/settings.cfg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
