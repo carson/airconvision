@@ -5,6 +5,24 @@
 
 namespace PTAMM {
 
+class TimeoutTimer {
+  typedef std::chrono::high_resolution_clock Clock;
+  typedef std::chrono::time_point<Clock> TimePoint;
+  typedef std::chrono::duration<double> Duration;
+
+  public:
+    TimeoutTimer();
+    TimeoutTimer(double seconds);
+
+    bool HasTimedOut() const;
+    void Reset();
+
+  private:
+    TimePoint mtpTimeout;
+    Duration mdDuration;
+};
+
+
 class TimingTimer {
   typedef std::chrono::high_resolution_clock Clock;
   typedef std::chrono::time_point<Clock> TimePoint;

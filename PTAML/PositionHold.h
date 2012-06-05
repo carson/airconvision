@@ -8,19 +8,17 @@
 
 namespace PTAMM {
 
-using std::chrono::time_point;
-using std::chrono::high_resolution_clock;
-
 class PositionHold {
   public:
-
-    typedef high_resolution_clock Clock;
-    typedef time_point<Clock> TimePoint;
+    typedef std::chrono::high_resolution_clock Clock;
+    typedef std::chrono::time_point<Clock> TimePoint;
 
     void Init(const TooN::SE3<> &se3Pose, const TimePoint& t = Clock::now());
+    void SetTargetPose(const TooN::SE3<> &se3Pose);
     void Update(const TooN::SE3<> &se3Pose, const TimePoint& t = Clock::now());
 
     double GetTime() const;
+
     const TooN::Vector<3>& GetTargetOffset() const { return mv3Offset; }
     const TooN::Vector<3>& GetVelocity() const { return mv3Velocity; }
 

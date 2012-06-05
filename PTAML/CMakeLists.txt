@@ -127,6 +127,7 @@ set(PTAML_SRC
 	Tracker.cc
 	MKProtocol.cc
 	MKConnection.cc
+	MKController.cc
 	rs232.c
 	VideoSource.cc
 	${VIDEO_SOURCE_SRC}

@@ -21,6 +21,27 @@ void Toc()
 }
 
 
+TimeoutTimer::TimeoutTimer()
+{
+}
+
+TimeoutTimer::TimeoutTimer(double seconds)
+{
+  mdDuration = Duration(seconds);
+  //mtpTimeout = Clock::now() + mdDuration;
+}
+
+bool TimeoutTimer::HasTimedOut() const
+{
+  return Clock::now() >= mtpTimeout;
+}
+
+void TimeoutTimer::Reset()
+{
+  //mtpTimeout = Clock::now() + mdDuration;
+}
+
+
 TimingTimer::TimingTimer()
   : mnNumMeas(0)
 {
