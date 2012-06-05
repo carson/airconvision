@@ -58,6 +58,7 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
 
 
   // Force the map maker to run on CPU1
+  /*
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(2, &cpuset);
@@ -65,6 +66,7 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
   if (pthread_setaffinity_np(getID(), sizeof(cpu_set_t), &cpuset) != 0) {
     cerr << "pthread_setaffinity_np failed for map maker thread" << endl;
   }
+  */
 }
 
 /**

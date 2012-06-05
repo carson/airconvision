@@ -41,7 +41,7 @@ Bundle::Bundle()
   GV3::Register(mgvnMaxIterations, "Bundle.MaxIterations", 20,  SILENT);
   GV3::Register(mgvdUpdateConvergenceLimit, "Bundle.UpdateSquaredConvergenceLimit", 1e-06, SILENT);
   GV3::Register(mgvnBundleCout, "Bundle.Cout", 0, SILENT);
-};
+}
 
 // Add a camera to the system, return value is the bundle adjuster's ID for the camera
 int Bundle::AddCamera(const SE3<> &se3CamFromWorld, bool bFixed)

@@ -268,8 +268,11 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
 
   gFeatureTimer.Start();
 
-  const size_t MAX_CORNERS_LEVEL0 = 2000;
-  const size_t MIN_CORNERS_LEVEL0 = 1000;
+  //const size_t MAX_CORNERS_LEVEL0 = 2000;
+  //const size_t MIN_CORNERS_LEVEL0 = 1000;
+
+  const size_t MAX_CORNERS_LEVEL0 = 4000;
+  const size_t MIN_CORNERS_LEVEL0 = 3000;
 
   const size_t MAX_CORNERS[] = { MAX_CORNERS_LEVEL0, MAX_CORNERS_LEVEL0 >> 2, MAX_CORNERS_LEVEL0 >> 4, MAX_CORNERS_LEVEL0 >> 6};
   const size_t MIN_CORNERS[] = { MIN_CORNERS_LEVEL0, MIN_CORNERS_LEVEL0 >> 2, MIN_CORNERS_LEVEL0 >> 4, MIN_CORNERS_LEVEL0 >> 6 };

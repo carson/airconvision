@@ -858,7 +858,16 @@ bool Map::FullBundleAdjust(bool *pbAbortSignal)
   for(size_t i=0; i < vpPoints.size(); ++i)
     sMapPoints.insert(vpPoints[i]);
 
+  if (pbAbortSignal && *pbAbortSignal) {
+    return true;
+  }
+
   BundleAdjustmentJob job(this, sAdj, sFixed, sMapPoints, false);
+
+  if (pbAbortSignal && *pbAbortSignal) {
+    return true;
+  }
+
   return job.Run(pbAbortSignal);
 }
 
@@ -917,7 +926,16 @@ bool Map::RecentBundleAdjust(bool *pbAbortSignal)
     }
   }
 
+  if (pbAbortSignal && *pbAbortSignal) {
+    return true;
+  }
+
   BundleAdjustmentJob job(this, sAdjustSet, sFixedSet, sMapPoints, true);
+
+  if (pbAbortSignal && *pbAbortSignal) {
+    return true;
+  }
+
   return job.Run(pbAbortSignal);
 }
 
