@@ -33,7 +33,7 @@ class Tracker;
 class ARDriver;
 class MapViewer;
 class MapSerializer;
-class MKController;
+class MikroKopter;
 
 class System
 {
@@ -49,12 +49,21 @@ class System
   private:
     static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);  //process a console command
 
+    void HandleClick(int nButton, const CVD::ImageRef &irWin);
+
     void Quit() { mbDone = true; }
     bool SwitchMap( int nMapNum, bool bForce = false );                                    // Switch to a particular map.
     void NewMap();                                  // Create a new map and move all elements to it
     bool DeleteMap( int nMapNum );                  // Delete a specified map
     void ResetAll();                                // Wipes out ALL maps, returning system to initial state
     void StartMapSerialization(std::string sCommand, std::string sParams);   //(de)serialize a map
+    void PositionHold();
+    void AddWaypoint();
+    void ClearWaypoints();
+    void FlyPath();
+
+    void CreateMenu();
+
     void DrawMapInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
     void Draw(bool bDrawMap);
@@ -75,7 +84,7 @@ class System
     ARDriver *mpARDriver;                           // The AR Driver
     MapViewer *mpMapViewer;                         // The Map Viewer
     MapSerializer *mpMapSerializer;                 // The map serializer for saving and loading maps
-    MKController *mpMKController;
+    MikroKopter *mpMikroKopter;
     ARToolkitTracker mARTracker;
 
     bool mbDone;                                    // Kill?

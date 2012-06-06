@@ -66,6 +66,9 @@ class Tracker
       return mse3CamFromWorld.inverse().get_translation();
     }
 
+    bool PickPointOnGround(const TooN::Vector<2>& pixelCoord,
+                           TooN::Vector<3>& pointOnPlane);
+
     // Gets messages to be printed on-screen for the user.
     std::string GetMessageForUser() const;
 
@@ -118,8 +121,6 @@ class Tracker
     Vector<2> ProjectPoint(const Vector<3> &v3Point);
     void DrawMarkerPose(const SE3<> &se3WorldFromNormWorld);
     void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
-    bool PickPointOnGround(const TooN::Vector<2>& pixelCoord,
-                           TooN::Vector<3>& pointOnPlane);
 
     void GUICommandHandler(const std::string& sCommand, const std::string& sParams);
     static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);

@@ -27,8 +27,8 @@ TimeoutTimer::TimeoutTimer()
 
 TimeoutTimer::TimeoutTimer(double seconds)
 {
-  mdDuration = Duration(seconds);
-  //mtpTimeout = Clock::now() + mdDuration;
+  mdDuration = duration_cast<Clock::duration>(RealSeconds(seconds));
+  mtpTimeout = Clock::now() + mdDuration;
 }
 
 bool TimeoutTimer::HasTimedOut() const
@@ -38,7 +38,7 @@ bool TimeoutTimer::HasTimedOut() const
 
 void TimeoutTimer::Reset()
 {
-  //mtpTimeout = Clock::now() + mdDuration;
+  mtpTimeout = Clock::now() + mdDuration;
 }
 
 

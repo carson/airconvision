@@ -1,23 +1,28 @@
-#include "PositionHold.h"
+#include "TargetController.h".h"
 
 namespace PTAMM {
 
 using namespace TooN;
 using namespace std::chrono;
 
-typedef duration<double, std::ratio<1>> fseconds;
+typedef duration<double> RealSeconds;
 
-void PositionHold::Init(const SE3<> &se3Pose, const TimePoint& t)
+void TargetController::Init(const SE3<> &se3PoseInWorld, const TimePoint& t)
 {
-  mv3PrevPosInWorld = mv3TargetPosInWorld = se3Pose.inverse().get_translation();
+  mv3PrevPosInWorld = mv3TargetPosInWorld = se3PoseInWorld.get_translation();
   mStartTime = mLastUpdate = t;
 }
 
-void PositionHold::Update(const SE3<> &se3Pose, const TimePoint& t)
+void TargetController::SetTarget(const TooN::SE3<> &se3PoseInWorld)
 {
-  double dt = duration_cast<fseconds>(t - mLastUpdate).count(); // delta time in seconds
+  mv3TargetPosInWorld = se3PoseInWorld.get_translation();
+}
 
-  if (dt < 0.00001) {
+void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
+{
+  double dt = duration_cast<RealSeconds>(t - mLastUpdate).count(); // delta time in seconds
+
+  if (dt < 0.0001) {
     return;
   }
 
@@ -42,9 +47,9 @@ void PositionHold::Update(const SE3<> &se3Pose, const TimePoint& t)
   mVelocityFilter.Update(mv3Velocity);
 }
 
-double PositionHold::GetTime() const
+double TargetController::GetTime() const
 {
-  return duration_cast<fseconds>(mLastUpdate - mStartTime).count();
+  return duration_cast<RealSeconds>(mLastUpdate - mStartTime).count();
 }
 
 

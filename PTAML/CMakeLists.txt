@@ -115,7 +115,7 @@ set(PTAML_SRC
 	MD5Wrapper.cc
 	MiniPatch.cc
 	PatchFinder.cc
-	PositionHold.cc
+	TargetController.cc
 	Relocaliser.cc
 	ShiTomasi.cc
 	SmallBlurryImage.cc
@@ -127,7 +127,7 @@ set(PTAML_SRC
 	Tracker.cc
 	MKProtocol.cc
 	MKConnection.cc
-	MKController.cc
+	MikroKopter.cc
 	rs232.c
 	VideoSource.cc
 	${VIDEO_SOURCE_SRC}
