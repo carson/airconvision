@@ -1,4 +1,6 @@
-#include "TargetController.h".h"
+#include "TargetController.h"
+
+#include <iostream>
 
 namespace PTAMM {
 
@@ -7,12 +9,6 @@ using namespace std::chrono;
 
 typedef duration<double> RealSeconds;
 
-void TargetController::Init(const SE3<> &se3PoseInWorld, const TimePoint& t)
-{
-  mv3PrevPosInWorld = mv3TargetPosInWorld = se3PoseInWorld.get_translation();
-  mStartTime = mLastUpdate = t;
-}
-
 void TargetController::SetTarget(const TooN::SE3<> &se3PoseInWorld)
 {
   mv3TargetPosInWorld = se3PoseInWorld.get_translation();
@@ -20,6 +16,12 @@ void TargetController::SetTarget(const TooN::SE3<> &se3PoseInWorld)
 
 void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
 {
+  // Check if this is the first update
+  if (mLastUpdate.time_since_epoch() == Clock::duration::zero()) {
+    mv3PrevPosInWorld = se3Pose.inverse().get_translation();
+    mStartTime = mLastUpdate = t;
+  }
+
   double dt = duration_cast<RealSeconds>(t - mLastUpdate).count(); // delta time in seconds
 
   if (dt < 0.0001) {

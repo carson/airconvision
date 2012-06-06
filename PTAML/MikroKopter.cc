@@ -70,25 +70,24 @@ void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)
 void MikroKopter::GoToPosition(const TooN::SE3<> &se3PoseInWorld)
 {
   cout << "Go to position: " << se3PoseInWorld.get_translation() << endl;
-  if (mControllerType != TARGET_CONTROLLER) {
-    mTargetController.Init(se3PoseInWorld, TargetController::Clock::now());
-  } else {
-    mTargetController.SetTarget(se3PoseInWorld);
-  }
+  mTargetController.SetTarget(se3PoseInWorld);
   mControllerType = TARGET_CONTROLLER;
 }
 
 void MikroKopter::AddWaypoint(const TooN::SE3<> &se3PoseInWorld)
 {
   cout << "Adding waypoint: " << se3PoseInWorld.get_translation() << endl;
+  mPathController.AddWaypoint(se3PoseInWorld);
 }
 
 void MikroKopter::ClearWaypoints()
 {
+  mPathController.ClearWaypoints();
 }
 
 void MikroKopter::FlyPath()
 {
+  mPathController.Start();
   mControllerType = NO_CONTROLLER;
 }
 
