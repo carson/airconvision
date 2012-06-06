@@ -52,9 +52,9 @@ class System
     void HandleClick(int nButton, const CVD::ImageRef &irWin);
 
     void Quit() { mbDone = true; }
-    bool SwitchMap( int nMapNum, bool bForce = false );                                    // Switch to a particular map.
+    bool SwitchMap(int nMapNum, bool bForce = false);                                    // Switch to a particular map.
     void NewMap();                                  // Create a new map and move all elements to it
-    bool DeleteMap( int nMapNum );                  // Delete a specified map
+    bool DeleteMap(int nMapNum);                  // Delete a specified map
     void ResetAll();                                // Wipes out ALL maps, returning system to initial state
     void StartMapSerialization(std::string sCommand, std::string sParams);   //(de)serialize a map
     void PositionHold();
