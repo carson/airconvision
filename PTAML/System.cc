@@ -239,7 +239,6 @@ void System::CreateMenu()
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Fly path\" FlyPath Root");
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Add waypoint\" AddWaypoint Root");
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Position Hold\" PositionHold Root");
-  mDebugFile.close();
 }
 
 /**
@@ -250,7 +249,6 @@ void System::Run()
 {
   using namespace std::chrono;
 
-  bool bWriteDebugValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
   bool bWriteCoordinatesLog = GV3::get<int>("Debug.OutputWorldCoordinates", 0, SILENT);
 
   FPSCounter fpsCounter;
@@ -309,9 +307,10 @@ void System::Run()
     mpMikroKopter->Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
 
     if (bWriteCoordinatesLog) {
-      duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
+      duration<double> elapsedTime = high_resolution_clock::now() - startTime;
       mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
     }
+
     mGLWindow.HandlePendingEvents();
 
     // Update FPS counter, this should be the last thing in the main loop
