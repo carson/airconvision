@@ -9,7 +9,7 @@
 #include "MapSerializer.h"
 #include "FPSCounter.h"
 #include "Timing.h"
-#include "MKController.h"
+#include "MikroKopter.h"
 
 #include <gvars3/GStringUtil.h>
 #include <cvd/image_io.h>
@@ -90,47 +90,29 @@ bool GetSingleParam(int &nAnswer, string sCommand, string sParams)
 
 
 System::System(VideoSource* videoSource)
-  : mGLWindow(videoSource->Size(), "PTAMM")
+  : mGLWindow(videoSource->Size(), "PTAML")
   , mVideoSource(videoSource)
   , mbFreezeVideo(false)
+  , mbDone(false)
 {
-  GUI.RegisterCommand("exit", GUICommandCallBack, this);
-  GUI.RegisterCommand("quit", GUICommandCallBack, this);
-
-  //PTAMM commands
-  GUI.RegisterCommand("SwitchMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("NewMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("DeleteMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("ResetAll", GUICommandCallBack, this);
-  GUI.RegisterCommand("Realign", GUICommandCallBack, this);
-
-  GUI.RegisterCommand("LoadMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("SaveMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("SaveMaps", GUICommandCallBack, this);
-
-  GV2.Register(mgvnLockMap, "LockMap", 0, SILENT);
-  GV2.Register(mgvnDrawMapInfo, "MapInfo", 0, SILENT);
-  GV2.Register(mgvnDisableRendering, "DisableRendering", 0, SILENT);
+  GV3::Register(mgvnLockMap, "LockMap", 0, SILENT);
+  GV3::Register(mgvnDrawMapInfo, "MapInfo", 0, SILENT);
+  GV3::Register(mgvnDisableRendering, "DisableRendering", 0, SILENT);
 
 #ifdef _LINUX
-  GV2.Register(mgvnSaveFIFO, "SaveFIFO", 0, SILENT);
-  GV2.Register(mgvnBitrate, "Bitrate", 15000, SILENT);
+  GV3::Register(mgvnSaveFIFO, "SaveFIFO", 0, SILENT);
+  GV3::Register(mgvnBitrate, "Bitrate", 15000, SILENT);
 #endif
 
-  GUI.RegisterCommand("KeyPress", GUICommandCallBack, this);
+  ImageRef irVideoSize = videoSource->Size();
 
-  ImageRef videoSize = videoSource->Size();
+  mimFrameBW.resize(irVideoSize);
+  mimFrameRGB.resize(irVideoSize);
 
-  mimFrameBW.resize(videoSize);
-  mimFrameRGB.resize(videoSize);
   // First, check if the camera is calibrated.
   // If not, we need to run the calibration widget.
   Vector<NUMTRACKERCAMPARAMETERS> vTest;
-
   vTest = GV3::get<Vector<NUMTRACKERCAMPARAMETERS> >("Camera.Parameters", ATANCamera::mvDefaultParams, HIDDEN);
-  mpCamera = new ATANCamera("Camera");
-  mpCamera->SetImageSize(mVideoSource->Size());
-
   if(vTest == ATANCamera::mvDefaultParams) {
     cout << endl;
     cout << "! Camera.Parameters is not set, need to run the CameraCalibrator tool" << endl;
@@ -138,7 +120,10 @@ System::System(VideoSource* videoSource)
     exit(1);
   }
 
-  if (!mARTracker.Init(videoSize)) {
+  mpCamera = new ATANCamera("Camera");
+  mpCamera->SetImageSize(irVideoSize);
+
+  if (!mARTracker.Init(irVideoSize)) {
     cout << "Failed to init AR toolkit." << std::endl;
     exit(1);
   }
@@ -148,6 +133,21 @@ System::System(VideoSource* videoSource)
   mvpMaps.push_back( mpMap );
   mpMap->mapLockManager.Register(this);
 
+  // Create all the sub-systems
+  mpMapMaker = new MapMaker(mvpMaps, mpMap);
+  mpTracker = new Tracker(irVideoSize, *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
+  mpARDriver = new ARDriver(*mpCamera, irVideoSize, mGLWindow, *mpMap);
+  mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
+  mpMapSerializer = new MapSerializer(mvpMaps);
+  mpMikroKopter = new MikroKopter();
+
+  mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
+  if (!mCoordinateLogFile) {
+    cerr << "Failed to open coordinates.txt" << endl;
+  }
+
+  // Create the on-screen menu and register all the commands
+  CreateMenu();
 
   // Force the program to run on CPU0
   /*
@@ -159,21 +159,47 @@ System::System(VideoSource* videoSource)
     cerr << "pthread_setaffinity_np failed for main thread" << endl;
   }
   */
+}
 
-  mpMapMaker = new MapMaker( mvpMaps, mpMap );
-  mpTracker = new Tracker(videoSize, *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
-  mpARDriver = new ARDriver(*mpCamera, videoSize, mGLWindow, *mpMap);
-  mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
-  mpMapSerializer = new MapSerializer( mvpMaps );
-  mpMKController = new MKController();
+/**
+ * Destructor
+ */
+System::~System()
+{
+  if( mpMap != NULL )  {
+    mpMap->mapLockManager.UnRegister( this );
+  }
+}
 
-  //These commands have to be registered here as they call the classes created above
+void System::CreateMenu()
+{
+  // Register all commands
+  GUI.RegisterCommand("exit", GUICommandCallBack, this);
+  GUI.RegisterCommand("quit", GUICommandCallBack, this);
+
+  GUI.RegisterCommand("SwitchMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("NewMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("DeleteMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("ResetAll", GUICommandCallBack, this);
+  GUI.RegisterCommand("Realign", GUICommandCallBack, this);
+
+  GUI.RegisterCommand("LoadMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("SaveMap", GUICommandCallBack, this);
+  GUI.RegisterCommand("SaveMaps", GUICommandCallBack, this);
+
   GUI.RegisterCommand("NextMap", GUICommandCallBack, this);
   GUI.RegisterCommand("PrevMap", GUICommandCallBack, this);
   GUI.RegisterCommand("CurrentMap", GUICommandCallBack, this);
+
+  GUI.RegisterCommand("ClearPath", GUICommandCallBack, this);
+  GUI.RegisterCommand("FlyPath", GUICommandCallBack, this);
+  GUI.RegisterCommand("AddWaypoint", GUICommandCallBack, this);
+  GUI.RegisterCommand("PositionHold", GUICommandCallBack, this);
+
+  GUI.RegisterCommand("KeyPress", GUICommandCallBack, this);
   GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, this);
 
-  //create the menus
+  // Create the menus
   GUI.ParseLine("GLWindow.AddMenu Menu Menu");
   GUI.ParseLine("Menu.ShowMenu Root");
   GUI.ParseLine("Menu.AddMenuButton Root \"Reset All\" ResetAll Root");
@@ -213,23 +239,6 @@ System::System(VideoSource* videoSource)
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Fly path\" FlyPath Root");
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Add waypoint\" AddWaypoint Root");
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Position Hold\" PositionHold Root");
-
-  mbDone = false;
-
-  mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
-  if (!mCoordinateLogFile) {
-    cerr << "Failed to open coordinates.txt" << endl;
-  }
-}
-
-/**
- * Destructor
- */
-System::~System()
-{
-  if( mpMap != NULL )  {
-    mpMap->mapLockManager.UnRegister( this );
-  }
   mDebugFile.close();
 }
 
@@ -297,7 +306,7 @@ void System::Run()
       gDrawUITimer.Stop();
     }
 
-    mpMKController->Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
+    mpMikroKopter->Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
 
     if (bWriteCoordinatesLog) {
       duration<double, std::ratio<1>> elapsedTime = high_resolution_clock::now() - startTime;
@@ -305,7 +314,7 @@ void System::Run()
     }
     mGLWindow.HandlePendingEvents();
 
-    // Update FPS counter
+    // Update FPS counter, this should be the last thing in the main loop
     if (fpsCounter.Update()) {
       stringstream ss; ss << "PTAML - " << setiosflags(ios::fixed) << setprecision(2) << fpsCounter.Fps() << " fps";
       mGLWindow.set_title(ss.str());
@@ -436,17 +445,16 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     pSystem->StartMapSerialization( sCommand, sParams );
   }
   else if( sCommand == "PositionHold")  {
-    pSystem->mpMKController->GoToPosition(pSystem->mpTracker->GetCurrentPose());
+    pSystem->PositionHold();
   }
   else if( sCommand == "AddWaypoint")  {
-    pSystem->mpMKController->AddWaypoint(pSystem->mpTracker->GetCurrentPose());
+    pSystem->AddWaypoint();
   }
   else if( sCommand == "ClearWaypoints")  {
-    pSystem->mpMKController->ClearWaypoints();
+    pSystem->ClearWaypoints();
   }
   else if( sCommand == "Mouse.Click" ) {
     vector<string> vs = ChopAndUnquoteString(sParams);
-
     if( vs.size() != 3 ) {
       return;
     }
@@ -456,8 +464,7 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     ImageRef irWin;
     is >> nButton >> irWin.x >> irWin.y;
 
-    //static_cast<ARDriver*>(ptr)->HandleClick( nButton, irWin );
-
+    pSystem->HandleClick(nButton, irWin);
   }
   else if( sCommand == "KeyPress" )
   {
@@ -476,6 +483,23 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     }
     else if(sParams == "f") {
       pSystem->mbFreezeVideo = !pSystem->mbFreezeVideo;
+    }
+  }
+}
+
+void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
+{
+  static gvar3<int> gvnEnableMouseControl("EnableMouseControl", 0, HIDDEN|SILENT);
+  if (*gvnEnableMouseControl) {
+
+    Vector<3> v3PointOnPlane;
+    if (mpTracker->PickPointOnGround(makeVector(irWin.x, irWin.y), v3PointOnPlane)) {
+      // Set the targets Z value same as the current positions
+      v3PointOnPlane[2] = mpTracker->GetCurrentPose().inverse().get_translation()[2];
+
+      SE3<> se3TargetPose;
+      se3TargetPose.get_translation() = v3PointOnPlane;
+      mpMikroKopter->GoToPosition(se3TargetPose);
     }
   }
 }
@@ -682,6 +706,27 @@ void System::StartMapSerialization(std::string sCommand, std::string sParams)
   if( mpMapSerializer->Init( sCommand, sParams, *mpMap) ) {
     mpMapSerializer->start();
   }
+}
+
+void System::PositionHold()
+{
+  mpMikroKopter->GoToPosition(mpTracker->GetCurrentPose().inverse());
+
+}
+
+void System::AddWaypoint()
+{
+  mpMikroKopter->AddWaypoint(mpTracker->GetCurrentPose().inverse());
+}
+
+void System::ClearWaypoints()
+{
+  mpMikroKopter->ClearWaypoints();
+}
+
+void System::FlyPath()
+{
+  mpMikroKopter->FlyPath();
 }
 
 

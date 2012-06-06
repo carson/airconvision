@@ -8,7 +8,7 @@ namespace PTAMM {
 class TimeoutTimer {
   typedef std::chrono::high_resolution_clock Clock;
   typedef std::chrono::time_point<Clock> TimePoint;
-  typedef std::chrono::duration<double> Duration;
+  typedef std::chrono::duration<double> RealSeconds;
 
   public:
     TimeoutTimer();
@@ -19,7 +19,7 @@ class TimeoutTimer {
 
   private:
     TimePoint mtpTimeout;
-    Duration mdDuration;
+    Clock::duration mdDuration;
 };
 
 
