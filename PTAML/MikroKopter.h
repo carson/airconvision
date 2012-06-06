@@ -3,6 +3,7 @@
 
 #include "MKConnection.h"
 #include "TargetController.h"
+#include "PathController.h"
 #include "Timing.h"
 
 #include <TooN/se3.h>
@@ -42,6 +43,7 @@ class MikroKopter {
 
     ControllerType mControllerType;
     TargetController mTargetController;
+    PathController mPathController;
 
     DebugOut_t mMkDebugOutput;
     TimeoutTimer mSendDebugTimeout;
