@@ -26,7 +26,6 @@
 #include "MiniPatch.h"
 #include "Relocaliser.h"
 #include "ARToolkit.h"
-#include "TakFrame.h" //@hack by camparijet
 
 #include <TooN/sim3.h>
 
@@ -192,10 +191,6 @@ class Tracker
     // GUI interface:
     struct Command {std::string sCommand; std::string sParams; };
     std::vector<Command> mvQueuedCommands;
-    //@hack for serialize tracked frame
-    int frameIndex;
-    int isKeyFrame;
-    bool bSave;
 
     bool mHasDeterminedScale;
 };
