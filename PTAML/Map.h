@@ -22,7 +22,6 @@
 
 #include "MapLockManager.h"
 #include "OpenGL.h"
-#include "TakFrame.h"
 #include "Bundle.h"
 
 namespace PTAMM {
@@ -159,8 +158,6 @@ class Map
     bool bGood;                                      // Is the map valid (has content)?
 
     std::string sSaveFile;                           // where the map was loaded from
-
-    std::vector<TakFrame> poolAllFrame; //@hack for serialize
 
     int mnMapNum;                                    // The map number
 

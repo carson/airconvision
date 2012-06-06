@@ -51,8 +51,6 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
   mFirstKF(mCamera),
   mPreviousFrameKF(mCamera),
   mbFreezeTracking(false),
-
-  frameIndex(0), //@hack by camparijet for serialize allframe
   mHasDeterminedScale(false)
 {
   mCurrentKF.bFixed = false;
@@ -317,7 +315,6 @@ bool Tracker::ShouldAddNewKeyFrame()
 // or not (it should not draw, for example, when AR stuff is being shown.)
 void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
 {
-  isKeyFrame = 0;//@hack by camparijet for serialize
   mbDraw = bDraw;
   mMessageForUser.str("");   // Wipe the user message clean
 
@@ -398,7 +395,6 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
         if(ShouldAddNewKeyFrame()) {
           mMessageForUser << " Adding key-frame.";
           AddNewKeyFrame();
-          isKeyFrame = 1;
         }
 
         // Added some scale determing code here -- dhenell
@@ -645,7 +641,6 @@ void Tracker::TrackForInitialMap()
       mbUserPressedSpacebar = false;
       TrailTracking_Start();
       mnInitialStage = TRAIL_TRACKING_STARTED;
-      isKeyFrame = 2; //@hack by camaparijet for serializing
     }
     else
     {
@@ -684,7 +679,6 @@ void Tracker::TrackForInitialMap()
     if (mMapMaker.StereoInitDone()) {
       if (mpMap->IsGood()) {
         mnInitialStage = TRAIL_TRACKING_COMPLETE;
-        isKeyFrame = 2; //@hack by camaparijet for serializing
         cout << "Stereo init done, attempting to relocate..." << endl;
         AttemptRecovery();
       } else {

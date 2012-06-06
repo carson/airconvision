@@ -18,7 +18,6 @@
 #include <cvd/thread.h>
 
 #include "tinyxml.h"
-#include "TakFrame.h" //@hack by camparijet for serialize all frames.
 
 namespace PTAMM {
 
@@ -62,9 +61,6 @@ class MapSerializer : public CVD::Thread
 
     bool _SaveAMapPoint( MapPoint * mp, TiXmlElement * mapPointsNode );
     bool _SaveMapPoints( TiXmlElement * rootNode );
-    //@hack for serialize tracked Frame.
-    bool _SaveATakFrame(TakFrame & tf,const std::string & sPath, TiXmlElement * takFramesNode );
-    bool _SaveTakFrames(const std::string & sPath, TiXmlElement * rootNode );
     void _CreateSaveLUTs();
     int _LookupKeyFrame( KeyFrame * k );
     int _LookupMapPoint( MapPoint * m );
