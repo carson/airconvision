@@ -18,6 +18,7 @@
 #include <iostream>
 #include <fstream>
 #include <functional>
+#include <thread>
 
 #ifdef _LINUX
 #   include <fcntl.h>
@@ -320,6 +321,8 @@ void System::Run()
     }
 
     gFrameTimer.Stop();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 
