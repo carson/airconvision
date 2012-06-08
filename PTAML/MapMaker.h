@@ -27,50 +27,56 @@
 
 namespace PTAMM {
 
+class ActionDispatcher {
+  public:
+    typedef std::function<void()> Action;
+
+    bool Empty() const;
+
+    void RunQueuedActions();
+    void PushAction(const Action &a);
+    void PushActionAndWait(const Action &a);
+
+  private:
+    mutable std::mutex m;
+    std::queue<Action> mvQueuedActions;
+};
+
 // MapMaker dervives from CVD::Thread, so everything in void run() is its own thread.
-class MapMaker : protected CVD::Thread
+class MapMaker
 {
   public:
     MapMaker(std::vector<Map*> &maps, Map *m);
     ~MapMaker();
 
+    void operator()();
+
     // Make a map from scratch. Called by the tracker.
     void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
                         SE3<> &se3CameraPos);
-
     bool StereoInitDone() const { return mbStereoInitDone; }
 
-    void AddKeyFrame(const KeyFrame &k);   // Add a key-frame to the map. Called by the tracker.
-    void RequestReset();   // Request that the we reset. Called by the tracker.
-    bool ResetDone();      // Returns true if the has been done.
+    // Add a key-frame to the map. Called by the tracker.
+    void AddKeyFrame(const KeyFrame &k);
 
-    bool NeedNewKeyFrame(const KeyFrame &kCurrent);            // Is it a good camera pose to add another KeyFrame?
-    bool IsDistanceToNearestKeyFrameExcessive(KeyFrame &kCurrent);  // Is the camera far away from the nearest KeyFrame (i.e. maybe lost?)
 
-    void RequestReInit(Map * map);    // Request that the we reset. Called by the tracker.
-    bool ReInitDone();                // Returns true if the ReInit has been done.
-    bool RequestSwitch(Map * map);    // Request a switch to map
-    bool SwitchDone();                // Returns true if the Switch map has been done
     void RequestRealignment();
+
+    // These should all be made synchronous or return promises
+    void Reset();              // Request that the we reset. Called by the tracker.
+    void ReInit(Map * map);    // Request that the we reset. Called by the tracker.
+    bool Switch(Map * map);    // Request a switch to map
 
     void RequestMapTransformation(const SE3<>& se3NewFromOld);
     void RequestMapScaling(double dScale);
-    void RequestCallback(std::function<void()> fn);
 
   private:
-    virtual void run();      // The MapMaker thread code lives here
-
     // General Maintenance/Utility:
-    void Reset() { Reset(mpMap); }
-    void Reset(Map * map);
-    void ReInit();                //call this when switching to a new map
-    void SwitchMap();
-
-    // GUI Interface:
-    void GUICommandHandler(std::string sCommand, std::string sParams);
-    static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);
-
+    void ResetImpl() { ResetImpl2(mpMap); }
+    void ResetImpl2(Map * map);
+    void ReInitImpl();                //call this when switching to a new map
+    void SwitchMapImpl();
 
   // Member variables:
   private:
@@ -79,28 +85,11 @@ class MapMaker : protected CVD::Thread
     Map *mpNewMap;                     // The new map, used as a temp placeholder
     Map *mpSwitchMap;                  // The switch map, used as a temp placeholder
 
-    // GUI Interface:
-    struct Command {std::string sCommand; std::string sParams; };
-    std::vector<Command> mvQueuedCommands;
-
     // Used for thread synchronization
-    std::mutex m;
-
-    typedef std::function<void()> Action;
-    std::queue<Action> mvQueuedActions;
-
-    // A scaling factor that can be used to tweak the distances between keyframes
-    double mdMaxKFDistWiggleMult;
-
-    bool mbAbortRequested;      // We should stop bundle adjustment and stereo init
+    ActionDispatcher mDispatcher;
 
     // Thread interaction signaling stuff
-    bool mbResetRequested;            // A reset has been requested
-    bool mbResetDone;                 // The reset was done.
-    bool mbReInitRequested;           // map reinitialization requested
-    bool mbReInitDone;                // map reinitialization done
-    bool mbSwitchRequested;           // switch to another map requested
-    bool mbSwitchDone;                // switch to another map done
+    bool mbAbortRequested;      // We should stop bundle adjustment and stereo init
     bool mbStereoInitDone;
 };
 

@@ -95,6 +95,8 @@ class Tracker
                              bool bMarkOutliers = false); // Updates pose from found points.
     void CalcSBIRotation();
 
+    bool NeedNewKeyFrame(const KeyFrame &kCurrent);
+    bool IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent);
     bool ShouldAddNewKeyFrame();
     void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
 
