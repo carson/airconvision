@@ -685,8 +685,6 @@ bool System::SwitchMap( int nMapNum, bool bForce )
   return true;
 }
 
-
-
 /**
  * Create a new map and switch all
  * threads and objects to it.
@@ -716,7 +714,6 @@ void System::NewMap()
 
   cout << "New map created (" << mpMap->MapID() << ")" << endl;
 }
-
 
 /**
  * Moves all objects and threads to the first map, and resets it.
@@ -841,10 +838,18 @@ void System::Draw()
   mGLWindow.SetupVideoOrtho();
   mGLWindow.SetupVideoRasterPosAndZoom();
 
+  string sCaption;
+
   if(bDrawMap) {
-    DrawMapViewer();
+    // TODO: This is not thread safe at all... The whole mapviewer thing is in a rather bad state...
+    mModules.pMapViewer->DrawMap(mModules.pTracker->GetCurrentPose());
+    sCaption = mModules.pMapViewer->GetMessageForUser();
   } else {
-    DrawTracker();
+    if (mModules.pFrontend->monitor.PopDrawData(mFrontendDrawData)) {
+      FrontendRenderer renderer(*mModules.pCamera, mFrontendDrawData);
+      renderer.Draw();
+      sCaption = mFrontendDrawData.sStatusMessage;
+    }
   }
 
   static gvar3<int> gvnDrawMapInfo("MapInfo", 0, HIDDEN|SILENT);
@@ -857,17 +862,6 @@ void System::Draw()
     DrawDebugInfo();
   }
 
-  string sCaption;
-
-  /*
-  if(bDrawMap) {
-    sCaption = mpMapViewer->GetMessageForUser();
-  }
-  else {
-    sCaption = mpTracker->GetMessageForUser();
-  }
-  */
-
   mGLWindow.DrawCaption(sCaption);
   mGLWindow.DrawMenus();
 
@@ -876,19 +870,6 @@ void System::Draw()
   gGLSwapTimer.Start();
   mGLWindow.swap_buffers();
   gGLSwapTimer.Stop();
-}
-
-void System::DrawTracker()
-{
-  if (mModules.pFrontend->monitor.PopDrawData(mFrontendDrawData)) {
-    FrontendRenderer renderer(*mModules.pCamera, mFrontendDrawData);
-    renderer.Draw();
-  }
-}
-
-void System::DrawMapViewer()
-{
-//  mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
 }
 
 void System::DrawDebugInfo()

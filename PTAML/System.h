@@ -64,8 +64,6 @@ class System
     void CreateMenu();
 
     void Draw();
-    void DrawTracker();
-    void DrawMapViewer();
     void DrawDebugInfo();
     void DrawMapInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
@@ -89,7 +87,6 @@ class System
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window
     VideoSource *mVideoSource;
-
     Modules mModules;
     MikroKopter mMikroKopter;
     ARToolkitTracker mARTracker;
@@ -99,6 +96,7 @@ class System
 
     bool mbDone;                                    // Kill?
 
+    // Rendering
     FrontendDrawData mFrontendDrawData;
     bool mbDisableRendering;
 
