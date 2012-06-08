@@ -11,7 +11,11 @@
 #ifndef __PTAMM_UTILS__
 #define __PTAMM_UTILS__
 
+#include "ATANCamera.h"
+
 #include <cvd/image_ref.h>
+#include <TooN/TooN.h>
+#include <TooN/se3.h>
 
 #include <string>
 #include <iostream>
@@ -56,6 +60,12 @@ std::vector<size_t> ordered(std::vector<T> const& values) {
 void PruneWhiteSpace(std::string & str);
 
 bool PointInsideRect(const CVD::ImageRef &pt, const CVD::ImageRef &start, const CVD::ImageRef &size);
+
+bool PickPointOnGround(ATANCamera camera,
+                       const TooN::SE3<> &se3CamFromWorld,
+                       const TooN::Vector<2> &pixelCoord,
+                       TooN::Vector<3> &pointOnPlane);
+
 
 }
 

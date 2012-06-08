@@ -1060,7 +1060,7 @@ double Map::KeyFrameLinearDist(const KeyFrame &k1, const KeyFrame &k2) const
   // UGLY HACK! -- dhenell
   // Moving closer and further away from the ground does not change the view as much as
   // moving around in the XY plane, thus it doesn't need as many keyframes in that direction
-  v3Diff[2] *= 0.1;
+  v3Diff[2] *= 0.5;
 
   return sqrt(v3Diff * v3Diff); // Dist
 }

@@ -25,11 +25,11 @@
 #include <cvd/image_io.h>//@hack by camaparijet
 #include <sstream> //@hack by camparijet  for  saving image
 
-namespace PTAMM {
-
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
+
+namespace PTAMM {
 
 /**
  * The constructor mostly sets up interal reference variables to the other classes..
@@ -39,23 +39,16 @@ using namespace GVars3;
  * @param m current map
  * @param mm map maker
  */
-Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker) :
+Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm, Relocaliser *pRelocaliser) :
   mCurrentKF(c),
-  mvpMaps(maps),
+  mFirstKF(c),
   mpMap(m),
   mMapMaker(mm),
   mCamera(c),
-  mRelocaliser(maps, mCamera),
-  mARTracker(arTracker),
-  mirSize(irVideoSize),
-  mFirstKF(mCamera),
-  mPreviousFrameKF(mCamera),
-  mbFreezeTracking(false),
-  mHasDeterminedScale(false)
+  mpRelocaliser(pRelocaliser),
+  mirSize(irVideoSize)
 {
   mCurrentKF.bFixed = false;
-  GUI.RegisterCommand("Reset", GUICommandCallBack, this);
-  GUI.RegisterCommand("PokeTracker", GUICommandCallBack, this);
   TrackerData::irImageSize = mirSize;
 
   mpSBILastFrame = NULL;
@@ -65,27 +58,31 @@ Tracker::Tracker(ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &m
   Reset();
 }
 
+void Tracker::InitTracking()
+{
+  auto keyframes = mpMap->GetKeyFrames();
+  assert(keyframes.size() >= 2);
+  mFirstKF = *keyframes[0];
+  mCurrentKF = *keyframes[1];
+}
+
 /**
  * Common reset code for Reset() and ResetAll()
  */
 void Tracker::ResetCommon()
 {
   mbDidCoarse = false;
-  mbUserPressedSpacebar = false;
   mTrackingQuality = GOOD;
   mnLostFrames = 0;
   mdMSDScaledVelocityMagnitude = 0;
   mCurrentKF.dSceneDepthMean = 1.0;
   mCurrentKF.dSceneDepthSigma = 1.0;
-  mnInitialStage = TRAIL_TRACKING_NOT_STARTED;
-  mlTrails.clear();
   mCamera.SetImageSize(mirSize);
   mCurrentKF.mMeasurements.clear();
   mnLastKeyFrameDropped = -20;
   mnFrame=0;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
-  mHasDeterminedScale = false;
 
   for (int i = 0; i < LEVELS; ++i) {
     maFastCornerBarriers[i] = 15;
@@ -121,186 +118,8 @@ void Tracker::Reset()
   }
 }
 
-bool Tracker::PickPointOnGround(
-  const TooN::Vector<2>& pixelCoord,
-  TooN::Vector<3>& pointOnPlane)
-{
-  Vector<2> v2VidCoords = pixelCoord;
-
-  Vector<2> v2UFBCoords;
-#ifdef WIN32
-  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = numeric_limits<double>::quiet_NaN();   v2PlaneCoords[1] = numeric_limits<double>::quiet_NaN();
-#else
-  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = NAN;   v2PlaneCoords[1] = NAN;
-#endif
-  Vector<3> v3RayDirn_W;
-
-  // Work out image coords 0..1:
-  v2UFBCoords[0] = (v2VidCoords[0] + 0.5) / mCamera.GetImageSize()[0];
-  v2UFBCoords[1] = (v2VidCoords[1] + 0.5) / mCamera.GetImageSize()[1];
-
-  // Work out plane coords:
-  Vector<2> v2ImPlane = mCamera.UnProject(v2VidCoords);
-  Vector<3> v3C = unproject(v2ImPlane);
-  Vector<4> v4C = unproject(v3C);
-  SE3<> se3CamInv = mse3CamFromWorld.inverse();
-  Vector<4> v4W = se3CamInv * v4C;
-  double t = se3CamInv.get_translation()[2];
-  double dDistToPlane = -t / (v4W[2] - t);
-
-  if(v4W[2] -t <= 0) // Clicked the wrong side of the horizon?
-  {
-    v4C.slice<0,3>() *= dDistToPlane;
-    Vector<4> v4Result = se3CamInv * v4C;
-    pointOnPlane = v4Result.slice<0,3>(); // <--- result
-
-    return true;
-  }
-
-  return false;
-}
-
-Vector<2> Tracker::ProjectPoint(const Vector<3> &v3Point)
-{
-  Vector<3> v3Cam = mse3CamFromWorld * v3Point;
-
-  if(v3Cam[2] < 0.001) {
-    v3Cam[2] = 0.001;
-  }
-
-  return mCamera.Project(project(v3Cam));
-}
-
-void Tracker::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
-{
-  glEnable(GL_LINE_SMOOTH);
-  glDisable(GL_BLEND);
-  glLineWidth(2);
-  glPointSize(15);
-
-  glBegin(GL_POINTS);
-    glColor3f(0,1,1);
-    glVertex(ProjectPoint(se3WorldFromNormWorld.get_translation()));
-  glEnd();
-
-  Vector<3> wo2 = se3WorldFromNormWorld * makeVector(0, 0, 0);
-  Vector<3> wx2 = se3WorldFromNormWorld * makeVector(8, 0, 0);
-  Vector<3> wy2 = se3WorldFromNormWorld * makeVector(0, 8, 0);
-  Vector<3> wz2 = se3WorldFromNormWorld * makeVector(0, 0, 8);
-
-  std::vector<Vector<3> > pts;
-
-  pts.push_back(wo2); pts.push_back(wx2);
-  pts.push_back(wo2); pts.push_back(wy2);
-  pts.push_back(wo2); pts.push_back(wz2);
-
-  glBegin(GL_LINES);
-
-  std::vector<Vector<2> > screenPts;
-  for (auto it = pts.begin(); it != pts.end(); ++it) {
-    glColor3f(1,0,0);
-    glVertex(ProjectPoint(*it));
-  }
-
-  glEnd();
-
-  glLineWidth(1);
-  glPointSize(1);
-}
-
-void Tracker::DetermineScaleFromMarker(const Image<CVD::byte> &imFrame)
-{
-  if (!mHasDeterminedScale) {
-    if (mARTracker.Track(imFrame, mbDraw)) {
-      // Get corner points of the marker in screen space
-      std::vector<Vector<2> > imPts;
-      mARTracker.GetMarkerCorners(imPts);
-
-      // Project the corners onto the ground plane to get
-      // the coordinates in the PTAM world space
-      std::vector<Vector<3> > pointsOnPlane;
-      for (auto it = imPts.begin(); it != imPts.end(); ++it) {
-        Vector<3> pointOnPlane;
-        if (PickPointOnGround(*it, pointOnPlane)) {
-          pointsOnPlane.push_back(pointOnPlane);
-        }
-      }
-
-      // Abort if not all corners were found
-      if (pointsOnPlane.size() != 4) {
-        return;
-      }
-
-      // Determine scale and origin
-      Vector<3> origin = Zeros;
-      double edgeLengthSum = 0;
-      Vector<3> prevPoint = pointsOnPlane[3];
-      for (auto it = pointsOnPlane.begin(); it != pointsOnPlane.end(); ++it) {
-        origin += *it;
-        double edgeLength = norm(*it - prevPoint);
-        edgeLengthSum += edgeLength;
-        prevPoint = *it;
-      }
-
-      // origin is now the sum of all the corner points, so the marker center is the average
-      origin *= 0.25;
-
-      Vector<3> xAxis = pointsOnPlane[1] + pointsOnPlane[2] - pointsOnPlane[0] - pointsOnPlane[3];
-      Vector<3> yAxis = pointsOnPlane[0] + pointsOnPlane[1] - pointsOnPlane[2] - pointsOnPlane[3];
-      Vector<3> zAxis = xAxis ^ yAxis;
-      yAxis = zAxis ^ xAxis;
-
-      normalize(xAxis);
-      normalize(yAxis);
-      normalize(zAxis);
-
-      Matrix<3,3> rot;
-      rot[0] = xAxis;
-      rot[1] = yAxis;
-      rot[2] = zAxis;
-
-      // The misalignment
-      SE3<> se3WorldFromNormWorld = SE3<>(SO3<>(rot.T()), origin);
-
-      // The scale
-      static gvar3<double> gvdMarkerSize("Marker.Size", 0.08, SILENT); // Size of the marker in meters
-      double scale = (4.0 * *gvdMarkerSize) / edgeLengthSum;
-
-      if (mbDraw) {
-        DrawMarkerPose(se3WorldFromNormWorld);
-      }
-
-      if (mbUserPressedSpacebar) {
-
-        cout << "SCALE: " << scale << endl;
-
-        mbFreezeTracking = true;
-        //mMapMaker.RequestCallback([&] () { } );
-        mMapMaker.RequestMapTransformation(se3WorldFromNormWorld.inverse());
-        mMapMaker.RequestMapScaling(scale);
-        mMapMaker.RequestCallback([&] () {
-          mse3CamFromWorld = se3WorldFromNormWorld * mse3CamFromWorld;
-          mse3CamFromWorld.get_translation() *= scale;
-          mbFreezeTracking = false;
-          ForceRecovery();
-        } );
-
-        mHasDeterminedScale = true;
-        mbUserPressedSpacebar = false;
-      }
-    }
-  }
-}
-
 bool Tracker::ShouldAddNewKeyFrame()
 {
-  /*
-  if (mbForceAddNewKeyFrame) {
-    mbForceAddNewKeyFrame = false;
-    return true;
-  }
-  */
-
   return mTrackingQuality == GOOD &&
          mMapMaker.NeedNewKeyFrame(mCurrentKF) &&
          // HACK for keyframe threshold for incorporation
@@ -313,9 +132,13 @@ bool Tracker::ShouldAddNewKeyFrame()
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
-void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
+void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
 {
-  mbDraw = bDraw;
+  if (mnFrame == 0) {
+    InitTracking();
+  }
+
+  mbDraw = false;
   mMessageForUser.str("");   // Wipe the user message clean
 
   // Take the input video image, and convert it into the tracker's keyframe struct
@@ -348,79 +171,75 @@ void Tracker::TrackFrame(const Image<CVD::byte> &imFrame, bool bDraw)
   // From now on we only use the keyframe struct!
   mnFrame++;
 
-  if (!mbFreezeTracking) {
-    // Decide what to do - if there is a map, try to track the map ...
-    if(mnInitialStage == TRAIL_TRACKING_COMPLETE)
-    {
-      if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
-      {
-        gSBITimer.Start();
-        if(mbUseSBIInit) {
-          CalcSBIRotation();
-        }
-        gSBITimer.Stop();
+  // Decide what to do - if there is a map, try to track the map ...
+  if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
+  {
+    gSBITimer.Start();
+    if(mbUseSBIInit) {
+      CalcSBIRotation();
+    }
+    gSBITimer.Stop();
 
-        ApplyMotionModel();       //
+    ApplyMotionModel();       // 1.
 
-        gTrackTimer.Start();
-        TrackMap();               //  These three lines do the main tracking work.
-        gTrackTimer.Stop();
+    gTrackTimer.Start();
+    TrackMap();               // 2. These three lines do the main tracking work.
+    gTrackTimer.Stop();
 
-        UpdateMotionModel();      //
+    UpdateMotionModel();      // 3.
 
-        gTrackingQualityTimer.Start();
-        AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
-        gTrackingQualityTimer.Stop();
+    gTrackingQualityTimer.Start();
+    AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
+    gTrackingQualityTimer.Stop();
 
-        { // Provide some feedback for the user:
-          mMessageForUser << "Tracking Map, quality ";
-          if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
-          if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
-          if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
+    { // Provide some feedback for the user:
+      mMessageForUser << "Tracking Map, quality ";
+      if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
+      if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
+      if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
 
-          mMessageForUser << " F:";
-          for(int i=0; i<LEVELS; i++) {
-            mMessageForUser << "/" << maFastCornerBarriers[i];
-          }
-
-          mMessageForUser << " Found:";
-          for(int i=0; i<LEVELS; i++) {
-            mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
-          }
-          mMessageForUser << " Map " << mpMap->MapID() << ": "
-                          << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
-        }
-
-        // Heuristics to check if a key-frame should be added to the map:
-        if(ShouldAddNewKeyFrame()) {
-          mMessageForUser << " Adding key-frame.";
-          AddNewKeyFrame();
-        }
-
-        // Added some scale determing code here -- dhenell
-        //DetermineScaleFromMarker(imFrame);
-
-      } else {
-        // what if there is a map, but tracking has been lost?
-        cout << "Lost tracking..." << endl;
-        mMessageForUser << "** Attempting recovery **.";
-        if (AttemptRecovery()) {
-          TrackMap();
-          AssessTrackingQuality();
-        }
+      mMessageForUser << " F:";
+      for(int i=0; i<LEVELS; i++) {
+        mMessageForUser << "/" << maFastCornerBarriers[i];
       }
-    } else { // If there is no map, try to make one.
-      TrackForInitialMap();
+
+      mMessageForUser << " Found:";
+      for(int i=0; i<LEVELS; i++) {
+        mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
+      }
+      mMessageForUser << " Map " << mpMap->MapID() << ": "
+                      << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
+    }
+
+    // Heuristics to check if a key-frame should be added to the map:
+    if(ShouldAddNewKeyFrame()) {
+      mMessageForUser << " Adding key-frame.";
+      AddNewKeyFrame();
+    }
+
+  } else {
+    // what if there is a map, but tracking has been lost?
+    cout << "Lost tracking..." << endl;
+    mMessageForUser << "** Attempting recovery **.";
+    if (AttemptRecovery()) {
+      TrackMap();
+      AssessTrackingQuality();
     }
   }
+}
 
-  // GUI interface
-  while(!mvQueuedCommands.empty())
-  {
-    GUICommandHandler(mvQueuedCommands.begin()->sCommand, mvQueuedCommands.begin()->sParams);
-    mvQueuedCommands.erase(mvQueuedCommands.begin());
+void Tracker::GetDrawData(TrackerDrawData &drawData)
+{
+  drawData.bDidCoarse = mbDidCoarse;
+  drawData.se3CamFromWorld = mse3CamFromWorld;
+  drawData.vCorners = mCurrentKF.aLevels[0].GetCorners();
+
+  drawData.vMapPoints.clear();
+
+  for (auto it = mvIterationSet.begin(); it != mvIterationSet.end(); ++it) {
+    drawData.vMapPoints.emplace_back((*it)->nSearchLevel, (*it)->v2Image);
   }
-};
+}
 
 /**
  * Try to relocalise in case tracking was lost.
@@ -435,365 +254,15 @@ bool Tracker::AttemptRecovery()
 {
   cout << "AttemptRecovery..." << endl;
 
-  bool bRelocGood = mRelocaliser.AttemptRecovery( *mpMap, mCurrentKF );
+  bool bRelocGood = mpRelocaliser->AttemptRecovery( *mpMap, mCurrentKF );
   if(!bRelocGood)
     return false;
 
-  SE3<> se3Best = mRelocaliser.BestPose();
+  SE3<> se3Best = mpRelocaliser->BestPose();
   mse3CamFromWorld = mse3StartPos = se3Best;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = true;
   return true;
-}
-
-void Tracker::Draw()
-{
-  glDrawPixels(mCurrentKF.aLevels[0].im);
-
-  if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
-    DrawCorners();
-  }
-
-  if (mnInitialStage == TRAIL_TRACKING_COMPLETE) {
-
-    // Draw grid and time it
-    gDrawGridTimer.Start();
-    DrawGrid();
-    gDrawGridTimer.Stop();
-
-    // Draw all the matched map points
-    DrawMapPoints();
-
-  } else if (mnInitialStage == TRAIL_TRACKING_STARTED) {
-    DrawTrails();
-  }
-}
-
-void Tracker::DrawTrails() const
-{
-  glPointSize(5);
-  glLineWidth(2);
-  glEnable(GL_POINT_SMOOTH);
-  glEnable(GL_LINE_SMOOTH);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glEnable(GL_BLEND);
-
-  glBegin(GL_LINES);
-  for (auto i = mlTrails.begin(); i != mlTrails.end(); ++i) {
-    glColor3f(1,1,0);
-    glVertex(i->irInitialPos);
-    glColor3f(1,0,0);
-    glVertex(i->irCurrentPos);
-  }
-
-  glEnd();
-
-  glBegin(GL_POINTS);
-  for (auto it = mvDeadTrails.begin(); it != mvDeadTrails.end(); ++it) {
-    glColor3f(0.5,0.1,0.7);
-    glVertex(*it);
-  }
-  glEnd();
-}
-
-void Tracker::DrawCorners() const
-{
-  glColor3f(1,0,1);
-  glPointSize(1);
-  glBegin(GL_POINTS);
-  const std::vector<ImageRef> &vCorners = mCurrentKF.aLevels[0].GetCorners();
-  for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
-    glVertex(*c);
-  }
-  glEnd();
-}
-
-/**
- * Draw the reference grid to give the user an idea of wether tracking is OK or not.
- */
-void Tracker::DrawGrid()
-{
-  // The colour of the ref grid shows if the coarse stage of tracking was used
-  // (it's turned off when the camera is sitting still to reduce jitter.)
-  if(mbDidCoarse)
-    glColor4f(0.0f, 0.5f, 0.0f, 0.6f);
-  else
-    glColor4f(0.0f,0.0f,0.0f,0.6f);
-
-  // The grid is projected manually, i.e. GL receives projected 2D coords to draw.
-  int nHalfCells = 4;
-  int nTot = nHalfCells * 2 + 1;
-  Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
-  for(int i=0; i<nTot; i++)
-  {
-    for(int j=0; j<nTot; j++)
-    {
-      Vector<3> v3;
-      v3[0] = (i - nHalfCells) * 0.1;
-      v3[1] = (j - nHalfCells) * 0.1;
-      v3[2] = 0.0;
-      Vector<3> v3Cam = mse3CamFromWorld * v3;
-      if(v3Cam[2] < 0.001) {
-        v3Cam[2] = 0.001;
-      }
-      imVertices[i][j] = mCamera.Project(project(v3Cam));
-    }
-  }
-  //glEnable(GL_LINE_SMOOTH);
-  //glEnable(GL_BLEND);
-  glDisable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glLineWidth(1);
-  for(int i=0; i<nTot; i++)
-  {
-    glBegin(GL_LINE_STRIP);
-    for(int j=0; j<nTot; j++)
-      glVertex(imVertices[i][j]);
-    glEnd();
-
-    glBegin(GL_LINE_STRIP);
-    for(int j=0; j<nTot; j++)
-      glVertex(imVertices[j][i]);
-    glEnd();
-  }
-
-  glLineWidth(1);
-  glColor3f(1,0,0);
-}
-
-
-/**
- * GUI interface. Stuff commands onto the back of a queue so the tracker handles
- * them in its own thread at the end of each frame. Note the charming lack of
- * any thread safety (no lock on mvQueuedCommands).
- * @param ptr object pointer
- * @param sCommand command string
- * @param sParams parameter string
- */
-void Tracker::GUICommandCallBack(void* ptr, string sCommand, string sParams)
-{
-  Command c;
-  c.sCommand = sCommand;
-  c.sParams = sParams;
-  ((Tracker*) ptr)->mvQueuedCommands.push_back(c);
-}
-
-
-/**
- * This is called in the tracker's own thread.
- * @param sCommand command string
- * @param sParams  parameter string
- */
-void Tracker::GUICommandHandler(const string& sCommand, const string& sParams)  // Called by the callback func..
-{
-  if(sCommand=="Reset")
-  {
-    Reset();
-    return;
-  }
-  else if((sCommand=="PokeTracker"))
-  {
-    mbUserPressedSpacebar = true;
-    return;
-  }
-
-  cout << "! Tracker::GUICommandHandler: unhandled command "<< sCommand << endl;
-  exit(1);
-}
-
-
-/**
- * Handle a key press command
- * This is a change from PTAM to enable games to use keys
- * @param sKey the key pressed
- * @return true if the key was used.
- */
-bool Tracker::HandleKeyPress( const string& sKey )
-{
-  // KeyPress commands are issued by GLWindow, and passed to Tracker via System
-  if(sKey == "Space")
-  {
-    mbUserPressedSpacebar = true;
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Routine for establishing the initial map. This requires two spacebar presses from the user
- * to define the first two key-frames. Salient points are tracked between the two keyframes
- * using cheap frame-to-frame tracking (which is very brittle - quick camera motion will
- * break it.) The salient points are stored in a list of `Trail' data structures.
- * What action TrackForInitialMap() takes depends on the mnInitialStage enum variable..
- */
-void Tracker::TrackForInitialMap()
-{
-  // MiniPatch tracking threshhold.
-  static gvar3<int> gvnMaxSSD("Tracker.MiniPatchMaxSSD", 100000, SILENT);
-  MiniPatch::mnMaxSSD = *gvnMaxSSD;
-
-  // What stage of initial tracking are we at?
-  if(mnInitialStage == TRAIL_TRACKING_NOT_STARTED)
-  {
-    if(mbUserPressedSpacebar)  // First spacebar = this is the first keyframe
-    {
-      mbUserPressedSpacebar = false;
-      TrailTracking_Start();
-      mnInitialStage = TRAIL_TRACKING_STARTED;
-    }
-    else
-    {
-      mMessageForUser << "Point camera at planar scene and press spacebar to start tracking for initial map.";
-    }
-    return;
-  }
-
-  if(mnInitialStage == TRAIL_TRACKING_STARTED)
-  {
-    int nGoodTrails = TrailTracking_Advance();  // This call actually tracks the trails
-    if(nGoodTrails < 10) // if most trails have been wiped out, no point continuing.
-    {
-      Reset();
-      return;
-    }
-
-    // If the user pressed spacebar here, use trails to run stereo and make the intial map..
-    if(mbUserPressedSpacebar)
-    {
-      mbUserPressedSpacebar = false;
-      vector<pair<ImageRef, ImageRef> > vMatches;   // This is the format the mapmaker wants for the stereo pairs
-      for(list<Trail>::iterator i = mlTrails.begin(); i!=mlTrails.end(); ++i)
-        vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
-
-      mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
-      mnInitialStage = WAITING_FOR_STEREO_INIT;
-    }
-    else
-    {
-      mMessageForUser << "Translate the camera slowly sideways, and press spacebar again to perform stereo init.";
-    }
-  }
-
-  if(mnInitialStage == WAITING_FOR_STEREO_INIT) {
-    if (mMapMaker.StereoInitDone()) {
-      if (mpMap->IsGood()) {
-        mnInitialStage = TRAIL_TRACKING_COMPLETE;
-        cout << "Stereo init done, attempting to relocate..." << endl;
-        AttemptRecovery();
-      } else {
-        Reset();
-      }
-    } else {
-      // Give the user some feedback
-      mMessageForUser << "Waiting for stereo initialization...";
-    }
-  }
-}
-
-void Tracker::SampleTrailPatches(const ImageRef &start, const ImageRef &size, int nFeaturesToAdd)
-{
-  vector<pair<double,ImageRef> > vCornersAndSTScores;
-  const std::vector<Candidate>& vCandidates = mCurrentKF.aLevels[0].GetCandidates();
-  for (auto c = vCandidates.begin(); c != vCandidates.end(); ++c)  // Copy candidates into a trivially sortable vector
-  {                                                                // so that we can choose the image corners with max ST score
-    if (!PointInsideRect(c->irLevelPos, start, size)) {
-      continue;
-    }
-    if(!mCurrentKF.aLevels[0].im.in_image_with_border(c->irLevelPos, MiniPatch::mnHalfPatchSize)) {
-      continue;
-    }
-    vCornersAndSTScores.emplace_back(-1.0 * c->dSTScore, c->irLevelPos); // negative so highest score first in sorted list
-  }
-
-  sort(vCornersAndSTScores.begin(), vCornersAndSTScores.end());  // Sort according to Shi-Tomasi score
-
-  for(size_t i = 0; i<vCornersAndSTScores.size() && nFeaturesToAdd > 0; i++) {
-    Trail t;
-    t.mPatch.SampleFromImage(vCornersAndSTScores[i].second, mCurrentKF.aLevels[0].im);
-    t.irInitialPos = vCornersAndSTScores[i].second;
-    t.irCurrentPos = t.irInitialPos;
-    mlTrails.push_back(t);
-    nFeaturesToAdd--;
-  }
-}
-
-/**
- * The current frame is to be the first keyframe!
- */
-void Tracker::TrailTracking_Start()
-{
-  mCurrentKF.MakeKeyFrame_Rest();  // This populates the Candidates list, which is Shi-Tomasi thresholded.
-  mFirstKF = mCurrentKF;
-
-  mvDeadTrails.clear();
-
-  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
-
-  const int CELL_WIDTH = 64;//128;
-  const int CELL_HEIGHT = 60;//120;
-
-  int cellCols = mCurrentKF.aLevels[0].im.size().x / CELL_WIDTH;
-  int cellRows = mCurrentKF.aLevels[0].im.size().y / CELL_HEIGHT;
-
-  int nFeaturesToAddPerCell = nToAdd / (cellCols * cellRows);
-
-  mlTrails.clear();
-
-  for (int y = 0; y < cellRows; ++y) {
-    for (int x = 0; x < cellCols; ++x) {
-      SampleTrailPatches(ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
-                         ImageRef(CELL_WIDTH, CELL_HEIGHT),
-                         nFeaturesToAddPerCell);
-    }
-  }
-
-  mPreviousFrameKF = mFirstKF;  // Always store the previous frame so married-matching can work.
-}
-
-/**
- * Steady-state trail tracking: Advance from the previous frame, remove duds.
- * @return number of good trails
- */
-int Tracker::TrailTracking_Advance()
-{
-  int nGoodTrails = 0;
-
-  MiniPatch BackwardsPatch;
-  Level &lCurrentFrame = mCurrentKF.aLevels[0];
-  Level &lPreviousFrame = mPreviousFrameKF.aLevels[0];
-
-  for (auto i = mlTrails.begin(); i != mlTrails.end(); ) {
-
-    list<Trail>::iterator next = i; next++;
-
-    Trail &trail = *i;
-    ImageRef irStart = trail.irCurrentPos;
-    ImageRef irEnd = irStart;
-    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.GetCorners());
-    if(bFound)
-    {
-      // Also find backwards in a married-matches check
-      BackwardsPatch.SampleFromImage(irEnd, lCurrentFrame.im);
-      ImageRef irBackWardsFound = irEnd;
-      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.GetCorners());
-      if((irBackWardsFound - irStart).mag_squared() > 2)
-        bFound = false;
-
-      trail.irCurrentPos = irEnd;
-      nGoodTrails++;
-    }
-
-    if(!bFound) // Erase from list of trails if not found this frame.
-    {
-      mvDeadTrails.push_back(i->irInitialPos);
-      mlTrails.erase(i);
-    }
-    i = next;
-  }
-
-  mPreviousFrameKF = mCurrentKF;
-  return nGoodTrails;
 }
 
 void Tracker::FindPVS(vector<TrackerData*> avPVS[])
@@ -1103,17 +572,6 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
   }
 }
 
-void Tracker::DrawMapPoints() const
-{
-  glPointSize(3);
-  glDisable(GL_BLEND);
-  glBegin(GL_POINTS);
-  for(auto it = mvIterationSet.begin(); it != mvIterationSet.end(); ++it) {
-    glColor(gavLevelColors[(*it)->nSearchLevel]);
-    glVertex((*it)->v2Image);
-  }
-  glEnd();
-}
 
 /**
  * TrackMap is the main purpose of the Tracker.
@@ -1255,12 +713,11 @@ Vector<6> Tracker::CalcPoseUpdate(vector<TrackerData*>& vTD, double dOverrideSig
   // Find the covariance-scaled reprojection error for each measurement.
   // Also, store the square of these quantities for M-Estimator sigma squared estimation.
   vector<double> vdErrorSquared;
-  for(unsigned int f=0; f<vTD.size(); f++)
-  {
+  for(unsigned int f=0; f<vTD.size(); f++) {
     TrackerData &TD = *vTD[f];
     TD.v2Error_CovScaled = TD.dSqrtInvNoise* (TD.v2Found - TD.v2Image);
     vdErrorSquared.push_back(TD.v2Error_CovScaled * TD.v2Error_CovScaled);
-  };
+  }
 
   // No valid measurements? Return null update.
   if(vdErrorSquared.size() == 0)
@@ -1338,7 +795,7 @@ void Tracker::ApplyMotionModel()
     v6Velocity[1] = 0.0;
   }
   mse3CamFromWorld = SE3<>::exp(v6Velocity) * mse3StartPos;
-};
+}
 
 /**
  * The motion model is entirely the tracker's, and is kept as a decaying
@@ -1360,7 +817,6 @@ void Tracker::UpdateMotionModel()
   v6.slice<0,3>() *= 1.0 / mCurrentKF.dSceneDepthMean;
   mdMSDScaledVelocityMagnitude = sqrt(v6*v6);
 }
-
 
 /**
  * Time to add a new keyframe? The MapMaker handles most of this.
@@ -1477,7 +933,7 @@ bool Tracker::SwitchMap(Map *map)
   }
 
   //set variables
-  SE3<> se3Best = mRelocaliser.BestPose();
+  SE3<> se3Best = mpRelocaliser->BestPose();
   mse3CamFromWorld = mse3StartPos = se3Best;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = true;
@@ -1487,7 +943,6 @@ bool Tracker::SwitchMap(Map *map)
 
   return true;
 }
-
 
 /**
  * Re initialize the map.
@@ -1504,8 +959,6 @@ void Tracker::SetNewMap(Map * map)
 
   mpMap = map;
 }
-
-
 
 
 ImageRef TrackerData::irImageSize;  // Static member of TrackerData lives here

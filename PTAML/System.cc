@@ -10,6 +10,10 @@
 #include "FPSCounter.h"
 #include "Timing.h"
 #include "MikroKopter.h"
+#include "Frontend.h"
+#include "InitialTracker.h"
+#include "ScaleMarkerTracker.h"
+#include "LevelHelpers.h"
 
 #include <gvars3/GStringUtil.h>
 #include <cvd/image_io.h>
@@ -19,6 +23,7 @@
 #include <fstream>
 #include <functional>
 #include <thread>
+#include <stdexcept>
 
 #ifdef _LINUX
 #   include <fcntl.h>
@@ -89,66 +94,215 @@ bool GetSingleParam(int &nAnswer, string sCommand, string sParams)
   return false;
 }
 
+class FrontendRenderer {
+  public:
+    FrontendRenderer(const ATANCamera &camera, const FrontendDrawData &drawData)
+      : mDrawData(drawData)
+      , mCamera(camera)
+      , mse3CamFromWorld(drawData.tracker.se3CamFromWorld)
+    {
+    }
+
+    void Draw();
+
+  private:
+    Vector<2> ProjectPoint(const Vector<3> &v3Point);
+    void DrawTrails(const std::vector<std::pair<CVD::ImageRef, CVD::ImageRef>> &vTrails,
+                    const std::vector<CVD::ImageRef> &vDeadTrails);
+
+    void DrawCorners(const std::vector<CVD::ImageRef> &vCorners);
+    void DrawGrid(bool bDidCoarse);
+    void DrawMapPoints(const std::vector<std::pair<int, TooN::Vector<2> >> &vMapPoints);
+    void DrawMarkerPose(const SE3<> &se3WorldFromNormWorld);
+
+  private:
+    const FrontendDrawData &mDrawData;
+    ATANCamera mCamera;
+    const SE3<> &mse3CamFromWorld;
+};
+
+Vector<2> FrontendRenderer::ProjectPoint(const Vector<3> &v3Point)
+{
+  Vector<3> v3Cam = mse3CamFromWorld * v3Point;
+
+  if(v3Cam[2] < 0.001) {
+    v3Cam[2] = 0.001;
+  }
+
+  return mCamera.Project(project(v3Cam));
+}
+
+void FrontendRenderer::DrawTrails(const std::vector<std::pair<CVD::ImageRef, CVD::ImageRef>> &vTrails,
+                                  const std::vector<CVD::ImageRef> &vDeadTrails)
+{
+  glPointSize(5);
+  glLineWidth(2);
+  glEnable(GL_POINT_SMOOTH);
+  glEnable(GL_LINE_SMOOTH);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_BLEND);
+
+  glBegin(GL_LINES);
+  for (auto i = vTrails.begin(); i != vTrails.end(); ++i) {
+    glColor3f(1,1,0);
+    glVertex(i->first);
+    glColor3f(1,0,0);
+    glVertex(i->second);
+  }
+  glEnd();
+
+  glBegin(GL_POINTS);
+  for (auto it = vDeadTrails.begin(); it != vDeadTrails.end(); ++it) {
+    glColor3f(0.5,0.1,0.7);
+    glVertex(*it);
+  }
+  glEnd();
+}
+
+void FrontendRenderer::DrawCorners(const std::vector<CVD::ImageRef> &vCorners)
+{
+  glColor3f(1,0,1);
+  glPointSize(1);
+  glBegin(GL_POINTS);
+  for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
+    glVertex(*c);
+  }
+  glEnd();
+}
+
+void FrontendRenderer::DrawGrid(bool bDidCoarse)
+{
+  // The colour of the ref grid shows if the coarse stage of tracking was used
+  // (it's turned off when the camera is sitting still to reduce jitter.)
+  if (bDidCoarse) {
+    glColor4f(0.0f, 0.5f, 0.0f, 0.6f);
+  } else {
+    glColor4f(0.0f,0.0f,0.0f,0.6f);
+  }
+
+  // The grid is projected manually, i.e. GL receives projected 2D coords to draw.
+  int nHalfCells = 4;
+  int nTot = nHalfCells * 2 + 1;
+  Image<Vector<2> >  imVertices(ImageRef(nTot,nTot));
+  for(int i=0; i<nTot; i++)
+  {
+    for(int j=0; j<nTot; j++)
+    {
+      Vector<3> v3;
+      v3[0] = (i - nHalfCells) * 0.1;
+      v3[1] = (j - nHalfCells) * 0.1;
+      v3[2] = 0.0;
+      imVertices[i][j] = ProjectPoint(v3);
+    }
+  }
+
+  //glEnable(GL_LINE_SMOOTH);
+  //glEnable(GL_BLEND);
+  glDisable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glLineWidth(1);
+  for(int i=0; i<nTot; i++)
+  {
+    glBegin(GL_LINE_STRIP);
+    for(int j=0; j<nTot; j++)
+      glVertex(imVertices[i][j]);
+    glEnd();
+
+    glBegin(GL_LINE_STRIP);
+    for(int j=0; j<nTot; j++)
+      glVertex(imVertices[j][i]);
+    glEnd();
+  }
+
+  glLineWidth(1);
+  glColor3f(1,0,0);
+}
+
+void FrontendRenderer::DrawMapPoints(const std::vector<std::pair<int, TooN::Vector<2>>> &vMapPoints)
+{
+  glPointSize(3);
+  glDisable(GL_BLEND);
+  glBegin(GL_POINTS);
+  for(auto it = vMapPoints.begin(); it != vMapPoints.end(); ++it) {
+    glColor(gavLevelColors[it->first]);
+    glVertex(it->second);
+  }
+  glEnd();
+}
+
+void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
+{
+  glEnable(GL_LINE_SMOOTH);
+  glDisable(GL_BLEND);
+  glLineWidth(2);
+  glPointSize(15);
+
+  glBegin(GL_POINTS);
+    glColor3f(0,1,1);
+    glVertex(ProjectPoint(se3WorldFromNormWorld.get_translation()));
+  glEnd();
+
+  Vector<3> wo2 = se3WorldFromNormWorld * makeVector(0, 0, 0);
+  Vector<3> wx2 = se3WorldFromNormWorld * makeVector(8, 0, 0);
+  Vector<3> wy2 = se3WorldFromNormWorld * makeVector(0, 8, 0);
+  Vector<3> wz2 = se3WorldFromNormWorld * makeVector(0, 0, 8);
+
+  std::vector<Vector<3> > pts;
+
+  pts.push_back(wo2); pts.push_back(wx2);
+  pts.push_back(wo2); pts.push_back(wy2);
+  pts.push_back(wo2); pts.push_back(wz2);
+
+  glBegin(GL_LINES);
+
+  std::vector<Vector<2> > screenPts;
+  for (auto it = pts.begin(); it != pts.end(); ++it) {
+    glColor3f(1,0,0);
+    glVertex(ProjectPoint(*it));
+  }
+
+  glEnd();
+
+  glLineWidth(1);
+  glPointSize(1);
+}
+
+void FrontendRenderer::Draw()
+{
+  glDrawPixels(mDrawData.imFrame);
+
+  if (mDrawData.bInitialTracking) {
+    if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
+      DrawCorners(mDrawData.initialTracker.vCorners);
+    }
+
+    DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
+  } else {
+    if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
+      DrawCorners(mDrawData.tracker.vCorners);
+    }
+
+    // Draw grid and time it
+    DrawGrid(mDrawData.tracker.bDidCoarse);
+    // Draw all the matched map points
+    DrawMapPoints(mDrawData.tracker.vMapPoints);
+  }
+}
+
 
 System::System(VideoSource* videoSource)
   : mGLWindow(videoSource->Size(), "PTAML")
   , mVideoSource(videoSource)
-  , mbFreezeVideo(false)
   , mbDone(false)
+  , mbDisableRendering(false)
 {
-  GV3::Register(mgvnLockMap, "LockMap", 0, SILENT);
-  GV3::Register(mgvnDrawMapInfo, "MapInfo", 0, SILENT);
-  GV3::Register(mgvnDisableRendering, "DisableRendering", 0, SILENT);
-
-#ifdef _LINUX
-  GV3::Register(mgvnSaveFIFO, "SaveFIFO", 0, SILENT);
-  GV3::Register(mgvnBitrate, "Bitrate", 15000, SILENT);
-#endif
-
-  ImageRef irVideoSize = videoSource->Size();
-
-  mimFrameBW.resize(irVideoSize);
-  mimFrameRGB.resize(irVideoSize);
-
-  // First, check if the camera is calibrated.
-  // If not, we need to run the calibration widget.
-  Vector<NUMTRACKERCAMPARAMETERS> vTest;
-  vTest = GV3::get<Vector<NUMTRACKERCAMPARAMETERS> >("Camera.Parameters", ATANCamera::mvDefaultParams, HIDDEN);
-  if(vTest == ATANCamera::mvDefaultParams) {
-    cout << endl;
-    cout << "! Camera.Parameters is not set, need to run the CameraCalibrator tool" << endl;
-    cout << "  and/or put the Camera.Parameters= line into the appropriate .cfg file." << endl;
-    exit(1);
-  }
-
-  mpCamera = new ATANCamera("Camera");
-  mpCamera->SetImageSize(irVideoSize);
-
-  if (!mARTracker.Init(irVideoSize)) {
-    cout << "Failed to init AR toolkit." << std::endl;
-    exit(1);
-  }
-
-  //create the first map
-  mpMap = new Map();
-  mvpMaps.push_back( mpMap );
-  mpMap->mapLockManager.Register(this);
-
-  // Create all the sub-systems
-  mpMapMaker = new MapMaker(mvpMaps, mpMap);
-  mpTracker = new Tracker(irVideoSize, *mpCamera, mvpMaps, mpMap, *mpMapMaker, mARTracker);
-  mpARDriver = new ARDriver(*mpCamera, irVideoSize, mGLWindow, *mpMap);
-  mpMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
-  mpMapSerializer = new MapSerializer(mvpMaps);
-  mpMikroKopter = new MikroKopter();
+  // Create the on-screen menu and register all the commands
+  CreateMenu();
 
   mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
   if (!mCoordinateLogFile) {
     cerr << "Failed to open coordinates.txt" << endl;
   }
-
-  // Create the on-screen menu and register all the commands
-  CreateMenu();
 
   // Force the program to run on CPU0
   /*
@@ -242,74 +396,95 @@ void System::CreateMenu()
   GUI.ParseLine("HelicopterMenu.AddMenuButton Root \"Position Hold\" PositionHold Root");
 }
 
+void System::CreateModules()
+{
+  ImageRef irVideoSize = mVideoSource->Size();
+
+  // First, check if the camera is calibrated.
+  // If not, we need to run the calibration widget.
+  Vector<NUMTRACKERCAMPARAMETERS> vTest;
+  vTest = GV3::get<Vector<NUMTRACKERCAMPARAMETERS> >("Camera.Parameters", ATANCamera::mvDefaultParams, HIDDEN);
+  if(vTest == ATANCamera::mvDefaultParams) {
+    cerr << endl;
+    cerr << "! Camera.Parameters is not set, need to run the CameraCalibrator tool" << endl;
+    cerr << "  and/or put the Camera.Parameters= line into the appropriate .cfg file." << endl;
+    throw std::runtime_error("Missing camera parameters");
+  }
+
+  mModules.pCamera = new ATANCamera("Camera");
+  mModules.pCamera->SetImageSize(irVideoSize);
+
+  if (!mARTracker.Init(irVideoSize)) {
+    cerr << "Failed to init AR toolkit." << std::endl;
+    throw std::runtime_error("Failed to init AR toolkit");
+  }
+
+  //create the first map
+  mpMap = new Map();
+  mvpMaps.push_back( mpMap );
+  mpMap->mapLockManager.Register(this);
+
+  // Create all the sub-systems
+  mModules.pMapMaker = new MapMaker(mvpMaps, mpMap);
+  mModules.pRelocaliser = new Relocaliser(mvpMaps, *mModules.pCamera);
+  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker, mModules.pRelocaliser);
+  mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker);
+  mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
+  mModules.pMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
+  mModules.pMapSerializer = new MapSerializer(mvpMaps);
+
+  mModules.pFrontend = new Frontend(mVideoSource, *mModules.pCamera,
+                                    mModules.pInitialTracker,
+                                    mModules.pTracker,
+                                    mModules.pScaleMarkerTracker);
+
+
+}
+
 /**
  * Run the main system thread.
  * This handles the tracker and the map viewer.
  */
 void System::Run()
 {
-  using namespace std::chrono;
+  static gvar3<int> gvnLockMap("LockMap", 0, HIDDEN|SILENT);
+  static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
 
-  bool bWriteCoordinatesLog = GV3::get<int>("Debug.OutputWorldCoordinates", 0, SILENT);
+  CreateModules();
+
+  // Start threads
+  std::thread frontendThread(std::ref(*mModules.pFrontend));
 
   FPSCounter fpsCounter;
-  auto startTime = high_resolution_clock::now();
-  bool bSaveFrame = false;
+  StopWatch stopWatch;
+  stopWatch.Start();
 
   while(!mbDone)
   {
     //Check if the map has been locked by another thread, and wait for release.
-    bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
+    //bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
 
     gFrameTimer.Start();
 
-    /* This is a rather hacky way of getting this feedback,
-       but GVars cannot be assigned to different variables
-       and each map has its own edit lock bool.
-       A button could be used instead, but the visual
-       feedback would not be as obvious.
-    */
-    mpMap->bEditLocked = *mgvnLockMap; //sync up the maps edit lock with the gvar bool.
+    mpMap->bEditLocked = *gvnLockMap; //sync up the maps edit lock with the gvar bool.
 
-    // Grab new video frame...
-    if (!mbFreezeVideo) {
-      // We use two versions of each video frame:
-      // One black and white (for processing by the tracker etc)
-      // and one RGB, for drawing.
+    if (!mbDisableRendering) {
+      Draw();
 
-      gVideoSourceTimer.Start();
-      mVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
-      gVideoSourceTimer.Stop();
-
-      bSaveFrame = true;
-    } else if (bSaveFrame) {
-      img_save<CVD::byte>(mimFrameBW, "freeze.png");
-      bSaveFrame = false;
+#ifdef _LINUX
+      static gvar3<int> gvnSaveFIFO("SaveFIFO", 0, HIDDEN|SILENT);
+      if(*gvnSaveFIFO) {
+        SaveFIFO();
+      }
+#endif
     }
 
-    if (bWasLocked) {
-      mpTracker->ForceRecovery();
-    }
+    const Tracker* pTracker = mModules.pTracker;
 
-    gTrackFullTimer.Start();
-    mpTracker->TrackFrame(mimFrameBW, false);
-    gTrackFullTimer.Stop();
+    mMikroKopter.Update(pTracker->GetCurrentPose(), !pTracker->IsLost());
 
-    if (!*mgvnDisableRendering) {
-      static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
-      bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
-
-      // Additional rendering goes here
-      gDrawUITimer.Start();
-      Draw(bDrawMap);
-      gDrawUITimer.Stop();
-    }
-
-    mpMikroKopter->Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
-
-    if (bWriteCoordinatesLog) {
-      duration<double> elapsedTime = high_resolution_clock::now() - startTime;
-      mCoordinateLogFile << elapsedTime.count() << " " << mpTracker->RealWorldCoordinate() << endl;
+    if (*gvnOutputWorldCoordinates) {
+      mCoordinateLogFile << stopWatch.Elapsed() << " " << pTracker->RealWorldCoordinate() << endl;
     }
 
     mGLWindow.HandlePendingEvents();
@@ -322,81 +497,10 @@ void System::Run()
 
     gFrameTimer.Stop();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
 
-void System::Draw(bool bDrawMap)
-{
-  mGLWindow.SetupViewport();
-  mGLWindow.SetupVideoOrtho();
-  mGLWindow.SetupVideoRasterPosAndZoom();
-
-  if(bDrawMap) {
-    mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
-  } else {
-    mpTracker->Draw();
-  }
-
-  if(*mgvnDrawMapInfo) {
-    DrawMapInfo();
-  }
-
-  static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
-  if (*gvnDrawMkDebugOutput) {
-    stringstream ss;
-    /*
-    ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
-       << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
-       << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
-       << "VY: " << mPositionHold.GetVelocityFiltered()[1];
-       */
-
-    ss << "Frame: " << gFrameTimer.Milliseconds() << endl
-       << "Video: " << gVideoSourceTimer.Milliseconds() << endl
-       << "Feature: " << gFeatureTimer.Milliseconds() << endl
-       << "PVS: " << gPvsTimer.Milliseconds() << endl
-       << "Coarse: " << gCoarseTimer.Milliseconds() << endl
-       << "Fine: " << gFineTimer.Milliseconds() << endl
-       << "Track: " << gTrackTimer.Milliseconds() << endl
-       << "FullTrack: " << gTrackFullTimer.Milliseconds() << endl
-       //<< "SBI Init: " << gSBIInitTimer.Milliseconds() << endl
-       //<< "SBI: " << gSBITimer.Milliseconds() << endl
-       //<< "TrackQ: " << gTrackingQualityTimer.Milliseconds() << endl
-       //<< "Grid: " << gDrawGridTimer.Milliseconds() << endl
-       << "UI: " << gDrawUITimer.Milliseconds() << endl;
-       //<< "GLSwap: " << gGLSwapTimer.Milliseconds() << endl;
-
-
-    for (int i = 0; i < LEVELS; ++i) {
-      //ss << g_nNumFeaturesFound[i] << endl;
-    }
-
-    mGLWindow.DrawDebugOutput(ss.str());
-  }
-
-  string sCaption;
-  if(bDrawMap) {
-    sCaption = mpMapViewer->GetMessageForUser();
-  }
-  else {
-    sCaption = mpTracker->GetMessageForUser();
-  }
-
-  mGLWindow.DrawCaption(sCaption);
-  mGLWindow.DrawMenus();
-
-#ifdef _LINUX
-  if( *mgvnSaveFIFO )
-  {
-    SaveFIFO();
-  }
-#endif
-
-  gGLSwapTimer.Start();
-  mGLWindow.swap_buffers();
-  gGLSwapTimer.Stop();
-}
 
 /**
  * Parse commands sent via the GVars command system.
@@ -407,53 +511,57 @@ void System::Draw(bool bDrawMap)
 void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
 {
   System* pSystem = static_cast<System*>(ptr);
+  pSystem->GUICommandCallBack(sCommand, sParams);
+}
 
+void System::GUICommandCallBack(const string &sCommand, const string &sParams)
+{
   if( sCommand=="quit" || sCommand == "exit" ) {
-    pSystem->Quit();
+    Quit();
   }
   else if( sCommand == "SwitchMap" ) {
     int nMapNum = -1;
     if( GetSingleParam(nMapNum, sCommand, sParams) ) {
-      pSystem->SwitchMap( nMapNum );
+      SwitchMap( nMapNum );
     }
   }
   else if(sCommand == "Realign") {
-    pSystem->mpMapMaker->RequestRealignment();
+    mModules.pMapMaker->RequestRealignment();
   }
   else if(sCommand == "ResetAll") {
-    pSystem->ResetAll();
+    ResetAll();
   }
   else if( sCommand == "NewMap") {
-    pSystem->NewMap();
+    NewMap();
   }
   else if( sCommand == "DeleteMap") {
     int nMapNum = -1;
     if( sParams.empty() ) {
-      pSystem->DeleteMap( pSystem->mpMap->MapID() );
+      DeleteMap( mpMap->MapID() );
     } else if ( GetSingleParam(nMapNum, sCommand, sParams) ) {
-      pSystem->DeleteMap( nMapNum );
+      DeleteMap( nMapNum );
     }
   }
   else if( sCommand == "NextMap")  {
-    pSystem->mpMapViewer->ViewNextMap();
+    mModules.pMapViewer->ViewNextMap();
   }
   else if( sCommand == "PrevMap")  {
-    pSystem->mpMapViewer->ViewPrevMap();
+    mModules.pMapViewer->ViewPrevMap();
   }
   else if( sCommand == "CurrentMap")  {
-    pSystem->mpMapViewer->ViewCurrentMap();
+    mModules.pMapViewer->ViewCurrentMap();
   }
   else if( sCommand == "SaveMap" || sCommand == "SaveMaps" || sCommand == "LoadMap")  {
-    pSystem->StartMapSerialization( sCommand, sParams );
+    StartMapSerialization( sCommand, sParams );
   }
   else if( sCommand == "PositionHold")  {
-    pSystem->PositionHold();
+    PositionHold();
   }
   else if( sCommand == "AddWaypoint")  {
-    pSystem->AddWaypoint();
+    AddWaypoint();
   }
   else if( sCommand == "ClearWaypoints")  {
-    pSystem->ClearWaypoints();
+    ClearWaypoints();
   }
   else if( sCommand == "Mouse.Click" ) {
     vector<string> vs = ChopAndUnquoteString(sParams);
@@ -466,25 +574,25 @@ void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
     ImageRef irWin;
     is >> nButton >> irWin.x >> irWin.y;
 
-    pSystem->HandleClick(nButton, irWin);
+    HandleClick(nButton, irWin);
   }
   else if( sCommand == "KeyPress" )
   {
     if(sParams == "g") {
-      pSystem->ToggleDisableRendering();
+      mbDisableRendering = !mbDisableRendering;
     }
     else if(sParams == "q" || sParams == "Escape") {
       GUI.ParseLine("quit");
     }
     else if(sParams == "r") {
-      pSystem->mpTracker->Reset();
+      mModules.pFrontend->monitor.PushUserResetInvoke();
     }
     else if(sParams == "Space") {
-      // TODO: Remove the HandleKeyPress function
-      pSystem->mpTracker->HandleKeyPress( sParams );
+      mModules.pFrontend->monitor.PushUserInvoke();
     }
     else if(sParams == "f") {
-      pSystem->mbFreezeVideo = !pSystem->mbFreezeVideo;
+      // TODO: Create a "VideoGrabber" class and add this as a function call
+      //mbFreezeVideo = !mbFreezeVideo;
     }
   }
 }
@@ -495,14 +603,17 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
   if (*gvnEnableMouseControl) {
 
     Vector<3> v3PointOnPlane;
-    if (mpTracker->PickPointOnGround(makeVector(irWin.x, irWin.y), v3PointOnPlane)) {
+
+    /*
+    if (PickPointOnGround(makeVector(irWin.x, irWin.y), v3PointOnPlane)) {
       // Set the targets Z value same as the current positions
-      v3PointOnPlane[2] = mpTracker->GetCurrentPose().inverse().get_translation()[2];
+      v3PointOnPlane[2] = mModules.pTracker->GetCurrentPose().inverse().get_translation()[2];
 
       SE3<> se3TargetPose;
       se3TargetPose.get_translation() = v3PointOnPlane;
-      mpMikroKopter->GoToPosition(se3TargetPose);
+      mMikroKopter.GoToPosition(se3TargetPose);
     }
+    */
   }
 }
 
@@ -515,7 +626,6 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
  */
 bool System::SwitchMap( int nMapNum, bool bForce )
 {
-
   //same map, do nothing. This should not actually occur
   if(mpMap->MapID() == nMapNum) {
     return true;
@@ -538,8 +648,7 @@ bool System::SwitchMap( int nMapNum, bool bForce )
     }
   }
 
-  if(mpMap->MapID() != nMapNum)
-  {
+  if (mpMap->MapID() != nMapNum) {
     cerr << "Failed to switch to " << nMapNum << ". Does not exist." << endl;
     return false;
   }
@@ -553,15 +662,12 @@ bool System::SwitchMap( int nMapNum, bool bForce )
       System,Tracker, and MapViewer are all in this thread.
   */
 
-  *mgvnLockMap = mpMap->bEditLocked;
-
-
   //update the map maker thread
-  if( !mpMapMaker->RequestSwitch( mpMap ) ) {
+  if (!mModules.pMapMaker->RequestSwitch(mpMap)) {
     return false;
   }
 
-  while( !mpMapMaker->SwitchDone() ) {
+  while (!mModules.pMapMaker->SwitchDone()) {
 #ifdef WIN32
     Sleep(1);
 #else
@@ -570,13 +676,9 @@ bool System::SwitchMap( int nMapNum, bool bForce )
   }
 
   //update the map viewer object
-  mpMapViewer->SwitchMap(mpMap, bForce);
+  mModules.pMapViewer->SwitchMap(mpMap, bForce);
 
-  //update the tracker object
-//   mpARDriver->Reset();
-  mpARDriver->SetCurrentMap( *mpMap );
-
-  if( !mpTracker->SwitchMap( mpMap ) ) {
+  if (!mModules.pTracker->SwitchMap(mpMap)) {
     return false;
   }
 
@@ -591,15 +693,14 @@ bool System::SwitchMap( int nMapNum, bool bForce )
  */
 void System::NewMap()
 {
-  *mgvnLockMap = false;
   mpMap->mapLockManager.UnRegister( this );
   mpMap = new Map();
   mpMap->mapLockManager.Register( this );
   mvpMaps.push_back( mpMap );
 
   //update the map maker thread
-  mpMapMaker->RequestReInit( mpMap );
-  while( !mpMapMaker->ReInitDone() ) {
+  mModules.pMapMaker->RequestReInit( mpMap );
+  while (!mModules.pMapMaker->ReInitDone()) {
 #ifdef WIN32
     Sleep(1);
 #else
@@ -608,12 +709,10 @@ void System::NewMap()
   }
 
   //update the map viewer object
-  mpMapViewer->SwitchMap(mpMap);
+  mModules.pMapViewer->SwitchMap(mpMap);
 
   //update the tracker object
-  mpARDriver->SetCurrentMap( *mpMap);
-  mpARDriver->Reset();
-  mpTracker->SetNewMap( mpMap );
+  mModules.pTracker->SetNewMap( mpMap );
 
   cout << "New map created (" << mpMap->MapID() << ")" << endl;
 }
@@ -637,7 +736,7 @@ void System::ResetAll()
   mpMap->bEditLocked = false;
 
   //reset map.
-  mpTracker->Reset();
+  mModules.pTracker->Reset();
 
   //lock and delete all remaining maps
   while( mvpMaps.size() > 1 )
@@ -705,30 +804,124 @@ bool System::DeleteMap( int nMapNum )
  */
 void System::StartMapSerialization(std::string sCommand, std::string sParams)
 {
-  if( mpMapSerializer->Init( sCommand, sParams, *mpMap) ) {
-    mpMapSerializer->start();
+  if (mModules.pMapSerializer->Init(sCommand, sParams, *mpMap)) {
+    mModules.pMapSerializer->start();
   }
 }
 
 void System::PositionHold()
 {
-  mpMikroKopter->GoToPosition(mpTracker->GetCurrentPose().inverse());
+  mMikroKopter.GoToPosition(mModules.pTracker->GetCurrentPose().inverse());
 
 }
 
 void System::AddWaypoint()
 {
-  mpMikroKopter->AddWaypoint(mpTracker->GetCurrentPose().inverse());
+  mMikroKopter.AddWaypoint(mModules.pTracker->GetCurrentPose().inverse());
 }
 
 void System::ClearWaypoints()
 {
-  mpMikroKopter->ClearWaypoints();
+  mMikroKopter.ClearWaypoints();
 }
 
 void System::FlyPath()
 {
-  mpMikroKopter->FlyPath();
+  mMikroKopter.FlyPath();
+}
+
+void System::Draw()
+{
+  gDrawUITimer.Start();
+
+  static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
+  bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
+
+  mGLWindow.SetupViewport();
+  mGLWindow.SetupVideoOrtho();
+  mGLWindow.SetupVideoRasterPosAndZoom();
+
+  if(bDrawMap) {
+    DrawMapViewer();
+  } else {
+    DrawTracker();
+  }
+
+  static gvar3<int> gvnDrawMapInfo("MapInfo", 0, HIDDEN|SILENT);
+  if(*gvnDrawMapInfo) {
+    DrawMapInfo();
+  }
+
+  static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
+  if (*gvnDrawMkDebugOutput) {
+    DrawDebugInfo();
+  }
+
+  string sCaption;
+
+  /*
+  if(bDrawMap) {
+    sCaption = mpMapViewer->GetMessageForUser();
+  }
+  else {
+    sCaption = mpTracker->GetMessageForUser();
+  }
+  */
+
+  mGLWindow.DrawCaption(sCaption);
+  mGLWindow.DrawMenus();
+
+  gDrawUITimer.Stop();
+
+  gGLSwapTimer.Start();
+  mGLWindow.swap_buffers();
+  gGLSwapTimer.Stop();
+}
+
+void System::DrawTracker()
+{
+  if (mModules.pFrontend->monitor.PopDrawData(mFrontendDrawData)) {
+    FrontendRenderer renderer(*mModules.pCamera, mFrontendDrawData);
+    renderer.Draw();
+  }
+}
+
+void System::DrawMapViewer()
+{
+//  mpMapViewer->DrawMap(mpTracker->GetCurrentPose());
+}
+
+void System::DrawDebugInfo()
+{
+  stringstream ss;
+  /*
+  ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
+     << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
+     << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
+     << "VY: " << mPositionHold.GetVelocityFiltered()[1];
+     */
+
+  ss << "Frame: " << gFrameTimer.Milliseconds() << endl
+     << "Video: " << gVideoSourceTimer.Milliseconds() << endl
+     << "Feature: " << gFeatureTimer.Milliseconds() << endl
+     << "PVS: " << gPvsTimer.Milliseconds() << endl
+     << "Coarse: " << gCoarseTimer.Milliseconds() << endl
+     << "Fine: " << gFineTimer.Milliseconds() << endl
+     << "Track: " << gTrackTimer.Milliseconds() << endl
+     << "FullTrack: " << gTrackFullTimer.Milliseconds() << endl
+     //<< "SBI Init: " << gSBIInitTimer.Milliseconds() << endl
+     //<< "SBI: " << gSBITimer.Milliseconds() << endl
+     //<< "TrackQ: " << gTrackingQualityTimer.Milliseconds() << endl
+     //<< "Grid: " << gDrawGridTimer.Milliseconds() << endl
+     << "UI: " << gDrawUITimer.Milliseconds() << endl;
+     //<< "GLSwap: " << gGLSwapTimer.Milliseconds() << endl;
+
+
+  for (int i = 0; i < LEVELS; ++i) {
+    //ss << g_nNumFeaturesFound[i] << endl;
+  }
+
+  mGLWindow.DrawDebugOutput(ss.str());
 }
 
 
@@ -786,6 +979,8 @@ void System::SaveFIFO()
   static bool bFIFOInitDone = false;
   static ImageRef irWindowSize;
 
+  const int BITRATE = 1500;
+
   if( !bFIFOInitDone )
   {
     irWindowSize = mGLWindow.size();
@@ -797,7 +992,7 @@ void System::SaveFIFO()
         "echo Mencoding to $file....; " <<
         "cat FIFO |nice mencoder -flip -demuxer rawvideo -rawvideo fps=30:w=" <<
         irWindowSize.x << ":h=" << irWindowSize.y <<
-        ":format=rgb24 -o $file -ovc lavc -lavcopts vcodec=mpeg4:vbitrate=" << *mgvnBitrate <<
+        ":format=rgb24 -o $file -ovc lavc -lavcopts vcodec=mpeg4:vbitrate=" << BITRATE <<
         ":keyint=45 -ofps 30 -ffourcc DIVX - &";
 
     cout << "::" << os.str()<< "::" << endl;

@@ -27,46 +27,42 @@
 #include "Relocaliser.h"
 #include "ARToolkit.h"
 
+#include <cvd/image_ref.h>
+#include <TooN/TooN.h>
 #include <TooN/sim3.h>
 
 #include <sstream>
 #include <vector>
-#include <list>
 
 namespace PTAMM {
 
 const int NUM_LOST_FRAMES = 3;
 
-class TrackerData;
-
-// This struct is used for initial correspondences of the first stereo pair.
-struct Trail
-{
-  MiniPatch mPatch;
-  CVD::ImageRef irCurrentPos;
-  CVD::ImageRef irInitialPos;
+struct TrackerDrawData {
+  std::vector<CVD::ImageRef> vCorners;
+  std::vector<std::pair<int, TooN::Vector<2>>> vMapPoints;
+  bool bDidCoarse;
+  TooN::SE3<> se3CamFromWorld;
 };
+
+class TrackerData;
 
 class Tracker
 {
   public:
-    Tracker(CVD::ImageRef irVideoSize, const ATANCamera &c, std::vector<Map*> &maps, Map *m, MapMaker &mm, ARToolkitTracker& arTracker);
+    Tracker(const CVD::ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm, Relocaliser *pRelocaliser);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
-    void TrackFrame(const CVD::Image<CVD::byte> &imFrame, bool bDraw);
+    void ProcessFrame(const CVD::Image<CVD::byte> &imFrame);
 
-    // Render output from the tracker including the frame
-    void Draw();
+    void GetDrawData(TrackerDrawData &drawData);
 
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
-    bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
-
     Vector<3> RealWorldCoordinate() const {
       return mse3CamFromWorld.inverse().get_translation();
     }
 
-    bool PickPointOnGround(const TooN::Vector<2>& pixelCoord,
-                           TooN::Vector<3>& pointOnPlane);
+    bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
 
     // Gets messages to be printed on-screen for the user.
     std::string GetMessageForUser() const;
@@ -76,16 +72,9 @@ class Tracker
     void ForceRecovery() { if(mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
     void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
 
-    bool HandleKeyPress( const std::string& sKey );    // act on a key press (new addition for PTAMM)
-
   private:
+    void InitTracking();
     void ResetCommon();              // Common reset code for the following two functions
-    // The following members are used for initial map tracking (to get the first stereo pair and correspondences):
-    void TrackForInitialMap();      // This is called by TrackFrame if there is not a map yet.
-
-    void TrailTracking_Start();     // First frame of initial trail tracking. Called by TrackForInitialMap.
-    int  TrailTracking_Advance();   // Steady-state of initial trail tracking. Called by TrackForInitialMap.
-    void SampleTrailPatches(const CVD::ImageRef &start, const CVD::ImageRef &size, int nFeaturesToAdd);
 
     // Methods for tracking the map once it has been made:
     void TrackMap();                // Called by TrackFrame if there is a map.
@@ -94,11 +83,6 @@ class Tracker
     void TrackCoarse(std::vector<TrackerData*> avPVS[]);
     void TrackFine(std::vector<TrackerData*> avPVS[]);
     void UpdateCurrentKeyframeWithNewTrackingData();
-
-    void DrawTrails() const;
-    void DrawGrid();                // Draws the reference grid
-    void DrawCorners() const;
-    void DrawMapPoints() const;
 
     void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
     void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
@@ -116,38 +100,17 @@ class Tracker
 
     bool AttemptRecovery();         // Called by TrackFrame if tracking is lost.
 
-    // Scale initialization with markers -- dhenell
-    Vector<2> ProjectPoint(const Vector<3> &v3Point);
-    void DrawMarkerPose(const SE3<> &se3WorldFromNormWorld);
-    void DetermineScaleFromMarker(const CVD::Image<CVD::byte> &imFrame);
-
-    void GUICommandHandler(const std::string& sCommand, const std::string& sParams);
-    static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);
-
   private:
     KeyFrame mCurrentKF;            // The current working frame as a keyframe struct
+    KeyFrame mFirstKF;              // First of the stereo pair
 
     // The major components to which the tracker needs access:
-    std::vector<Map*> & mvpMaps;     // Reference to all of the maps
     Map *mpMap;                     // The map, consisting of points and keyframes
     MapMaker &mMapMaker;            // The class which maintains the map
     ATANCamera mCamera;             // Projection model
-    Relocaliser mRelocaliser;       // Relocalisation module
-    ARToolkitTracker& mARTracker;   // Tracker of markers
+    Relocaliser *mpRelocaliser;       // Relocalisation module
 
     CVD::ImageRef mirSize;          // Image size of whole image
-
-    enum {TRAIL_TRACKING_NOT_STARTED,
-          TRAIL_TRACKING_STARTED,
-          WAITING_FOR_STEREO_INIT,
-          TRAIL_TRACKING_COMPLETE,
-          MARKER_INIT_COMPLETE} mnInitialStage;  // How far are we towards making the initial map?
-
-    std::list<Trail> mlTrails;      // Used by trail tracking
-    std::vector<CVD::ImageRef> mvDeadTrails;
-
-    KeyFrame mFirstKF;              // First of the stereo pair
-    KeyFrame mPreviousFrameKF;      // Used by trail tracking to check married matches
 
     std::vector<TrackerData*> mvIterationSet;
 
@@ -161,9 +124,6 @@ class Tracker
     bool mbDidCoarse;               // Did tracking use the coarse tracking stage?
 
     bool mbDraw;                    // Should the tracker draw anything to OpenGL?
-
-    bool mbFreezeTracking;
-    bool mbForceAddNewKeyFrame;     // Forces the adding of the next keyframe
 
     // Interface with map maker:
     int mnFrame;                    // Frames processed since last reset
@@ -184,15 +144,7 @@ class Tracker
     Vector<6> mv6SBIRot;
     bool mbUseSBIInit;
 
-    // User interaction for initial tracking:
-    bool mbUserPressedSpacebar;
     std::ostringstream mMessageForUser;
-
-    // GUI interface:
-    struct Command {std::string sCommand; std::string sParams; };
-    std::vector<Command> mvQueuedCommands;
-
-    bool mHasDeterminedScale;
 };
 
 }
