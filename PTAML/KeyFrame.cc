@@ -211,7 +211,7 @@ void Level::FindCandidatesInCell(const ImageRef &start, const ImageRef &size)
 
   vector<pair<double, ImageRef>> vCellCornersAndSTScores;
   for (auto i = vMaxCorners.begin(); i != vMaxCorners.end(); ++i) {
-    if(PointInsideRect(*i, start, size)) {
+    if(im.in_image_with_border(*i, 5) && PointInsideRect(*i, start, size)) {
       double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
       vCellCornersAndSTScores.emplace_back(-dSTScore, *i); // Invert score so its sorted in descending order later
     }

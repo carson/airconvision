@@ -1,6 +1,7 @@
 #include "Timing.h"
 
 #include <iostream>
+#include <cassert>
 
 using namespace std;
 using namespace std::chrono;
@@ -18,6 +19,44 @@ void Toc()
 {
   duration<double> elapsed = high_resolution_clock::now() - g_TicTime;
   cout << "Time elapsed: " << elapsed.count() * 1000.0 << " ms" << endl;
+}
+
+StopWatch::StopWatch()
+  : mbRunning(false)
+{
+}
+
+void StopWatch::Start()
+{
+  assert(!mbRunning);
+  mtpStart = Clock::now();
+}
+
+void StopWatch::Stop()
+{
+  assert(mbRunning);
+  mtpStop = Clock::now();
+  mdDuration += mtpStop - mtpStart;
+}
+
+void StopWatch::Reset()
+{
+  mbRunning = false;
+  mdDuration = Clock::duration::zero();
+}
+
+double StopWatch::StoppedTime() const
+{
+  return duration_cast<RealSeconds>(mdDuration).count();
+}
+
+double StopWatch::Elapsed() const
+{
+  if (mbRunning) {
+    return duration_cast<RealSeconds>(mdDuration + (Clock::now() - mtpStart)).count();
+  } else {
+    return StoppedTime();
+  }
 }
 
 

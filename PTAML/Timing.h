@@ -5,6 +5,31 @@
 
 namespace PTAMM {
 
+class StopWatch {
+  typedef std::chrono::high_resolution_clock Clock;
+  typedef std::chrono::time_point<Clock> TimePoint;
+  typedef std::chrono::duration<double> RealSeconds;
+
+  public:
+    StopWatch();
+
+    void Start();
+    void Stop();
+
+    void Reset();
+
+    double StoppedTime() const;
+    double Elapsed() const;
+
+    bool Running() const { return mbRunning; }
+
+  private:
+    bool mbRunning;
+    TimePoint mtpStart;
+    TimePoint mtpStop;
+    Clock::duration mdDuration;
+};
+
 class TimeoutTimer {
   typedef std::chrono::high_resolution_clock Clock;
   typedef std::chrono::time_point<Clock> TimePoint;

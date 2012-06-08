@@ -17,18 +17,18 @@
 
 #ifndef __KEYFRAME_H
 #define __KEYFRAME_H
-#include <TooN/TooN.h>
 
+#include "ATANCamera.h"
+
+#include <TooN/TooN.h>
 #include <TooN/se3.h>
 #include <cvd/image.h>
-//#include <cvd/colourspaces.h> //@hack for adding image to keyframe
-//#include <cvd/colourspace_convert.h>//@hack for adding image to keyframe
 #include <cvd/rgb.h>
 #include <cvd/byte.h>
+
 #include <vector>
 #include <set>
 #include <map>
-#include "ATANCamera.h"
 
 namespace PTAMM {
 

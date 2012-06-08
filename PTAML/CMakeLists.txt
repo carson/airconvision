@@ -30,10 +30,10 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     # Optimizations etc
     if(TARGET_PLATFORM STREQUAL "HexaMac")
     	message(STATUS "Building with a performance profile optimized for the HexaMac")
-    	add_definitions(-pthread -O6 -Wall -march=corei7 -mtune=corei7 -msse4.2 -mfpmath=sse)
+    	add_definitions(-g -pthread -O6 -Wall -march=corei7 -mtune=corei7 -msse4.2 -mfpmath=sse)
     else()
     	message(STATUS "Building with a general peformance profile: ${TARGET_PLATFORM}")
-    	add_definitions(-pthread -O3 -Wall -march=core2 -mtune=core2 -msse3)
+    	add_definitions(-g -pthread -O3 -Wall -march=core2 -mtune=core2 -msse3)
     endif()
     
     #set(CMAKE_EXE_LINKER_FLAGS -fopenmp) 
@@ -95,6 +95,9 @@ set(VIDEO_SOURCE_SRC
 #
 
 set(PTAML_SRC
+	Frontend.cc
+	ScaleMarkerTracker.cc
+	InitialTracker.cc
 	Utils.cc
 	ARDriver.cc
 	ARToolkit.cc
