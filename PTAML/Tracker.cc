@@ -55,7 +55,7 @@ Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMa
   mpSBIThisFrame = NULL;
 
   // Most of the initialisation is done in Reset()
-  Reset();
+  //Reset();
 }
 
 void Tracker::InitTracking()
@@ -108,20 +108,13 @@ void Tracker::Reset()
   // this may take some time, since the mapmaker thread may have to wait
   // for an abort-check during calculation, so sleep while waiting.
   // MapMaker will also clear the map.
-  mMapMaker.RequestReset();
-  while(!mMapMaker.ResetDone()) {
-#ifndef WIN32
-    usleep(10);
-#else
-    Sleep(1);
-#endif
-  }
+  mMapMaker.Reset();
 }
 
 bool Tracker::ShouldAddNewKeyFrame()
 {
   return mTrackingQuality == GOOD &&
-         mMapMaker.NeedNewKeyFrame(mCurrentKF) &&
+         NeedNewKeyFrame(mCurrentKF) &&
          // HACK for keyframe threshold for incorporation
          // the parameter here determines how frequently keyframes are incorporateed
          mnFrame - mnLastKeyFrameDropped > 20  &&
@@ -827,6 +820,28 @@ void Tracker::AddNewKeyFrame()
   mnLastKeyFrameDropped = mnFrame;
 }
 
+bool Tracker::NeedNewKeyFrame(const KeyFrame &kCurrent)
+{
+  KeyFrame *pClosest = mpMap->ClosestKeyFrame(kCurrent);
+
+  if (pClosest == NULL) {
+    return false;
+  }
+
+  static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 1.00, SILENT);
+
+  double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
+  dDist *= (1.0 / kCurrent.dSceneDepthMean);
+
+  return dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
+}
+
+// Is the tracker's camera pose in cloud-cuckoo land?
+bool Tracker::IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent)
+{
+  return mpMap->DistToNearestKeyFrame(kCurrent) > mpMap->GetWiggleScale() * 10.0;
+}
+
 //
 /**
  * Some heuristics to decide if tracking is any good, for this frame.
@@ -884,7 +899,7 @@ void Tracker::AssessTrackingQuality()
   {
     // Further heuristics to see if it's actually bad, not just dodgy...
     // If the camera pose estimate has run miles away, it's probably bad.
-    if(mMapMaker.IsDistanceToNearestKeyFrameExcessive(mCurrentKF))
+    if(IsDistanceToNearestKeyFrameExcessive(mCurrentKF))
       mTrackingQuality = BAD;
   }
 

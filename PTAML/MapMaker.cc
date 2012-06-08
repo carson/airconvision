@@ -9,7 +9,6 @@
 #include <cvd/vector_image_ref.h>
 #include <cvd/vision.h>
 #include <cvd/image_interpolate.h>
-
 #include <TooN/SVD.h>
 #include <TooN/SymEigen.h>
 
@@ -17,10 +16,19 @@
 #include <fstream>
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
+#include <functional>
+#include <thread>
 
-#ifdef WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+// CHECK_RESET is a handy macro which makes the mapmaker thread stop
+// what it's doing and reset, if required.
+#define CHECK_UNLOCK mpMap->mapLockManager.CheckLockAndWait( this, 0 );
+#define CKECK_ABORTS
+
+#if 0
+#   define DEBUG_MAP_MAKER(x) x
+#else
+#   define DEBUG_MAP_MAKER(x)
 #endif
 
 namespace PTAMM {
@@ -28,6 +36,62 @@ namespace PTAMM {
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
+
+
+bool ActionDispatcher::Empty() const
+{
+  std::lock_guard<std::mutex> lock(m);
+  return mvQueuedActions.empty();
+}
+
+void ActionDispatcher::RunQueuedActions()
+{
+  bool bHasActions = false;
+  {
+    std::lock_guard<std::mutex> lock(m);
+    bHasActions = !mvQueuedActions.empty();
+  }
+
+  while (bHasActions) {
+
+    Action fn;
+
+    {
+      std::lock_guard<std::mutex> lock(m);
+      fn = std::move(mvQueuedActions.front());
+      mvQueuedActions.pop();
+      bHasActions = !mvQueuedActions.empty();
+    }
+
+    fn();
+  }
+}
+
+void ActionDispatcher::PushAction(const Action &a)
+{
+  std::lock_guard<std::mutex> lock(m);
+  mvQueuedActions.push(a);
+}
+
+void ActionDispatcher::PushActionAndWait(const Action &a)
+{
+  std::condition_variable cond;
+  bool bDone = false;
+
+  {
+    std::lock_guard<std::mutex> lock(m);
+    mvQueuedActions.push([&a, &cond, &bDone] () {
+        a();
+        bDone = true;
+        cond.notify_one();
+    });
+  }
+
+  std::unique_lock<std::mutex> lock(m);
+  while(!bDone) {
+    cond.wait(lock);
+  }
+}
 
 
 /**
@@ -40,33 +104,11 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
   : mvpMaps(maps),
     mpMap(m),
     mbAbortRequested(false),
-    mbResetRequested(false),
-    mbResetDone(true),
-    mbReInitRequested(false),
-    mbReInitDone(false),
-    mbSwitchRequested(false),
-    mbSwitchDone(false),
     mbStereoInitDone(false)
 {
-  mdMaxKFDistWiggleMult = GV3::get<double>("MapMaker.MaxKFDistWiggleMult", 1.0, SILENT);
-
   mpMap->mapLockManager.Register( this );
 
-  Reset();
-
-  start(); // This CVD::thread func starts the map-maker thread with function run()
-
-
-  // Force the map maker to run on CPU1
-  /*
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(2, &cpuset);
-
-  if (pthread_setaffinity_np(getID(), sizeof(cpu_set_t), &cpuset) != 0) {
-    cerr << "pthread_setaffinity_np failed for map maker thread" << endl;
-  }
-  */
+  mpMap->Reset();
 }
 
 /**
@@ -75,17 +117,88 @@ MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
 MapMaker::~MapMaker()
 {
   mbAbortRequested = true;
-  stop(); // makes shouldStop() return true
-  cout << "Waiting for mapmaker to die.." << endl;
-  join();
-  cout << " .. mapmaker has died." << endl;
   mpMap->mapLockManager.UnRegister( this );
 }
 
 /**
+ * Run the map maker thread
+ */
+void MapMaker::operator()()
+{
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    // Perform all queued actions
+    mDispatcher.RunQueuedActions();
+
+    // Nothing to do if there is no map yet! or is locked
+    if (!mpMap->IsGood() || mpMap->bEditLocked) {
+      continue;
+    }
+
+    // From here on, mapmaker does various map-maintenance jobs in a certain priority
+    // Hierarchy. For example, if there's a new key-frame to be added (QueueSize() is >0)
+    // then that takes high priority.
+
+    // Should we run local bundle adjustment?
+    if(!mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
+      mbAbortRequested = false;
+      DEBUG_MAP_MAKER(cout << "START: Recent bundle adjustment" << endl);
+      if (!mpMap->RecentBundleAdjust(&mbAbortRequested)) {
+        ResetImpl();
+      }
+      DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbAbortRequested << endl);
+    }
+
+    if (mbAbortRequested || !mDispatcher.Empty()) continue;
+
+    // Are there any newly-made map points which need more measurements from older key-frames?
+    if(mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
+      DEBUG_MAP_MAKER(cout << "START: Refining newly made map points" << endl);
+      mpMap->ReFindNewlyMade();
+      DEBUG_MAP_MAKER(cout << "  END: Refining newly made map points" << endl);
+    }
+
+    if (mbAbortRequested || !mDispatcher.Empty()) continue;
+
+    // Run global bundle adjustment?
+    if(mpMap->RecentBundleAdjustConverged() && !mpMap->FullBundleAdjustConverged() && mpMap->QueueSize() == 0) {
+
+    // I added this rule to avoid starting a full bundle adjust if there were waiting KFs,
+    // otherwise the camera loses tracking with fast camera movements -- dhenell
+    //if (mpMap->QueueSize() == 0) {
+      mbAbortRequested = false;
+      DEBUG_MAP_MAKER(cout << "START: Full bundle adjustment" << endl);
+      if (!mpMap->FullBundleAdjust(&mbAbortRequested)) {
+        ResetImpl();
+      }
+      DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbAbortRequested << endl);
+    }
+
+    if (mbAbortRequested || !mDispatcher.Empty()) continue;
+
+    // Very low priorty: re-find measurements marked as outliers
+    if(mpMap->RecentBundleAdjustConverged() && mpMap->FullBundleAdjustConverged() &&
+        rand()%20 == 0 && mpMap->QueueSize() == 0)
+    {
+      DEBUG_MAP_MAKER(cout << "START: Refining failed map points" << endl);
+      mpMap->ReFindFromFailureQueue();
+      DEBUG_MAP_MAKER(cout << "  END: Refining failed map points" << endl);
+    }
+
+    if (mbAbortRequested || !mDispatcher.Empty()) continue;
+
+    DEBUG_MAP_MAKER(cout << "START: Handling bad points" << endl);
+    mpMap->HandleBadPoints();
+    DEBUG_MAP_MAKER(cout << "  END: Handling bad points" << endl);
+  }
+}
+
+
+/**
  * Reinitialize the map maker for a new map
  */
-void MapMaker::ReInit()
+void MapMaker::ReInitImpl()
 {
   if(mpMap == mpNewMap)
   {
@@ -98,185 +211,41 @@ void MapMaker::ReInit()
     mpMap->mapLockManager.Register( this );
     Reset();
   }
-
-  mbReInitRequested = false;
-  mbReInitDone = true;
 }
 
 /**
  * Reset a map.
  */
-void MapMaker::Reset(Map * map)
+void MapMaker::ResetImpl2(Map * map)
 {
-  if(map == NULL)
-  {
-    cerr << "*** ERROR: Trying to reset a null map ***" << endl;
-    exit(1);
+  if (map == NULL) {
+    throw std::runtime_error("Trying to reset a null map");
   }
 
   // This is only called from within the mapmaker thread...
   map->Reset();
-
-  mbResetDone = true;
-  mbResetRequested = false;
 }
 
 /**
  * Switch maps
  */
-void MapMaker::SwitchMap()
+void MapMaker::SwitchMapImpl()
 {
   //change
   mpMap->mapLockManager.UnRegister( this );
   mpMap = mpSwitchMap;
   mpMap->mapLockManager.Register( this );
   //load current state?
-
-  //set bools
-  mbSwitchRequested = false;
-  mbSwitchDone = true;
 }
 
-// CHECK_RESET is a handy macro which makes the mapmaker thread stop
-// what it's doing and reset, if required.
-#define CHECK_RESET if(mbResetRequested) {Reset(); continue;};
-
-#define CHECK_REINIT if(mbReInitRequested) {ReInit(); continue;}
-#define CHECK_SWITCH if(mbSwitchRequested) { SwitchMap(); continue; }
-#define CHECK_UNLOCK mpMap->mapLockManager.CheckLockAndWait( this, 0 );
-
-#define CKECK_ABORTS CHECK_RESET CHECK_REINIT CHECK_SWITCH CHECK_UNLOCK
-
-#if 0
-#   define DEBUG_MAP_MAKER(x) x
-#else
-#   define DEBUG_MAP_MAKER(x)
-#endif
-
-/**
- * Run the map maker thread
- */
-void MapMaker::run()
-{
-#ifdef WIN32
-  // For some reason, I get tracker thread starvation on Win32 when
-  // adding key-frames. Perhaps this will help:
-  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
-  ///@TODO Try setting this to THREAD_PRIORITY_HIGHEST to see how it effects your performance.
-#endif
-
-  while(!shouldStop())  // ShouldStop is a CVD::Thread func which return true if the thread is told to exit.
-  {
-    if (mpMap->bEditLocked) {
-      sleep(5); // Sleep not really necessary, especially if mapmaker is busy
-      continue;
-    }
-
-    CKECK_ABORTS;
-    sleep(5); // Sleep not really necessary, especially if mapmaker is busy
-    CKECK_ABORTS;
-
-    // Handle any GUI commands encountered..
-    while(!mvQueuedCommands.empty())
-    {
-      GUICommandHandler(mvQueuedCommands.begin()->sCommand, mvQueuedCommands.begin()->sParams);
-      mvQueuedCommands.erase(mvQueuedCommands.begin());
-    }
-
-    // Perform all queued actions
-
-    {
-      std::lock_guard<std::mutex> lock(m);
-      while (!mvQueuedActions.empty()) {
-        CKECK_ABORTS;
-        mvQueuedActions.front()();
-        mvQueuedActions.pop();
-      }
-    }
-
-    if(!mpMap->IsGood() || mpMap->bEditLocked )  // Nothing to do if there is no map yet! or is locked
-      continue;
-
-
-    // From here on, mapmaker does various map-maintenance jobs in a certain priority
-    // Hierarchy. For example, if there's a new key-frame to be added (QueueSize() is >0)
-    // then that takes high priority.
-
-    CKECK_ABORTS;
-    // Should we run local bundle adjustment?
-    if(!mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
-      mbAbortRequested = false;
-      DEBUG_MAP_MAKER(cout << "START: Recent bundle adjustment" << endl);
-      if (!mpMap->RecentBundleAdjust(&mbAbortRequested)) {
-        mbResetRequested = true;
-      }
-      DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbAbortRequested << endl);
-    }
-
-    CKECK_ABORTS;
-    // Are there any newly-made map points which need more measurements from older key-frames?
-    if(mpMap->RecentBundleAdjustConverged() && mpMap->QueueSize() == 0) {
-      DEBUG_MAP_MAKER(cout << "START: Refining newly made map points" << endl);
-      mpMap->ReFindNewlyMade();
-      DEBUG_MAP_MAKER(cout << "  END: Refining newly made map points" << endl);
-    }
-
-    CKECK_ABORTS;
-    // Run global bundle adjustment?
-    if(mpMap->RecentBundleAdjustConverged() && !mpMap->FullBundleAdjustConverged() && mpMap->QueueSize() == 0) {
-
-    // I added this rule to avoid starting a full bundle adjust if there were waiting KFs,
-    // otherwise the camera loses tracking with fast camera movements -- dhenell
-    //if (mpMap->QueueSize() == 0) {
-      mbAbortRequested = false;
-      DEBUG_MAP_MAKER(cout << "START: Full bundle adjustment" << endl);
-      if (!mpMap->FullBundleAdjust(&mbAbortRequested)) {
-        mbResetRequested = true;
-      }
-      DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbAbortRequested << endl);
-    }
-
-    CKECK_ABORTS;
-    // Very low priorty: re-find measurements marked as outliers
-    if(mpMap->RecentBundleAdjustConverged() && mpMap->FullBundleAdjustConverged() &&
-        rand()%20 == 0 && mpMap->QueueSize() == 0)
-    {
-      DEBUG_MAP_MAKER(cout << "START: Refining failed map points" << endl);
-      mpMap->ReFindFromFailureQueue();
-      DEBUG_MAP_MAKER(cout << "  END: Refining failed map points" << endl);
-    }
-
-    CKECK_ABORTS;
-    DEBUG_MAP_MAKER(cout << "START: Handling bad points" << endl);
-    mpMap->HandleBadPoints();
-    DEBUG_MAP_MAKER(cout << "  END: Handling bad points" << endl);
-
-    CKECK_ABORTS;
-    // Any new key-frames to be added?
-    if(mpMap->QueueSize() > 0) { // this is unnecessary since AddKeyFrameFromTopOfQueue does this check anyway
-      DEBUG_MAP_MAKER(cout << "START: Adding key frame" << endl);
-      mpMap->AddKeyFrameFromTopOfQueue(); // Integrate into map data struct, and process
-      DEBUG_MAP_MAKER(cout << "  END: Adding key frame" << endl);
-    }
-  }
-}
 
 /**
  * Tracker calls this to demand a reset
  */
-void MapMaker::RequestReset()
+void MapMaker::Reset()
 {
-  mbResetDone = false;
-  mbResetRequested = true;
   mbAbortRequested = true;
-}
-
-/**
- * check if the reset has been done
- */
-bool MapMaker::ResetDone()
-{
-  return mbResetDone;
+  mDispatcher.PushActionAndWait(std::bind(&MapMaker::ResetImpl, this));
 }
 
 /**
@@ -284,46 +253,31 @@ bool MapMaker::ResetDone()
  * a new map to be inserted
  * @param map the new map
  */
-void MapMaker::RequestReInit(Map * map)
+void MapMaker::ReInit(Map * map)
 {
   mpNewMap = map;
-  mbReInitDone = false;
-  mbReInitRequested = true;
-}
 
-/**
- * Check if the reinitialization has been done
- * @return reinitialization done?
- */
-bool MapMaker::ReInitDone()
-{
-  return mbReInitDone;
+  mbAbortRequested = true;
+  mDispatcher.PushActionAndWait(std::bind(&MapMaker::ReInitImpl, this));
 }
 
 /**
  * System calls this to request a switch the supplied map
  * @param map map to switch to
  */
-bool MapMaker::RequestSwitch(Map * map)
+bool MapMaker::Switch(Map * map)
 {
   if( map == NULL ) {
     return false;
   }
 
   mpSwitchMap = map;
-  mbSwitchDone = false;
-  mbSwitchRequested = true;
+  mpNewMap = map;
+
+  mbAbortRequested = true;
+  mDispatcher.PushActionAndWait(std::bind(&MapMaker::SwitchMapImpl, this));
 
   return true;
-}
-
-/**
- * Check if the switch has been done
- * @return switch done
- */
-bool MapMaker::SwitchDone()
-{
-  return mbSwitchDone;
 }
 
 void MapMaker::RequestRealignment()
@@ -332,9 +286,7 @@ void MapMaker::RequestRealignment()
     return;
   }
 
-  std::lock_guard<std::mutex> lock(m);
-
-  mvQueuedActions.push([mpMap] () {
+  mDispatcher.PushAction([mpMap] () {
     SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner(false);
 
     // Don't align in the XY-plane!
@@ -351,9 +303,7 @@ void MapMaker::RequestMapTransformation(const SE3<> &se3NewFromOld)
     return;
   }
 
-  std::lock_guard<std::mutex> lock(m);
-
-  mvQueuedActions.push([se3NewFromOld, mpMap] () {
+  mDispatcher.PushAction([se3NewFromOld, mpMap] () {
     mpMap->ApplyGlobalTransformation(se3NewFromOld);
   });
 }
@@ -364,29 +314,19 @@ void MapMaker::RequestMapScaling(double dScale)
     return;
   }
 
-  std::lock_guard<std::mutex> lock(m);
-
-  mvQueuedActions.push([dScale, mpMap] () {
+  mDispatcher.PushAction([dScale, mpMap] () {
     mpMap->ApplyGlobalScale(dScale);
   });
-}
-
-void MapMaker::RequestCallback(std::function<void()> fn)
-{
-  std::lock_guard<std::mutex> lock(m);
-
-  mvQueuedActions.push([=] () { fn(); });
 }
 
 void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                               std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
                               SE3<> &se3CameraPos)
 {
-  std::lock_guard<std::mutex> lock(m);
-
   mbStereoInitDone = false;
-  mbAbortRequested = false;
-  mvQueuedActions.push([kFirst, kSecond, vMatches, se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+  mbAbortRequested = true;
+  mDispatcher.PushAction([kFirst, kSecond, vMatches, se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+    mbAbortRequested = false;
     mpMap->InitFromStereo(kFirst, kSecond, vMatches, se3CameraPos, &mbAbortRequested);
     mbStereoInitDone = true;
   });
@@ -407,42 +347,12 @@ void MapMaker::AddKeyFrame(const KeyFrame &k)
 
   mpMap->QueueKeyFrame(k);
 
-  // Tell the mapmaker to stop doing low-priority stuff and concentrate on this KF first.
   mbAbortRequested = true;
-}
-
-/*Hack camparijet*/
-//@todo change NeedNewKeyFrame condition
-bool MapMaker::NeedNewKeyFrame(const KeyFrame &kCurrent)
-{
-  KeyFrame *pClosest = mpMap->ClosestKeyFrame(kCurrent);
-  if (pClosest == NULL) {
-    return false;
-  }
-
-  double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
-  dDist *= (1.0 / kCurrent.dSceneDepthMean);
-  return dDist > mdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
-}
-
-// Is the tracker's camera pose in cloud-cuckoo land?
-bool MapMaker::IsDistanceToNearestKeyFrameExcessive(KeyFrame &kCurrent)
-{
-  return mpMap->DistToNearestKeyFrame(kCurrent) > mpMap->GetWiggleScale() * 10.0;
-}
-
-
-void MapMaker::GUICommandCallBack(void* ptr, string sCommand, string sParams)
-{
-  Command c;
-  c.sCommand = sCommand;
-  c.sParams = sParams;
-  ((MapMaker*) ptr)->mvQueuedCommands.push_back(c);
-}
-
-void MapMaker::GUICommandHandler(string sCommand, string sParams)  // Called by the callback func..
-{
-  cout << "! MapMaker::GUICommandHandler: unhandled command "<< sCommand << endl;
+  mDispatcher.PushAction([mpMap] () {
+    if (mpMap->IsGood() && !mpMap->bEditLocked) {
+      mpMap->AddKeyFrameFromTopOfQueue();
+    }
+  });
 }
 
 }

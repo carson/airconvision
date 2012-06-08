@@ -437,8 +437,6 @@ void System::CreateModules()
                                     mModules.pInitialTracker,
                                     mModules.pTracker,
                                     mModules.pScaleMarkerTracker);
-
-
 }
 
 /**
@@ -453,6 +451,7 @@ void System::Run()
   CreateModules();
 
   // Start threads
+  std::thread mapMakerThread(std::ref(*mModules.pMapMaker));
   std::thread frontendThread(std::ref(*mModules.pFrontend));
 
   FPSCounter fpsCounter;
@@ -663,16 +662,8 @@ bool System::SwitchMap( int nMapNum, bool bForce )
   */
 
   //update the map maker thread
-  if (!mModules.pMapMaker->RequestSwitch(mpMap)) {
+  if (!mModules.pMapMaker->Switch(mpMap)) {
     return false;
-  }
-
-  while (!mModules.pMapMaker->SwitchDone()) {
-#ifdef WIN32
-    Sleep(1);
-#else
-    usleep(10);
-#endif
   }
 
   //update the map viewer object
@@ -697,14 +688,7 @@ void System::NewMap()
   mvpMaps.push_back( mpMap );
 
   //update the map maker thread
-  mModules.pMapMaker->RequestReInit( mpMap );
-  while (!mModules.pMapMaker->ReInitDone()) {
-#ifdef WIN32
-    Sleep(1);
-#else
-    usleep(10);
-#endif
-  }
+  mModules.pMapMaker->ReInit( mpMap );
 
   //update the map viewer object
   mModules.pMapViewer->SwitchMap(mpMap);
