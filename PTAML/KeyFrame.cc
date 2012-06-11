@@ -1,21 +1,15 @@
 // Copyright 2008 Isis Innovation Limited
 #include "KeyFrame.h"
-#include "ShiTomasi.h"
 #include "SmallBlurryImage.h"
 #include "LevelHelpers.h"
 #include "MapPoint.h"
 #include "Utils.h"
 #include "Timing.h"
 
+#include <cvd/image.h>
 #include <cvd/vision.h>
-#include <cvd/fast_corner.h>
 
 #include <cassert>
-
-namespace CVD
-{
-void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
-}
 
 namespace PTAMM {
 
@@ -25,6 +19,69 @@ using namespace GVars3;
 
 int g_nNumFeaturesFound[LEVELS] = { 0 };
 
+Level::Level()
+  : bImplaneCornersCached(false)
+  , mpFeatureGrid(NULL)
+{
+}
+
+Level::~Level()
+{
+  delete mpFeatureGrid;
+}
+
+/**
+ * Level needs its own operator= to override CVD's reference-counting behaviour.
+ * @param rhs the level to copy
+ * @return the copied level
+ */
+Level& Level::operator=(const Level &rhs)
+{
+  if (this == &rhs) {
+    return *this;
+  }
+
+  // Operator= should physically copy pixels, not use CVD's reference-counting image copy.
+  im.copy_from(rhs.im);
+
+  delete mpFeatureGrid;
+  mpFeatureGrid = NULL;
+
+  if (rhs.mpFeatureGrid) {
+    mpFeatureGrid = new FeatureGrid(*rhs.mpFeatureGrid);
+  }
+
+  mvAllFeatures = rhs.mvAllFeatures;
+  mvBestFeatures = rhs.mvBestFeatures;
+  return *this;
+}
+
+void Level::Init(size_t nWidth, size_t nHeight, size_t nGridRows, size_t nGridCols)
+{
+  assert(mpFeatureGrid == NULL);
+
+  mpFeatureGrid = new FeatureGrid(nWidth, nHeight, nGridRows, nGridCols, 100, 50, 15);
+}
+
+void Level::FindFeatures()
+{
+  mvAllFeatures.clear();
+  mpFeatureGrid->Clear();
+  mpFeatureGrid->FindFeatures(im);
+  mpFeatureGrid->GetAllFeatures(mvAllFeatures);
+}
+
+void Level::FindBestFeatures()
+{
+  mvBestFeatures.clear();
+  mpFeatureGrid->FindBestFeatures(im);
+  mpFeatureGrid->GetBestFeatures(1000, mvBestFeatures);
+}
+
+void Level::GetFeaturesInsideCircle(const CVD::ImageRef &irPos, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const
+{
+  mpFeatureGrid->GetFeaturesInsideCircle(irPos, nRadius, vFeatures);
+}
 
 /**
  * Constructer.
@@ -34,7 +91,16 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
   : pSBI( NULL ),
     Camera(cam)
 {
-
+  Vector<2> imSize = cam.GetImageSize();
+  int rows = 8;
+  int cols = 8;
+  for (int i = 0; i < LEVELS; ++i) {
+    aLevels[i].Init((int)imSize[0], (int)imSize[1], rows, cols);
+    imSize[0] /= 2;
+    imSize[1] /= 2;
+    rows /= 2;
+    cols /= 2;
+  }
 }
 
 /**
@@ -101,9 +167,11 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
 // Operates on a single level of a keyframe.
 void KeyFrame::ThinCandidates(int nLevel)
 {
-  vector<Candidate> &vCSrc = aLevels[nLevel].vCandidates;
-  vector<Candidate> vCGood;
+  vector<ImageRef> &vCSrc = aLevels[nLevel].mvBestFeatures;
+  vector<ImageRef> vCGood;
+
   vector<ImageRef> irBusyLevelPos;
+
   // Make a list of `busy' image locations, which already have features at the same level
   // or at one level higher.
   for(auto it = mMeasurements.begin(); it != mMeasurements.end(); ++it)
@@ -117,7 +185,7 @@ void KeyFrame::ThinCandidates(int nLevel)
   unsigned int nMinMagSquared = 10*10;
   for(size_t i=0; i<vCSrc.size(); ++i)
   {
-    const ImageRef& irC = vCSrc[i].irLevelPos;
+    const ImageRef& irC = vCSrc[i];
     bool bGood = true;
     for(size_t j=0; j<irBusyLevelPos.size(); ++j)
     {
@@ -158,101 +226,6 @@ void KeyFrame::RefreshSceneDepth()
   dSceneDepthSigma = sqrt((dSumDepthSquared / nMeas) - (dSceneDepthMean) * (dSceneDepthMean));
 }
 
-void Level::FindCornersInCell(int barrier, const ImageRef &start, const ImageRef &size)
-{
-  Image<byte> im2;
-  im2.copy_from(im.sub_image(start, size));
-
-  vector<ImageRef> vTmpCorners;
-  fast_corner_detect_10(im2, vTmpCorners, barrier);
-  for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
-    vCorners.push_back(*it + start);
-  }
-}
-
-void Level::FindCorners(int barrier)
-{
-  mBarrier = barrier;
-
-  vCandidates.clear();
-  vMaxCorners.clear();
-  vCorners.clear();
-
-  /*
-  const int CELL_HEIGHT = 60;
-
-  int cellRows = im.size().y / CELL_HEIGHT;
-
-  for (int y = 0; y < cellRows; ++y) {
-      FindCornersInCell(barrier, ImageRef(0, y * CELL_HEIGHT),
-                        ImageRef(im.size().x, CELL_HEIGHT + 6));
-  }
-  */
-
-  fast_corner_detect_10(im, vCorners, barrier);
-
-  // Generate row look-up-table for the FAST corner points: this speeds up
-  // finding close-by corner points later on.
-  vCornerRowLUT.clear();
-  vCornerRowLUT.reserve(vCorners.size());
-  size_t v = 0;
-  size_t numCorners = vCorners.size();
-  for (int y = 0; y < im.size().y; y++) {
-    while ((v < numCorners) && (y > vCorners[v].y)) {
-      v++;
-    }
-    vCornerRowLUT.push_back(v);
-  }
-}
-
-void Level::FindCandidatesInCell(const ImageRef &start, const ImageRef &size)
-{
-  const size_t MAX_CANDIDATES = 10;
-
-  vector<pair<double, ImageRef>> vCellCornersAndSTScores;
-  for (auto i = vMaxCorners.begin(); i != vMaxCorners.end(); ++i) {
-    if(im.in_image_with_border(*i, 5) && PointInsideRect(*i, start, size)) {
-      double dSTScore = FindShiTomasiScoreAtPoint(im, 3, *i);
-      vCellCornersAndSTScores.emplace_back(-dSTScore, *i); // Invert score so its sorted in descending order later
-    }
-  }
-
-  auto endIt = vCellCornersAndSTScores.end();
-
-  if (vCellCornersAndSTScores.size() > MAX_CANDIDATES) {
-    sort(vCellCornersAndSTScores.begin(), vCellCornersAndSTScores.end());
-    endIt = vCellCornersAndSTScores.begin() + MAX_CANDIDATES;
-  }
-
-  for (auto it = vCellCornersAndSTScores.begin(); it != endIt; ++it) {
-    // Same as
-    //   vCandidates.push_back(Candidate(it->second, -it->first));
-    // but faster.
-    vCandidates.emplace_back(it->second, -it->first);
-  }
-}
-
-
-void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
-{
-  // .. find those FAST corners which are maximal..
-  fast_nonmax(im, vCorners, mBarrier, vMaxCorners);
-
-  const int CELL_WIDTH = 64;
-  const int CELL_HEIGHT = 60;
-
-  int cellCols = im.size().x / CELL_WIDTH;
-  int cellRows = im.size().y / CELL_HEIGHT;
-
-  for (int y = 0; y < cellRows; ++y) {
-    for (int x = 0; x < cellCols; ++x) {
-      FindCandidatesInCell(ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
-                           ImageRef(CELL_WIDTH + 6, CELL_HEIGHT + 6));
-    }
-  }
-}
-
-
 /**
  * Perpares a Keyframe from an image. Generates pyramid levels, does FAST detection, etc.
  * Does not fully populate the keyframe struct, but only does the bits needed for the tracker;
@@ -263,19 +236,9 @@ void Level::FindMaxCornersAndCandidates(double dCandidateMinSTScore)
 void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCornerBarriers)
 {
   // First, copy out the image data to the pyramid's zero level.
-  aLevels[0].im.resize(im.size());
-  copy(im, aLevels[0].im);
+  aLevels[0].im.copy_from(im);
 
   gFeatureTimer.Start();
-
-  //const size_t MAX_CORNERS_LEVEL0 = 2000;
-  //const size_t MIN_CORNERS_LEVEL0 = 1000;
-
-  const size_t MAX_CORNERS_LEVEL0 = 4000;
-  const size_t MIN_CORNERS_LEVEL0 = 3000;
-
-  const size_t MAX_CORNERS[] = { MAX_CORNERS_LEVEL0, MAX_CORNERS_LEVEL0 >> 2, MAX_CORNERS_LEVEL0 >> 4, MAX_CORNERS_LEVEL0 >> 6};
-  const size_t MIN_CORNERS[] = { MIN_CORNERS_LEVEL0, MIN_CORNERS_LEVEL0 >> 2, MIN_CORNERS_LEVEL0 >> 4, MIN_CORNERS_LEVEL0 >> 6 };
 
   // Then, for each level...
   for (int i = 0; i < LEVELS; ++i) {
@@ -287,26 +250,7 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
       halfSample(aLevels[i-1].im, lev.im);
     }
 
-    // .. and detect and store FAST corner points.
-    // I use a different threshold on each level; this is a bit of a hack
-    // whose aim is to balance the different levels' relative feature densities.
-
-    // Removed the if-cases and replaced it with a array lookup @dhenell
-    //int barrierPerLevel[] = { 10, 15, 15, 10 };
-
-    int barrier = aFastCornerBarriers[i];
-
-    lev.FindCorners(barrier);
-
-    size_t nFoundCorners = lev.vCorners.size();
-
-    g_nNumFeaturesFound[i] = nFoundCorners;
-
-    if (nFoundCorners > MAX_CORNERS[i]) {
-      aFastCornerBarriers[i] = min(aFastCornerBarriers[i] + 1, 100);
-    } else if (nFoundCorners < MIN_CORNERS[i]) {
-      aFastCornerBarriers[i] = max(aFastCornerBarriers[i] - 1, 5);
-    }
+    lev.FindFeatures();
   }
 
   gFeatureTimer.Stop();
@@ -319,34 +263,15 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
  */
 void KeyFrame::MakeKeyFrame_Rest()
 {
-  static gvar3<double> gvdCandidateMinSTScore("MapMaker.CandidateMinShiTomasiScore", 70, SILENT);
   // For each level...
   for(int l = 0; l < LEVELS; ++l) {
-    aLevels[l].FindMaxCornersAndCandidates(*gvdCandidateMinSTScore);
+    aLevels[l].FindBestFeatures();
   }
 
   // Also, make a SmallBlurryImage of the keyframe: The relocaliser uses these.
   pSBI = new SmallBlurryImage(*this);
   // Relocaliser also wants the jacobians..
   pSBI->MakeJacs();
-}
-
-
-/**
- * Level needs its own operator= to override CVD's reference-counting behaviour.
- * @param rhs the level to copy
- * @return the copied level
- */
-Level& Level::operator=(const Level &rhs)
-{
-  // Operator= should physically copy pixels, not use CVD's reference-counting image copy.
-  im.resize(rhs.im.size());
-  copy(rhs.im, im);
-
-  vCorners = rhs.vCorners;
-  vMaxCorners = rhs.vMaxCorners;
-  vCornerRowLUT = rhs.vCornerRowLUT;
-  return *this;
 }
 
 // -------------------------------------------------------------

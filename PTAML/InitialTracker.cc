@@ -92,7 +92,7 @@ void InitialTracker::GetDrawData(InitialTrackerDrawData &drawData)
     drawData.vTrails.emplace_back(it->irInitialPos, it->irCurrentPos);
   }
   drawData.vDeadTrails = mvDeadTrails;
-  drawData.vCorners = mCurrentKF.aLevels[0].GetCorners();
+  drawData.vCorners = mCurrentKF.aLevels[0].Features();
 }
 
 /**
@@ -186,61 +186,33 @@ void InitialTracker::TrackForInitialMap()
   }
 }
 
-void InitialTracker::SampleTrailPatches(const ImageRef &start, const ImageRef &size, int nFeaturesToAdd)
-{
-  vector<pair<double,ImageRef> > vCornersAndSTScores;
-  const std::vector<Candidate>& vCandidates = mCurrentKF.aLevels[0].GetCandidates();
-  for (auto c = vCandidates.begin(); c != vCandidates.end(); ++c)  // Copy candidates into a trivially sortable vector
-  {                                                                // so that we can choose the image corners with max ST score
-    if (!PointInsideRect(c->irLevelPos, start, size)) {
-      continue;
-    }
-    if(!mCurrentKF.aLevels[0].im.in_image_with_border(c->irLevelPos, MiniPatch::mnHalfPatchSize)) {
-      continue;
-    }
-    vCornersAndSTScores.emplace_back(-1.0 * c->dSTScore, c->irLevelPos); // negative so highest score first in sorted list
-  }
-
-  sort(vCornersAndSTScores.begin(), vCornersAndSTScores.end());  // Sort according to Shi-Tomasi score
-
-  for(size_t i = 0; i<vCornersAndSTScores.size() && nFeaturesToAdd > 0; i++) {
-    Trail t;
-    t.mPatch.SampleFromImage(vCornersAndSTScores[i].second, mCurrentKF.aLevels[0].im);
-    t.irInitialPos = vCornersAndSTScores[i].second;
-    t.irCurrentPos = t.irInitialPos;
-    mlTrails.push_back(t);
-    nFeaturesToAdd--;
-  }
-}
-
 /**
  * The current frame is to be the first keyframe!
  */
 void InitialTracker::TrailTracking_Start()
 {
-  mCurrentKF.MakeKeyFrame_Rest();  // This populates the Candidates list, which is Shi-Tomasi thresholded.
+  mCurrentKF.MakeKeyFrame_Rest();
   mFirstKF = mCurrentKF;
 
   mvDeadTrails.clear();
 
-  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
-
-  const int CELL_WIDTH = 64;//128;
-  const int CELL_HEIGHT = 60;//120;
-
-  int cellCols = mCurrentKF.aLevels[0].im.size().x / CELL_WIDTH;
-  int cellRows = mCurrentKF.aLevels[0].im.size().y / CELL_HEIGHT;
-
-  int nFeaturesToAddPerCell = nToAdd / (cellCols * cellRows);
+//  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
 
   mlTrails.clear();
 
-  for (int y = 0; y < cellRows; ++y) {
-    for (int x = 0; x < cellCols; ++x) {
-      SampleTrailPatches(ImageRef(x * CELL_WIDTH, y * CELL_HEIGHT),
-                         ImageRef(CELL_WIDTH, CELL_HEIGHT),
-                         nFeaturesToAddPerCell);
+  const std::vector<ImageRef>& vFeatures = mCurrentKF.aLevels[0].GetBestFeatures();
+
+  for (auto it = vFeatures.begin(); it != vFeatures.end(); ++it)  // Copy candidates into a trivially sortable vector
+  {                                                                // so that we can choose the image corners with max ST score
+    if(!mCurrentKF.aLevels[0].im.in_image_with_border(*it, MiniPatch::mnHalfPatchSize)) {
+      continue;
     }
+
+    Trail t;
+    t.mPatch.SampleFromImage(*it, mCurrentKF.aLevels[0].im);
+    t.irInitialPos = *it;
+    t.irCurrentPos = t.irInitialPos;
+    mlTrails.push_back(t);
   }
 
   mPreviousFrameKF = mFirstKF;  // Always store the previous frame so married-matching can work.
@@ -262,13 +234,13 @@ int InitialTracker::TrailTracking_Advance()
     Trail &trail = *i;
     ImageRef irStart = trail.irCurrentPos;
     ImageRef irEnd = irStart;
-    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.GetCorners());
+    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.Features());
     if(bFound)
     {
       // Also find backwards in a married-matches check
       BackwardsPatch.SampleFromImage(irEnd, lCurrentFrame.im);
       ImageRef irBackWardsFound = irEnd;
-      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.GetCorners());
+      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.Features());
       if((irBackWardsFound - irStart).mag_squared() > 2)
         bFound = false;
 

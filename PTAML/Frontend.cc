@@ -108,7 +108,7 @@ void Frontend::operator()()
 
     GrabNextFrame();
 
-    mDrawData.imFrame = mimFrameRGB;
+    mDrawData.imFrame.copy_from(mimFrameRGB);
     mDrawData.bInitialTracking = mbInitialTracking;
 
     if (monitor.PopUserResetInvoke()) {

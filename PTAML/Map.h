@@ -26,6 +26,7 @@
 
 namespace PTAMM {
 
+struct Candidate;
 struct MapPoint;
 class KeyFrame;
 class Map;
@@ -130,7 +131,7 @@ class Map
 
     // For map generation
     void AddSomeMapPoints(int nLevel);
-    bool AddPointEpipolar(KeyFrame &kSrc, KeyFrame &kTarget, int nLevel, int nCandidate);
+    bool AddPointEpipolar(KeyFrame &kSrc, KeyFrame &kTarget, int nLevel, const CVD::ImageRef &irLevelPos);
 
     std::vector<KeyFrame*> NClosestKeyFrames(const KeyFrame &k, unsigned int N) const;
 
