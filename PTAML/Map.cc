@@ -388,12 +388,10 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
-/*
   AddSomeMapPoints(0);
   AddSomeMapPoints(3);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
-  */
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -829,10 +827,15 @@ void Map::AddSomeMapPoints(int nLevel)
   KeyFrame &kSrc = *vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
   KeyFrame &kTarget = *ClosestKeyFrame(kSrc);
 
-  kSrc.ThinCandidates(nLevel);
-
   Level &l = kSrc.aLevels[nLevel];
-  const std::vector<ImageRef>& vBestFeatures = l.GetBestFeatures();
+
+  // Find some good map points to add
+  std::vector<ImageRef> vBestFeatures;
+  l.GetBestFeatures(1000, vBestFeatures);
+
+  // Remove the points in the set that overlapps points in lower pyramid levels
+  kSrc.ThinCandidates(nLevel, vBestFeatures);
+
   for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
     AddPointEpipolar(kSrc, kTarget, nLevel, *it);
   }

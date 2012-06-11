@@ -196,11 +196,13 @@ void InitialTracker::TrailTracking_Start()
 
   mvDeadTrails.clear();
 
-//  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
 
   mlTrails.clear();
 
-  const std::vector<ImageRef>& vFeatures = mCurrentKF.aLevels[0].GetBestFeatures();
+  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
+
+  std::vector<ImageRef> vFeatures;
+  mCurrentKF.aLevels[0].GetBestFeatures(nToAdd, vFeatures);
 
   for (auto it = vFeatures.begin(); it != vFeatures.end(); ++it)  // Copy candidates into a trivially sortable vector
   {                                                                // so that we can choose the image corners with max ST score

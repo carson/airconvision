@@ -63,9 +63,6 @@ class FeatureGrid {
     size_t mnMaxFeaturesPerCell;
 };
 
-
-
-
 }
 
 #endif
