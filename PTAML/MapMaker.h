@@ -46,11 +46,15 @@ class ActionDispatcher {
 class MapMaker
 {
   public:
-    MapMaker(std::vector<Map*> &maps, Map *m);
+    MapMaker(Map *m);
     ~MapMaker();
 
     void operator()();
 
+    // All the public methods here are threadsafe!
+
+    // This doesn't neccessarily have to be done on this thread. Makes the interface different from the
+    // ScaViSlam backend
     // Make a map from scratch. Called by the tracker.
     void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
@@ -60,33 +64,19 @@ class MapMaker
     // Add a key-frame to the map. Called by the tracker.
     void AddKeyFrame(const KeyFrame &k);
 
-
-    void RequestRealignment();
-
     // These should all be made synchronous or return promises
-    void Reset();              // Request that the we reset. Called by the tracker.
-    void ReInit(Map * map);    // Request that the we reset. Called by the tracker.
-    bool Switch(Map * map);    // Request a switch to map
+    void Reset(bool async = false);              // Request that the we reset. Called by the tracker.
 
-    void RequestMapTransformation(const SE3<>& se3NewFromOld);
-    void RequestMapScaling(double dScale);
+    // Should these be synchronous as well?
+    void RealignGroundPlane(bool async = false);
+    void TransformMapPoints(const SE3<>& se3NewFromOld, bool async = false);
+    void ScaleMapPoints(double dScale, bool async = false);
 
   private:
-    // General Maintenance/Utility:
-    void ResetImpl() { ResetImpl2(mpMap); }
-    void ResetImpl2(Map * map);
-    void ReInitImpl();                //call this when switching to a new map
-    void SwitchMapImpl();
-
-  // Member variables:
-  private:
-    std::vector<Map*> &mvpMaps;       // The vector of maps
-    Map *mpMap;                       // The current map
-    Map *mpNewMap;                     // The new map, used as a temp placeholder
-    Map *mpSwitchMap;                  // The switch map, used as a temp placeholder
-
     // Used for thread synchronization
     ActionDispatcher mDispatcher;
+
+    Map *mpMap;                       // The current map
 
     // Thread interaction signaling stuff
     bool mbAbortRequested;      // We should stop bundle adjustment and stereo init
