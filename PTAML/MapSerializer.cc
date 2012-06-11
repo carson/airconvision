@@ -1028,7 +1028,7 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
     os.str("");
     os << sPath << "/" << sFileBaseName;
     try {
-      img_save(kf->aLevels[0].im, os.str());
+      img_save(kf->aLevels[0].GetImage(), os.str());
     }
     catch(CVD::Exceptions::All& err) {
       cerr << " Failed to save image " <<  os.str() << ": " << err.what << endl;
@@ -1042,7 +1042,7 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
     //save a MD5 hash of the image data to ensure the same data is loaded
     MD5Wrapper md5w;
     string sMD5;
-    md5w.getHashFromData( kf->aLevels[0].im.data(), kf->aLevels[0].im.totalsize(), sMD5 );
+    md5w.getHashFromData( kf->aLevels[0].GetImage().data(), kf->aLevels[0].GetImage().totalsize(), sMD5 );
 
     imageElem->SetAttribute("md5", sMD5 );
   }

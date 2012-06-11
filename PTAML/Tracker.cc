@@ -117,7 +117,7 @@ bool Tracker::ShouldAddNewKeyFrame()
          NeedNewKeyFrame(mCurrentKF) &&
          // HACK for keyframe threshold for incorporation
          // the parameter here determines how frequently keyframes are incorporateed
-         mnFrame - mnLastKeyFrameDropped > 20  &&
+         mnFrame - mnLastKeyFrameDropped > 5  &&
          mpMap->QueueSize() < 200;
 }
 
@@ -225,7 +225,7 @@ void Tracker::GetDrawData(TrackerDrawData &drawData)
 {
   drawData.bDidCoarse = mbDidCoarse;
   drawData.se3CamFromWorld = mse3CamFromWorld;
-  drawData.vCorners = mCurrentKF.aLevels[0].Features();
+  mCurrentKF.aLevels[0].GetAllFeatures(drawData.vCorners);
 
   drawData.vMapPoints.clear();
 

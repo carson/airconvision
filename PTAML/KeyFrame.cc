@@ -22,8 +22,20 @@ int g_nNumFeaturesFound[LEVELS] = { 0 };
 Level::Level()
   : bImplaneCornersCached(false)
   , mpFeatureGrid(NULL)
+  , mbHasAllFeatures(false)
+  , mbHasBestFeatures(false)
 {
 }
+
+Level::Level(const Level& rhs)
+  : bImplaneCornersCached(false)
+  , mpFeatureGrid(NULL)
+  , mbHasAllFeatures(false)
+  , mbHasBestFeatures(false)
+{
+  *this = rhs;
+}
+
 
 Level::~Level()
 {
@@ -51,31 +63,74 @@ Level& Level::operator=(const Level &rhs)
     mpFeatureGrid = new FeatureGrid(*rhs.mpFeatureGrid);
   }
 
-  mvAllFeatures = rhs.mvAllFeatures;
-  mvBestFeatures = rhs.mvBestFeatures;
+  bImplaneCornersCached = rhs.bImplaneCornersCached;
+  vImplaneCorners = rhs.vImplaneCorners;
+
+  mbHasAllFeatures = rhs.mbHasAllFeatures;
+  mbHasBestFeatures = rhs.mbHasBestFeatures;
+
   return *this;
 }
 
 void Level::Init(size_t nWidth, size_t nHeight, size_t nGridRows, size_t nGridCols)
 {
   assert(mpFeatureGrid == NULL);
+  mpFeatureGrid = new FeatureGrid(nWidth, nHeight, nGridRows, nGridCols);
+}
 
-  mpFeatureGrid = new FeatureGrid(nWidth, nHeight, nGridRows, nGridCols, 100, 50, 15);
+void Level::SetTargetFeatureCount(size_t nMinFeatures, size_t nMaxFeatures)
+{
+  size_t numCells = mpFeatureGrid->Rows() * mpFeatureGrid->Cols();
+  mpFeatureGrid->SetTargetFeatureCount(nMinFeatures / numCells, nMaxFeatures / numCells);
+}
+
+void Level::Clear()
+{
+  bImplaneCornersCached = false;
+  vImplaneCorners.clear();
+  mpFeatureGrid->Clear();
+
+  mbHasAllFeatures = false;
+  mbHasBestFeatures = false;
 }
 
 void Level::FindFeatures()
 {
-  mvAllFeatures.clear();
-  mpFeatureGrid->Clear();
-  mpFeatureGrid->FindFeatures(im);
-  mpFeatureGrid->GetAllFeatures(mvAllFeatures);
+  if (!mbHasAllFeatures) {
+    mpFeatureGrid->FindFeatures(im);
+    mbHasAllFeatures = true;
+  }
+}
+
+void Level::GetAllFeatures(std::vector<CVD::ImageRef>& vFeatures)
+{
+  if (!mbHasAllFeatures) {
+    FindFeatures();
+  }
+
+  mpFeatureGrid->GetAllFeatures(vFeatures);
 }
 
 void Level::FindBestFeatures()
 {
-  mvBestFeatures.clear();
-  mpFeatureGrid->FindBestFeatures(im);
-  mpFeatureGrid->GetBestFeatures(1000, mvBestFeatures);
+  if (!mbHasBestFeatures) {
+
+    if (!mbHasAllFeatures) {
+      FindFeatures();
+    }
+
+    mpFeatureGrid->FindBestFeatures(im);
+    mbHasBestFeatures = true;
+  }
+}
+
+void Level::GetBestFeatures(size_t nMaxFeatures, std::vector<CVD::ImageRef>& vFeatures)
+{
+  if (!mbHasBestFeatures) {
+    FindBestFeatures();
+  }
+
+  mpFeatureGrid->GetBestFeatures(nMaxFeatures, vFeatures);
 }
 
 void Level::GetFeaturesInsideCircle(const CVD::ImageRef &irPos, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const
@@ -91,16 +146,23 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
   : pSBI( NULL ),
     Camera(cam)
 {
-  Vector<2> imSize = cam.GetImageSize();
-  int rows = 8;
-  int cols = 8;
+  const double DESIRED_CELL_SIZE = 50.0;
+
+  int width = std::round(cam.GetImageSize()[0]);
+  int height = std::round(cam.GetImageSize()[1]);
+
   for (int i = 0; i < LEVELS; ++i) {
-    aLevels[i].Init((int)imSize[0], (int)imSize[1], rows, cols);
-    imSize[0] /= 2;
-    imSize[1] /= 2;
-    rows /= 2;
-    cols /= 2;
+    // Choose number of rows and cols so that the cell size is close to 50x50
+    int cols = std::round((double)width / DESIRED_CELL_SIZE);
+    int rows = std::round((double)height / DESIRED_CELL_SIZE);
+    aLevels[i].Init(width, height, rows, cols);
+    width /= 2; height /= 2;
   }
+
+  aLevels[0].SetTargetFeatureCount(3500, 2500);
+  aLevels[1].SetTargetFeatureCount(1500, 1000);
+  aLevels[2].SetTargetFeatureCount(500, 300);
+  aLevels[3].SetTargetFeatureCount(400, 200);
 }
 
 /**
@@ -165,11 +227,9 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
 // to make a new map point by epipolar search. We don't want to make new points
 // where there are already existing map points, this routine erases such candidates.
 // Operates on a single level of a keyframe.
-void KeyFrame::ThinCandidates(int nLevel)
+void KeyFrame::ThinCandidates(int nLevel, std::vector<CVD::ImageRef>& vCandidates)
 {
-  vector<ImageRef> &vCSrc = aLevels[nLevel].mvBestFeatures;
   vector<ImageRef> vCGood;
-
   vector<ImageRef> irBusyLevelPos;
 
   // Make a list of `busy' image locations, which already have features at the same level
@@ -183,9 +243,9 @@ void KeyFrame::ThinCandidates(int nLevel)
 
   // Only keep those candidates further than 10 pixels away from busy positions.
   unsigned int nMinMagSquared = 10*10;
-  for(size_t i=0; i<vCSrc.size(); ++i)
+  for(size_t i=0; i<vCandidates.size(); ++i)
   {
-    const ImageRef& irC = vCSrc[i];
+    const ImageRef& irC = vCandidates[i];
     bool bGood = true;
     for(size_t j=0; j<irBusyLevelPos.size(); ++j)
     {
@@ -197,9 +257,9 @@ void KeyFrame::ThinCandidates(int nLevel)
       }
     }
     if(bGood)
-      vCGood.push_back(vCSrc[i]);
+      vCGood.push_back(vCandidates[i]);
   }
-  vCSrc = vCGood;
+  vCandidates = vCGood;
 }
 
 // Calculates the depth(z-) distribution of map points visible in a keyframe
@@ -238,19 +298,17 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
   // First, copy out the image data to the pyramid's zero level.
   aLevels[0].im.copy_from(im);
 
+  for (int i = 1; i < LEVELS; ++i) {
+    // .. make a half-size image from the previous level..
+    aLevels[i].im.resize(aLevels[i-1].im.size() / 2);
+    halfSample(aLevels[i-1].im, aLevels[i].im);
+  }
+
   gFeatureTimer.Start();
 
-  // Then, for each level...
   for (int i = 0; i < LEVELS; ++i) {
-
-    Level &lev = aLevels[i];
-    if(i!=0) {
-      // .. make a half-size image from the previous level..
-      lev.im.resize(aLevels[i-1].im.size() / 2);
-      halfSample(aLevels[i-1].im, lev.im);
-    }
-
-    lev.FindFeatures();
+    aLevels[i].Clear();
+    aLevels[i].FindFeatures();
   }
 
   gFeatureTimer.Stop();
@@ -263,11 +321,6 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
  */
 void KeyFrame::MakeKeyFrame_Rest()
 {
-  // For each level...
-  for(int l = 0; l < LEVELS; ++l) {
-    aLevels[l].FindBestFeatures();
-  }
-
   // Also, make a SmallBlurryImage of the keyframe: The relocaliser uses these.
   pSBI = new SmallBlurryImage(*this);
   // Relocaliser also wants the jacobians..

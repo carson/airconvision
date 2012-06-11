@@ -388,12 +388,10 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
-/*
   AddSomeMapPoints(0);
   AddSomeMapPoints(3);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
-  */
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -531,12 +529,19 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   Finder.MakeTemplateCoarseNoWarp(kSrc, nLevel, irLevelPos);
   if(Finder.TemplateBad())  return false;
 
-  vector<Vector<2> > &vv2Corners = kTarget.aLevels[nLevel].vImplaneCorners;
-  const vector<ImageRef> &vIR = kTarget.aLevels[nLevel].Features();
-  if(!kTarget.aLevels[nLevel].bImplaneCornersCached)
-  {
-    for(unsigned int i=0; i<vIR.size(); i++)   // over all corners in target img..
-      vv2Corners.push_back(kTarget.Camera.UnProject(ir(LevelZeroPos(vIR[i], nLevel))));
+  vector<pair<ImageRef,Vector<2>>> &vv2Corners = kTarget.aLevels[nLevel].vImplaneCorners;
+
+
+  // Generate the image plane unprojected points and cache them in the keyframe
+  if (!kTarget.aLevels[nLevel].bImplaneCornersCached) {
+
+    vector<ImageRef> vIR;
+    kTarget.aLevels[nLevel].GetAllFeatures(vIR);
+
+    for (size_t i = 0; i < vIR.size(); ++i) {   // over all corners in target img..
+      vv2Corners.emplace_back(vIR[i], kTarget.Camera.UnProject(ir(LevelZeroPos(vIR[i], nLevel))));
+    }
+
     kTarget.aLevels[nLevel].bImplaneCornersCached = true;
   }
 
@@ -545,16 +550,17 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   double dMaxDistDiff = kTarget.Camera.OnePixelDist() * (4.0 + 1.0 * nLevelScale);
   double dMaxDistSq = dMaxDistDiff * dMaxDistDiff;
 
-  for(unsigned int i=0; i<vv2Corners.size(); i++)   // over all corners in target img..
-  {
-    const Vector<2>& v2Im = vv2Corners[i];
+  for (size_t i = 0; i < vv2Corners.size(); ++i) {   // over all corners in target img..
+    const ImageRef& irIm = vv2Corners[i].first;
+    const Vector<2>& v2Im = vv2Corners[i].second;
     double dDistDiff = dNormDist - v2Im * v2Normal;
-    if( (dDistDiff * dDistDiff) > dMaxDistSq)       continue; // skip if not along epi line
-    if( (v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
-    if( (v2Im * v2AlongProjectedLine) > dMaxLen)    continue; // or too far
-    int nZMSSD = Finder.ZMSSDAtPoint(kTarget.aLevels[nLevel].im, vIR[i]);
-    if(nZMSSD < nBestZMSSD)
-    {
+
+    if ((dDistDiff * dDistDiff) > dMaxDistSq)       continue; // skip if not along epi line
+    if ((v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
+    if ((v2Im * v2AlongProjectedLine) > dMaxLen)    continue; // or too far
+
+    int nZMSSD = Finder.ZMSSDAtPoint(kTarget.aLevels[nLevel].GetImage(), irIm);
+    if (nZMSSD < nBestZMSSD) {
       nBest = i;
       nBestZMSSD = nZMSSD;
     }
@@ -568,7 +574,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   //  Found a likely candidate along epipolar ray
   Finder.MakeSubPixTemplate();
-  Finder.SetSubPixPos(LevelZeroPos(vIR[nBest], nLevel));
+  Finder.SetSubPixPos(LevelZeroPos(vv2Corners[nBest].first, nLevel));
   bool bSubPixConverges = Finder.IterateSubPixToConvergence(kTarget,10);
   if(!bSubPixConverges)
     return false;
@@ -663,7 +669,7 @@ bool Map::ReFind_Common(KeyFrame &k, MapPoint &p)
     return false;
   }
 
-  const ImageRef& irImageSize = k.aLevels[0].im.size();
+  const ImageRef& irImageSize = k.aLevels[0].GetImage().size();
   if(v2Image[0] < 0 || v2Image[1] < 0 || v2Image[0] > irImageSize[0] || v2Image[1] > irImageSize[1])
   {
     p.pMMData->sNeverRetryKFs.insert(&k);
@@ -829,10 +835,15 @@ void Map::AddSomeMapPoints(int nLevel)
   KeyFrame &kSrc = *vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
   KeyFrame &kTarget = *ClosestKeyFrame(kSrc);
 
-  kSrc.ThinCandidates(nLevel);
-
   Level &l = kSrc.aLevels[nLevel];
-  const std::vector<ImageRef>& vBestFeatures = l.GetBestFeatures();
+
+  // Find some good map points to add
+  std::vector<ImageRef> vBestFeatures;
+  l.GetBestFeatures(1000, vBestFeatures);
+
+  // Remove the points in the set that overlapps points in lower pyramid levels
+  kSrc.ThinCandidates(nLevel, vBestFeatures);
+
   for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
     AddPointEpipolar(kSrc, kTarget, nLevel, *it);
   }

@@ -55,35 +55,40 @@ struct Measurement
 
 // Each keyframe is made of LEVELS pyramid levels, stored in struct Level.
 // This contains image data and corner points.
-class Level
-{
+class Level {
   friend class KeyFrame;
 
   public:
     Level();
+    Level(const Level& rhs);
     ~Level();
 
     void Init(size_t nWidth, size_t nHeight, size_t nGridRows, size_t nGridCols);
+    void SetTargetFeatureCount(size_t nMinFeatures, size_t nMaxFeatures);
 
     Level& operator=(const Level &rhs);
 
-    void FindFeatures();
-    void FindBestFeatures();
+    void Clear();
 
-    const std::vector<CVD::ImageRef>& Features() const { return mvAllFeatures; }
-    const std::vector<CVD::ImageRef>& BestFeatures() const { return mvBestFeatures; }
+    const CVD::Image<CVD::byte>& GetImage() const { return im; }
 
+    void GetAllFeatures(std::vector<CVD::ImageRef>& vFeatures);
+    void GetBestFeatures(size_t nMaxFeatures, std::vector<CVD::ImageRef>& vFeatures);
     void GetFeaturesInsideCircle(const CVD::ImageRef &irPos, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const;
 
   public:
-    CVD::Image<CVD::byte> im;                // The pyramid level pixels
-    bool bImplaneCornersCached;           // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
-    std::vector<Vector<2> > vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
+    bool bImplaneCornersCached;              // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
+    std::vector<std::pair<CVD::ImageRef, Vector<2>>> vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
 
   private:
+    void FindFeatures();
+    void FindBestFeatures();
+
+  private:
+    CVD::Image<CVD::byte> im;                // The pyramid level pixels
     FeatureGrid *mpFeatureGrid;
-    std::vector<CVD::ImageRef> mvAllFeatures;     // All FAST corners on this level
-    std::vector<CVD::ImageRef> mvBestFeatures;
+    bool mbHasAllFeatures;
+    bool mbHasBestFeatures;
 };
 
 // The actual KeyFrame struct. The map contains of a bunch of these. However, the tracker uses this
@@ -98,7 +103,7 @@ class KeyFrame
 
     KeyFrame& operator=(const KeyFrame &rhs);
 
-    void ThinCandidates(int nLevel);
+    void ThinCandidates(int nLevel, std::vector<CVD::ImageRef>& vCandidates);
     void RefreshSceneDepth();
 
     // This takes an image and calculates pyramid levels etc to fill the

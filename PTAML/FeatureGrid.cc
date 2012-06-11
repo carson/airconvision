@@ -6,22 +6,27 @@
 #include <limits>
 #include <cmath>
 
+namespace CVD
+{
+void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+}
+
 using namespace CVD;
 
 namespace PTAMM {
 
 FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCols,
-                         size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell, int nInitialBarrier)
+                         int nInitialBarrier)
   : mnRows(nRows)
   , mnCols(nCols)
+  , mnMinFeaturesPerCell(2000)
+  , mnMaxFeaturesPerCell(3000)
 {
   mirCellSize = ImageRef(nWidth / nCols, nHeight / nRows);
 
   size_t nCells = mnCols * mnRows;
   mvCells.resize(nCells);
 
-  mnMinFeaturesPerCell = nMinFeaturesPerCell;
-  mnMaxFeaturesPerCell = nMaxFeaturesPerCell;
 
   for (size_t i = 0; i < mnRows; ++i) {
     for (size_t j = 0; j < mnCols; ++j) {
@@ -30,6 +35,12 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
       mvCells[idx].nBarrier = nInitialBarrier;
     }
   }
+}
+
+void FeatureGrid::SetTargetFeatureCount(size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell)
+{
+  mnMinFeaturesPerCell = nMinFeaturesPerCell;
+  mnMaxFeaturesPerCell = nMaxFeaturesPerCell;
 }
 
 void FeatureGrid::Clear()
@@ -56,11 +67,15 @@ void FeatureGrid::FindFeatures(const CVD::BasicImage<CVD::byte> &im)
       irSize.y -= irBottomRight.y - (im.size().y - 3);
     }
 
+    std::vector<ImageRef> vTmpCorners;
+
+#if 1
+    CVD::fast_corner_detect_plain_10(im.sub_image(cell.irPosition, irSize), vTmpCorners, cell.nBarrier);
+#else
     Image<byte> im2;
     im2.copy_from(im.sub_image(cell.irPosition, irSize));
-
-    std::vector<ImageRef> vTmpCorners;
     fast_corner_detect_10(im2, vTmpCorners, cell.nBarrier);
+#endif
 
     for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
       cell.vFeatures.push_back(cell.irPosition + *it);

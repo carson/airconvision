@@ -92,7 +92,7 @@ void InitialTracker::GetDrawData(InitialTrackerDrawData &drawData)
     drawData.vTrails.emplace_back(it->irInitialPos, it->irCurrentPos);
   }
   drawData.vDeadTrails = mvDeadTrails;
-  drawData.vCorners = mCurrentKF.aLevels[0].Features();
+  mCurrentKF.aLevels[0].GetAllFeatures(drawData.vCorners);
 }
 
 /**
@@ -195,21 +195,21 @@ void InitialTracker::TrailTracking_Start()
   mFirstKF = mCurrentKF;
 
   mvDeadTrails.clear();
-
-//  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
-
   mlTrails.clear();
 
-  const std::vector<ImageRef>& vFeatures = mCurrentKF.aLevels[0].GetBestFeatures();
+  int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
+
+  std::vector<ImageRef> vFeatures;
+  mCurrentKF.aLevels[0].GetBestFeatures(nToAdd, vFeatures);
 
   for (auto it = vFeatures.begin(); it != vFeatures.end(); ++it)  // Copy candidates into a trivially sortable vector
   {                                                                // so that we can choose the image corners with max ST score
-    if(!mCurrentKF.aLevels[0].im.in_image_with_border(*it, MiniPatch::mnHalfPatchSize)) {
+    if(!mCurrentKF.aLevels[0].GetImage().in_image_with_border(*it, MiniPatch::mnHalfPatchSize)) {
       continue;
     }
 
     Trail t;
-    t.mPatch.SampleFromImage(*it, mCurrentKF.aLevels[0].im);
+    t.mPatch.SampleFromImage(*it, mCurrentKF.aLevels[0].GetImage());
     t.irInitialPos = *it;
     t.irCurrentPos = t.irInitialPos;
     mlTrails.push_back(t);
@@ -230,19 +230,29 @@ int InitialTracker::TrailTracking_Advance()
   Level &lCurrentFrame = mCurrentKF.aLevels[0];
   Level &lPreviousFrame = mPreviousFrameKF.aLevels[0];
 
+  std::vector<ImageRef> vCurrentSearchPoints;
+  lCurrentFrame.GetAllFeatures(vCurrentSearchPoints);
+
+  std::vector<ImageRef> vPrevSearchPoints;
+  lPreviousFrame.GetAllFeatures(vPrevSearchPoints);
+
   for (auto i = mlTrails.begin(); i != mlTrails.end(); ) {
     Trail &trail = *i;
     ImageRef irStart = trail.irCurrentPos;
     ImageRef irEnd = irStart;
-    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.im, 10, lCurrentFrame.Features());
-    if(bFound)
-    {
+
+    bool bFound = trail.mPatch.FindPatch(irEnd, lCurrentFrame.GetImage(), 10, vCurrentSearchPoints);
+
+    if(bFound) {
       // Also find backwards in a married-matches check
-      BackwardsPatch.SampleFromImage(irEnd, lCurrentFrame.im);
+      BackwardsPatch.SampleFromImage(irEnd, lCurrentFrame.GetImage());
       ImageRef irBackWardsFound = irEnd;
-      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.im, 10, lPreviousFrame.Features());
-      if((irBackWardsFound - irStart).mag_squared() > 2)
+
+      bFound = BackwardsPatch.FindPatch(irBackWardsFound, lPreviousFrame.GetImage(), 10, vPrevSearchPoints);
+
+      if((irBackWardsFound - irStart).mag_squared() > 2) {
         bFound = false;
+      }
 
       trail.irCurrentPos = irEnd;
       nGoodTrails++;

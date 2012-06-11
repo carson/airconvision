@@ -32,14 +32,14 @@ SmallBlurryImage::SmallBlurryImage()
 void SmallBlurryImage::MakeFromKF(const KeyFrame &kf, double dBlur)
 {
   if(mirSize[0] == -1)
-    mirSize = kf.aLevels[3].im.size() / 2;
+    mirSize = kf.aLevels[3].GetImage().size() / 2;
   mbMadeJacs = false;
 
   mimSmall.resize(mirSize);
   mimTemplate.resize(mirSize);
   
   mbMadeJacs = false;
-  halfSample(kf.aLevels[3].im, mimSmall); 
+  halfSample(kf.aLevels[3].GetImage(), mimSmall);
   ImageRef ir;
   unsigned int nSum = 0;
   do  {

@@ -114,7 +114,7 @@ void PatchFinder::MakeTemplateCoarseCont(const MapPoint &p)
   {
     int nOutside;  // Use CVD::transform to warp the patch according the the warping matrix m2
                    // This returns the number of pixels outside the source image hit, which should be zero.
-    nOutside = CVD::transform(p.pPatchSourceKF->aLevels[p.nSourceLevel].im,
+    nOutside = CVD::transform(p.pPatchSourceKF->aLevels[p.nSourceLevel].GetImage(),
               mimTemplate,
               m2,
               vec(p.irCenter),
@@ -140,7 +140,7 @@ void PatchFinder::MakeTemplateCoarseCont(const MapPoint &p)
 void PatchFinder::MakeTemplateCoarseNoWarp(const KeyFrame &k, int nLevel, const ImageRef& irLevelPos)
 {
   mnSearchLevel = nLevel;
-  const Image<CVD::byte> &im = k.aLevels[nLevel].im;
+  const Image<CVD::byte> &im = k.aLevels[nLevel].GetImage();
   if(!im.in_image_with_border(irLevelPos, mnPatchSize / 2 + 1))
   {
     mbTemplateBad = true;
@@ -288,7 +288,7 @@ bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned i
     if ((irPos - *it).mag_squared() > nRange * nRange)
       continue;              // ... reject all those not close enough..
 
-    int nSSD = ZMSSDAtPoint(L.im, *it); // .. and find the ZMSSD at those near enough.
+    int nSSD = ZMSSDAtPoint(L.GetImage(), *it); // .. and find the ZMSSD at those near enough.
     if (nSSD < nBestSSD) {      // Best yet?
       irBest = *it;
       nBestSSD = nSSD;
@@ -366,7 +366,7 @@ double PatchFinder::IterateSubPix(const KeyFrame &kf)
 {
   // Search level pos of patch center
   Vector<2> v2Center = LevelNPos(mv2SubPixPos, mnSearchLevel);
-  const BasicImage<CVD::byte> &im = kf.aLevels[mnSearchLevel].im;
+  const BasicImage<CVD::byte> &im = kf.aLevels[mnSearchLevel].GetImage();
   if(!im.in_image_with_border(ir_rounded(v2Center), mnPatchSize / 2 + 1))
     return -1.0;       // Negative return value indicates off edge of image 
   
@@ -391,7 +391,7 @@ double PatchFinder::IterateSubPix(const KeyFrame &kf)
   float fMixBR = (dX)       * (dY);
   
   // Loop over template image
-  unsigned long nRowOffset = &kf.aLevels[mnSearchLevel].im[ImageRef(0,1)] - &kf.aLevels[mnSearchLevel].im[ImageRef(0,0)];
+  unsigned long nRowOffset = &kf.aLevels[mnSearchLevel].GetImage()[ImageRef(0,1)] - &kf.aLevels[mnSearchLevel].GetImage()[ImageRef(0,0)];
   for(ir.y = 1; ir.y < mnPatchSize - 1; ir.y++)
   {
     pTopLeftPixel = &im[PTAMM::ir(v2Base) + ImageRef(1,ir.y)]; // n.b. the x=1 offset, as with y

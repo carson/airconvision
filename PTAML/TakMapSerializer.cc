@@ -1029,7 +1029,7 @@ bool MapSerializer::_SaveAKeyFrame( KeyFrame * kf, const std::string & sPath, Ti
     os.str("");
     os << sPath << "/" << sFileBaseName;
     try {
-      img_save(kf->aLevels[0].im, os.str());
+      img_save(kf->aLevels[0].GetImage(), os.str());
     }
     catch(CVD::Exceptions::All& err) {
       cerr << " Failed to save image " <<  os.str() << ": " << err.what << endl;
