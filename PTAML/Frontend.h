@@ -34,6 +34,8 @@ class FrontendMonitor {
   public:
     FrontendMonitor()
       : mbHasFrontendData(false)
+      , mbUserInvoke(false)
+      , mbUserResetInvoke(false)
     {
     }
 

@@ -20,11 +20,6 @@
 #include <functional>
 #include <thread>
 
-// CHECK_RESET is a handy macro which makes the mapmaker thread stop
-// what it's doing and reset, if required.
-#define CHECK_UNLOCK mpMap->mapLockManager.CheckLockAndWait( this, 0 );
-#define CKECK_ABORTS
-
 #if 0
 #   define DEBUG_MAP_MAKER(x) x
 #else
@@ -100,14 +95,12 @@ void ActionDispatcher::PushActionAndWait(const Action &a)
  * @param maps list of maps
  * @param m current map
  */
-MapMaker::MapMaker(std::vector<Map*> &maps, Map* m)
-  : mvpMaps(maps),
-    mpMap(m),
+MapMaker::MapMaker(Map* m)
+  : mpMap(m),
     mbAbortRequested(false),
     mbStereoInitDone(false)
 {
   mpMap->mapLockManager.Register( this );
-
   mpMap->Reset();
 }
 
@@ -145,7 +138,7 @@ void MapMaker::operator()()
       mbAbortRequested = false;
       DEBUG_MAP_MAKER(cout << "START: Recent bundle adjustment" << endl);
       if (!mpMap->RecentBundleAdjust(&mbAbortRequested)) {
-        ResetImpl();
+        mpMap->Reset();
       }
       DEBUG_MAP_MAKER(cout << "  END: Recent bundle adjustment: " << mbAbortRequested << endl);
     }
@@ -170,7 +163,7 @@ void MapMaker::operator()()
       mbAbortRequested = false;
       DEBUG_MAP_MAKER(cout << "START: Full bundle adjustment" << endl);
       if (!mpMap->FullBundleAdjust(&mbAbortRequested)) {
-        ResetImpl();
+        mpMap->Reset();
       }
       DEBUG_MAP_MAKER(cout << "  END: Full bundle adjustment: " << mbAbortRequested << endl);
     }
@@ -194,99 +187,29 @@ void MapMaker::operator()()
   }
 }
 
-
-/**
- * Reinitialize the map maker for a new map
- */
-void MapMaker::ReInitImpl()
-{
-  if(mpMap == mpNewMap)
-  {
-    cerr << "*** WARNING: MapMaker::ReInit() changing to same map! ***" << endl;
-  }
-  else
-  {
-    mpMap->mapLockManager.UnRegister( this );
-    mpMap = mpNewMap;
-    mpMap->mapLockManager.Register( this );
-    Reset();
-  }
-}
-
-/**
- * Reset a map.
- */
-void MapMaker::ResetImpl2(Map * map)
-{
-  if (map == NULL) {
-    throw std::runtime_error("Trying to reset a null map");
-  }
-
-  // This is only called from within the mapmaker thread...
-  map->Reset();
-}
-
-/**
- * Switch maps
- */
-void MapMaker::SwitchMapImpl()
-{
-  //change
-  mpMap->mapLockManager.UnRegister( this );
-  mpMap = mpSwitchMap;
-  mpMap->mapLockManager.Register( this );
-  //load current state?
-}
-
-
 /**
  * Tracker calls this to demand a reset
  */
-void MapMaker::Reset()
+void MapMaker::Reset(bool async)
 {
   mbAbortRequested = true;
-  mDispatcher.PushActionAndWait(std::bind(&MapMaker::ResetImpl, this));
-}
 
-/**
- * System calls this to demand a reinitialization for
- * a new map to be inserted
- * @param map the new map
- */
-void MapMaker::ReInit(Map * map)
-{
-  mpNewMap = map;
+  auto action = [mpMap] () { mpMap->Reset(); };
 
-  mbAbortRequested = true;
-  mDispatcher.PushActionAndWait(std::bind(&MapMaker::ReInitImpl, this));
-}
-
-/**
- * System calls this to request a switch the supplied map
- * @param map map to switch to
- */
-bool MapMaker::Switch(Map * map)
-{
-  if( map == NULL ) {
-    return false;
+  if (async) {
+    mDispatcher.PushAction(action);
+  } else {
+    mDispatcher.PushActionAndWait(action);
   }
-
-  mpSwitchMap = map;
-  mpNewMap = map;
-
-  mbAbortRequested = true;
-  mDispatcher.PushActionAndWait(std::bind(&MapMaker::SwitchMapImpl, this));
-
-  return true;
 }
 
-void MapMaker::RequestRealignment()
+void MapMaker::RealignGroundPlane(bool async)
 {
   if(!mpMap->IsGood() || mpMap->bEditLocked ) { // Nothing to do if there is no map yet! or is locked
     return;
   }
 
-  mDispatcher.PushAction([mpMap] () {
+  auto action = [mpMap] () {
     SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner(false);
 
     // Don't align in the XY-plane!
@@ -294,29 +217,47 @@ void MapMaker::RequestRealignment()
     se3GroundAlignment.get_translation()[1] = 0;
 
     mpMap->ApplyGlobalTransformation(se3GroundAlignment);
-  });
+  };
+
+  if (async) {
+    mDispatcher.PushAction(action);
+  } else {
+    mDispatcher.PushActionAndWait(action);
+  }
 }
 
-void MapMaker::RequestMapTransformation(const SE3<> &se3NewFromOld)
+void MapMaker::TransformMapPoints(const SE3<> &se3NewFromOld, bool async)
 {
   if(!mpMap->IsGood() || mpMap->bEditLocked ) { // Nothing to do if there is no map yet! or is locked
     return;
   }
 
-  mDispatcher.PushAction([se3NewFromOld, mpMap] () {
+  auto action = [se3NewFromOld, mpMap] () {
     mpMap->ApplyGlobalTransformation(se3NewFromOld);
-  });
+  };
+
+  if (async) {
+    mDispatcher.PushAction(action);
+  } else {
+    mDispatcher.PushActionAndWait(action);
+  }
 }
 
-void MapMaker::RequestMapScaling(double dScale)
+void MapMaker::ScaleMapPoints(double dScale, bool async)
 {
   if(!mpMap->IsGood() || mpMap->bEditLocked ) { // Nothing to do if there is no map yet! or is locked
     return;
   }
 
-  mDispatcher.PushAction([dScale, mpMap] () {
+  auto action = [dScale, mpMap] () {
     mpMap->ApplyGlobalScale(dScale);
-  });
+  };
+
+  if (async) {
+    mDispatcher.PushAction(action);
+  } else {
+    mDispatcher.PushActionAndWait(action);
+  }
 }
 
 void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
@@ -341,7 +282,7 @@ void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
  */
 void MapMaker::AddKeyFrame(const KeyFrame &k)
 {
-  if( mpMap->bEditLocked ) {
+  if (mpMap->bEditLocked) {
     return;
   }
 

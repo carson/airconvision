@@ -14,7 +14,6 @@
 #ifndef __RELOCALISER_H
 #define __RELOCALISER_H
 
-#include <TooN/se2.h>
 #include "ATANCamera.h"
 #include "SmallBlurryImage.h"
 
@@ -26,21 +25,17 @@ namespace PTAMM {
 class Relocaliser
 {
 public:
-  Relocaliser(std::vector<Map*> &maps, ATANCamera &camera);
-  bool AttemptRecovery(Map & currentMap, KeyFrame &k);
-  SE3<> BestPose();
+  Relocaliser(const ATANCamera &camera);
+  bool AttemptRecovery(const Map & currentMap, KeyFrame &k);
+
+  const SE3<>& BestPose() const { return mse3Best; }
 
 protected:
-  void ScoreKFs(Map * pMap, KeyFrame &kCurrentF);
-
-  std::vector<Map*> & mvpMaps;                    // Reference to all of the maps
-  Map * mpBestMap;                                // The map where the camera has been found
-  bool mbNewRun;                                 // Is this a new search of all maps?
+  void ScoreKFs(const Map &map, const KeyFrame &kCurrentF);
 
   ATANCamera mCamera;
   int mnBest;
   double mdBestScore;
-  SE2<> mse2;
   SE3<> mse3Best;
 };
 

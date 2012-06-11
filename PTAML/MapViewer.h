@@ -30,14 +30,9 @@ class Map;
 class MapViewer
 {
   public:
-    MapViewer(std::vector<Map*> &maps, Map *map, GLWindow2 &glw);
+    MapViewer(Map *map, GLWindow2 &glw);
     void DrawMap(SE3<> se3CamFromWorld);
     std::string GetMessageForUser();
-    void SwitchMap( Map * map, bool bForce = false );
-
-    void ViewNextMap();
-    void ViewPrevMap();
-    void ViewCurrentMap();
 
   private:
     void DrawGrid();
@@ -49,7 +44,6 @@ class MapViewer
     void TakSetupFrustum();
 
   private:
-    std::vector<Map*> & mvpMaps;     // Reference to all of the maps
     Map * mpMap, *mpViewingMap;      // the active tracking map, and the map being viewed
     GLWindow2 &mGLWindow;
 

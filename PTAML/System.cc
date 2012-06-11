@@ -332,19 +332,11 @@ void System::CreateMenu()
   GUI.RegisterCommand("exit", GUICommandCallBack, this);
   GUI.RegisterCommand("quit", GUICommandCallBack, this);
 
-  GUI.RegisterCommand("SwitchMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("NewMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("DeleteMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("ResetAll", GUICommandCallBack, this);
   GUI.RegisterCommand("Realign", GUICommandCallBack, this);
 
   GUI.RegisterCommand("LoadMap", GUICommandCallBack, this);
   GUI.RegisterCommand("SaveMap", GUICommandCallBack, this);
   GUI.RegisterCommand("SaveMaps", GUICommandCallBack, this);
-
-  GUI.RegisterCommand("NextMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("PrevMap", GUICommandCallBack, this);
-  GUI.RegisterCommand("CurrentMap", GUICommandCallBack, this);
 
   GUI.RegisterCommand("ClearPath", GUICommandCallBack, this);
   GUI.RegisterCommand("FlyPath", GUICommandCallBack, this);
@@ -357,7 +349,6 @@ void System::CreateMenu()
   // Create the menus
   GUI.ParseLine("GLWindow.AddMenu Menu Menu");
   GUI.ParseLine("Menu.ShowMenu Root");
-  GUI.ParseLine("Menu.AddMenuButton Root \"Reset All\" ResetAll Root");
   GUI.ParseLine("Menu.AddMenuButton Root Reset Reset Root");
   GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
@@ -366,7 +357,6 @@ void System::CreateMenu()
   GUI.ParseLine("Menu.AddMenuToggle Root \"Draw MK\" DrawMKDebug Root");
 
   GUI.ParseLine("GLWindow.AddMenu MapsMenu Maps");
-  GUI.ParseLine("MapsMenu.AddMenuButton Root \"New Map\" NewMap Root");
   GUI.ParseLine("MapsMenu.AddMenuButton Root \"Serialize\" \"\" Serial");
   GUI.ParseLine("MapsMenu.AddMenuButton Serial \"Save Maps\" SaveMaps Root");
   GUI.ParseLine("MapsMenu.AddMenuButton Serial \"Save Map\" SaveMap Root");
@@ -377,15 +367,11 @@ void System::CreateMenu()
 #endif
   GUI.ParseLine("LockMap=0");
   GUI.ParseLine("MapsMenu.AddMenuToggle Root \"Lock Map\" LockMap Root");
-  GUI.ParseLine("MapsMenu.AddMenuButton Root \"Delete Map\" DeleteMap Root");
   GUI.ParseLine("MapInfo=0");
   GUI.ParseLine("MapsMenu.AddMenuToggle Root \"Map Info\" MapInfo Root");
 
   GUI.ParseLine("GLWindow.AddMenu MapViewerMenu Viewer");
   GUI.ParseLine("MapViewerMenu.AddMenuToggle Root \"View Map\" DrawMap Root");
-  GUI.ParseLine("MapViewerMenu.AddMenuButton Root Next NextMap Root");
-  GUI.ParseLine("MapViewerMenu.AddMenuButton Root Previous PrevMap Root");
-  GUI.ParseLine("MapViewerMenu.AddMenuButton Root Current CurrentMap Root");
 
   GUI.ParseLine("EnableMouseControl=0");
   GUI.ParseLine("GLWindow.AddMenu HelicopterMenu Helicopter");
@@ -421,17 +407,19 @@ void System::CreateModules()
 
   //create the first map
   mpMap = new Map();
-  mvpMaps.push_back( mpMap );
-  mpMap->mapLockManager.Register(this);
 
   // Create all the sub-systems
-  mModules.pMapMaker = new MapMaker(mvpMaps, mpMap);
-  mModules.pRelocaliser = new Relocaliser(mvpMaps, *mModules.pCamera);
+  mModules.pMapMaker = new MapMaker(mpMap);
+  mModules.pMapViewer = new MapViewer(mpMap, mGLWindow);
+//  mModules.pMapSerializer = new MapSerializer(mvpMaps);
+
+
+  // Move these into the frontend
+  mModules.pRelocaliser = new Relocaliser(*mModules.pCamera);
   mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker, mModules.pRelocaliser);
   mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker);
   mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
-  mModules.pMapViewer = new MapViewer(mvpMaps, mpMap, mGLWindow);
-  mModules.pMapSerializer = new MapSerializer(mvpMaps);
+
 
   mModules.pFrontend = new Frontend(mVideoSource, *mModules.pCamera,
                                     mModules.pInitialTracker,
@@ -518,37 +506,8 @@ void System::GUICommandCallBack(const string &sCommand, const string &sParams)
   if( sCommand=="quit" || sCommand == "exit" ) {
     Quit();
   }
-  else if( sCommand == "SwitchMap" ) {
-    int nMapNum = -1;
-    if( GetSingleParam(nMapNum, sCommand, sParams) ) {
-      SwitchMap( nMapNum );
-    }
-  }
   else if(sCommand == "Realign") {
-    mModules.pMapMaker->RequestRealignment();
-  }
-  else if(sCommand == "ResetAll") {
-    ResetAll();
-  }
-  else if( sCommand == "NewMap") {
-    NewMap();
-  }
-  else if( sCommand == "DeleteMap") {
-    int nMapNum = -1;
-    if( sParams.empty() ) {
-      DeleteMap( mpMap->MapID() );
-    } else if ( GetSingleParam(nMapNum, sCommand, sParams) ) {
-      DeleteMap( nMapNum );
-    }
-  }
-  else if( sCommand == "NextMap")  {
-    mModules.pMapViewer->ViewNextMap();
-  }
-  else if( sCommand == "PrevMap")  {
-    mModules.pMapViewer->ViewPrevMap();
-  }
-  else if( sCommand == "CurrentMap")  {
-    mModules.pMapViewer->ViewCurrentMap();
+    mModules.pMapMaker->RealignGroundPlane(true);
   }
   else if( sCommand == "SaveMap" || sCommand == "SaveMaps" || sCommand == "LoadMap")  {
     StartMapSerialization( sCommand, sParams );
@@ -615,168 +574,6 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
     */
   }
 }
-
-
-/**
- * Switch to the map with ID nMapNum
- * @param  nMapNum Map ID
- * @param bForce This is only used by DeleteMap and ResetAll, and is
- * to ensure that MapViewer is looking at a safe map.
- */
-bool System::SwitchMap( int nMapNum, bool bForce )
-{
-  //same map, do nothing. This should not actually occur
-  if(mpMap->MapID() == nMapNum) {
-    return true;
-  }
-
-  if( (nMapNum < 0) )
-  {
-    cerr << "Invalid map number: " << nMapNum << ". Not changing." << endl;
-    return false;
-  }
-
-
-  for( size_t ii = 0; ii < mvpMaps.size(); ii++ )
-  {
-    Map * pcMap = mvpMaps[ ii ];
-    if( pcMap->MapID() == nMapNum ) {
-      mpMap->mapLockManager.UnRegister( this );
-      mpMap = pcMap;
-      mpMap->mapLockManager.Register( this );
-    }
-  }
-
-  if (mpMap->MapID() != nMapNum) {
-    cerr << "Failed to switch to " << nMapNum << ". Does not exist." << endl;
-    return false;
-  }
-
-  /*  Map was found and switched to for system.
-      Now update the rest of the system.
-      Order is important. Do not want keyframes added or
-      points deleted from the wrong map.
-
-      MapMaker is in its own thread.
-      System,Tracker, and MapViewer are all in this thread.
-  */
-
-  //update the map maker thread
-  if (!mModules.pMapMaker->Switch(mpMap)) {
-    return false;
-  }
-
-  //update the map viewer object
-  mModules.pMapViewer->SwitchMap(mpMap, bForce);
-
-  if (!mModules.pTracker->SwitchMap(mpMap)) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Create a new map and switch all
- * threads and objects to it.
- */
-void System::NewMap()
-{
-  mpMap->mapLockManager.UnRegister( this );
-  mpMap = new Map();
-  mpMap->mapLockManager.Register( this );
-  mvpMaps.push_back( mpMap );
-
-  //update the map maker thread
-  mModules.pMapMaker->ReInit( mpMap );
-
-  //update the map viewer object
-  mModules.pMapViewer->SwitchMap(mpMap);
-
-  //update the tracker object
-  mModules.pTracker->SetNewMap( mpMap );
-
-  cout << "New map created (" << mpMap->MapID() << ")" << endl;
-}
-
-/**
- * Moves all objects and threads to the first map, and resets it.
- * Then deletes the rest of the maps, placing PTAMM in its
- * original state.
- * This reset ignores the edit lock status on all maps
- */
-void System::ResetAll()
-{
-  //move all maps to first map.
-  if( mpMap != mvpMaps.front() )
-  {
-    if( !SwitchMap( mvpMaps.front()->MapID(), true ) ) {
-      cerr << "Reset All: Failed to switch to first map" << endl;
-    }
-  }
-  mpMap->bEditLocked = false;
-
-  //reset map.
-  mModules.pTracker->Reset();
-
-  //lock and delete all remaining maps
-  while( mvpMaps.size() > 1 )
-  {
-    DeleteMap( mvpMaps.back()->MapID() );
-  }
-}
-
-
-/**
- * Delete a specified map.
- * @param nMapNum map to delete
- */
-bool System::DeleteMap( int nMapNum )
-{
-  if( mvpMaps.size() <= 1 )
-  {
-    cout << "Cannot delete the only map. Use Reset instead." << endl;
-    return false;
-  }
-
-  //if the specified map is the current map, move threads to another map
-  if( nMapNum == mpMap->MapID() )
-  {
-    int nNewMap = -1;
-
-    if( mpMap == mvpMaps.front() ) {
-      nNewMap = mvpMaps.back()->MapID();
-    }
-    else {
-      nNewMap = mvpMaps.front()->MapID();
-    }
-
-    // move the current map users elsewhere
-    if( !SwitchMap( nNewMap, true ) ) {
-      cerr << "Delete Map: Failed to move threads to another map." << endl;
-      return false;
-    }
-  }
-
-  // find and delete the map
-  for( size_t ii = 0; ii < mvpMaps.size(); ii++ )
-  {
-    Map * pDelMap = mvpMaps[ ii ];
-    if( pDelMap->MapID() == nMapNum ) {
-
-      pDelMap->mapLockManager.Register( this );
-      pDelMap->mapLockManager.LockMap( this );
-      delete pDelMap;
-      mvpMaps.erase( mvpMaps.begin() + ii );
-
-      ///@TODO Possible bug. If another thread (eg serialization) was using this
-      /// and waiting for unlock, would become stuck or seg fault.
-    }
-  }
-
-  return true;
-}
-
 
 /**
  * Set up the map serialization thread for saving/loading and the start the thread
@@ -895,7 +692,7 @@ void System::DrawDebugInfo()
  */
 void System::DrawMapInfo()
 {
-  int nLines = static_cast<int>(mvpMaps.size()) + 2;
+  int nLines = 3;
   int x = 5, y = 120, w = 160, nBorder = 5;
 
   mGLWindow.DrawBox( x, y, w, nLines, 0.7f );
@@ -904,29 +701,12 @@ void System::DrawMapInfo()
 
   glColor3f(1,1,1);
   std::ostringstream os;
-  os << "Maps " << mvpMaps.size();
-  mGLWindow.PrintString( ImageRef(x + nBorder,y + nBorder), os.str() );
-  os.str("");
 
-  for( size_t i = 0; i < mvpMaps.size(); i++ )
-  {
-    Map * pMap = mvpMaps[i];
-    if( pMap == mpMap ) {
-      glColor3f(1,1,0);
-    }
-    else if( pMap->bEditLocked ) {
-      glColor3f(1,0,0);
-    }
-    else {
-      glColor3f(1,1,1);
-    }
+  os << "M: " << mpMap->MapID() << "  P: " << mpMap->GetMapPoints().size() << "  K: " << mpMap->GetKeyFrames().size();
 
-    os << "M: " << pMap->MapID() << "  P: " << pMap->GetMapPoints().size() << "  K: " << pMap->GetKeyFrames().size();
-    mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + (i+1)*17), os.str() );
-    os.str("");
-  }
+  glColor3f(1,1,0);
+  mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + 17), os.str() );
 }
-
 
 /**
  * Save the current frame to a FIFO.

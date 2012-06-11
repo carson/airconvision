@@ -90,8 +90,6 @@ class System
     Modules mModules;
     MikroKopter mMikroKopter;
     ARToolkitTracker mARTracker;
-
-    std::vector<Map*> mvpMaps;                      // The set of maps
     Map *mpMap;                                     // The current map
 
     bool mbDone;                                    // Kill?

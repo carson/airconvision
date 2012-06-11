@@ -23,8 +23,7 @@ using namespace std;
  * @param map the current map
  * @param glw the GL window reference
  */
-MapViewer::MapViewer(std::vector<Map*> &maps, Map *map, GLWindow2 &glw):
-  mvpMaps(maps),
+MapViewer::MapViewer(Map *map, GLWindow2 &glw):
   mpMap(map),
   mpViewingMap(map),
   mGLWindow(glw),
@@ -384,84 +383,6 @@ void MapViewer::DrawCamera(SE3<> se3CfromW, bool bSmall)
   glMultMatrix(se3CfromW.inverse());
   glEnd();*/
 
-}
-
-/**
- * Switch to the specified map.
- * @param map the map to switch to.
- * @param bForce forces the map view to view the specifed map. This is used when deleting a map.
- */
-void MapViewer::SwitchMap( Map * map, bool bForce )
-{
-  if( map != NULL && map != mpMap ) {
-    mpMap = map;
-
-    if(!mbBrowseMode || bForce) {
-      mpViewingMap = mpMap;
-    }
-  }
-
-  /*  If this was in a separate thread then
-      a switching mechanism such as the one
-      in MapMaker would be required
-  */
-}
-
-
-/**
- * Switch to the next map in the list.
- */
-void MapViewer::ViewNextMap()
-{
-  vector<Map*>::iterator it = find(mvpMaps.begin(), mvpMaps.end(), mpViewingMap);
-  if(it == mvpMaps.end()) {
-    return;
-  }
-
-  mbBrowseMode = true;
-
-  it++;
-  if(it != mvpMaps.end())  {
-    mpViewingMap = (*it);
-  }
-  else {
-    mpViewingMap = mvpMaps.front();
-  }
-}
-
-
-/**
- * Switch to the previous map in the list.
- */
-void MapViewer::ViewPrevMap()
-{
-  vector<Map*>::iterator it = find(mvpMaps.begin(), mvpMaps.end(), mpViewingMap);
-  if(it == mvpMaps.end()) {
-    return;
-  }
-
-  mbBrowseMode = true;
-
-  int pos = it - mvpMaps.begin();
-
-  if(pos > 0)
-  {
-    --it;
-    mpViewingMap = (*it);
-  }
-  else {
-    mpViewingMap = mvpMaps.back();
-  }
-}
-
-
-/**
- * View the current map, and leave browsing mode.
- */
-void MapViewer::ViewCurrentMap()
-{
-  mpViewingMap = mpMap;
-  mbBrowseMode = false;
 }
 
 }

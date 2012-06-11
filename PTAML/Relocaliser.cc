@@ -15,6 +15,7 @@
 #include "SmallBlurryImage.h"
 #include <cvd/utility.h>
 #include <gvars3/instances.h>
+#include <TooN/se2.h>
 
 namespace PTAMM {
 
@@ -27,23 +28,10 @@ using namespace GVars3;
  * @param maps The reference to all of the maps for searching.
  * @param camera The camera model
  */
-Relocaliser::Relocaliser(std::vector<Map*> &maps, ATANCamera &camera)
-  : mvpMaps(maps),
-    mpBestMap(NULL),
-    mbNewRun(true),
-    mCamera(camera)
+Relocaliser::Relocaliser(const ATANCamera &camera)
+  : mCamera(camera)
 {
 }
-
-/**
- * Return the best pose found
- * @return Best camera pose as an SE3.
- */
-SE3<> Relocaliser::BestPose()
-{
-  return mse3Best;
-}
-
 
 /**
  * Attempt to recover the camera pose.
@@ -52,54 +40,28 @@ SE3<> Relocaliser::BestPose()
  * @param kCurrent The current camera image
  * @return sucess or failure
  */
-bool Relocaliser::AttemptRecovery(Map & currentMap, KeyFrame &kCurrent)
+bool Relocaliser::AttemptRecovery(const Map &currentMap, KeyFrame &kCurrent)
 {
-  mbNewRun = true;
-
   // Ensure the incoming frame has a SmallBlurryImage attached
-  if(!kCurrent.pSBI)
+  if(!kCurrent.pSBI) {
     kCurrent.pSBI = new SmallBlurryImage(kCurrent);
-  else
+  } else {
     kCurrent.pSBI->MakeFromKF(kCurrent);
-
+  }
 
   // Find the best ZMSSD match from all keyframes in all maps
-  std::vector<Map*>::iterator it;
-  for( it = mvpMaps.begin(); it != mvpMaps.end(); it++)
-  {
-    ScoreKFs((*it), kCurrent);
-    mbNewRun = false;
-  }
+  ScoreKFs(currentMap, kCurrent);
 
   // And estimate a camera rotation from a 3DOF image alignment
-  pair<SE2<>, double> result_pair = kCurrent.pSBI->IteratePosRelToTarget(*mpBestMap->GetKeyFrames()[mnBest]->pSBI, 6);
-  mse2 = result_pair.first;
-  double dScore =result_pair.second;
+  pair<SE2<>, double> result_pair = kCurrent.pSBI->IteratePosRelToTarget(*currentMap.GetKeyFrames()[mnBest]->pSBI, 6);
+  SE2<> mse2 = result_pair.first;
+  double dScore = result_pair.second;
 
-  SE3<> se3KeyFramePos = mpBestMap->GetKeyFrames()[mnBest]->se3CfromW;
+  SE3<> se3KeyFramePos = currentMap.GetKeyFrames()[mnBest]->se3CfromW;
   mse3Best = SmallBlurryImage::SE3fromSE2(mse2, mCamera) * se3KeyFramePos;
 
-  if(dScore < GV2.GetDouble("Reloc2.MaxScore", 9e6, SILENT))
-  {
-    //are we in the same map?
-    if (mpBestMap == &currentMap) {
-      return true;
-    }
-    else {
-      //switch
-      ostringstream os;
-      os << "SwitchMap " << mpBestMap->MapID();
-      GUI.ParseLine(os.str());
-      //remain lost until switch complete
-      return false;
-    }
-  }
-  else {
-    return false;
-  }
+  return dScore < GV2.GetDouble("Reloc2.MaxScore", 9e6, SILENT);
 }
-
-
 
 /**
  * Compare current KF to all KFs stored in map by
@@ -107,16 +69,12 @@ bool Relocaliser::AttemptRecovery(Map & currentMap, KeyFrame &kCurrent)
  * @param pMap the map to search
  * @param kCurrent the current camera frame
  */
-void Relocaliser::ScoreKFs(Map * pMap, KeyFrame &kCurrent)
+void Relocaliser::ScoreKFs(const Map &map, const KeyFrame &kCurrent)
 {
-  if(mbNewRun) //only reset on a new attempt at reloc.
-  {
-    mdBestScore = 99999999999999.9;
-    mnBest = -1;
-    mpBestMap = NULL;
-  }
+  mdBestScore = 99999999999999.9;
+  mnBest = -1;
 
-  const std::vector<KeyFrame*>& keyFrames = pMap->GetKeyFrames();
+  const std::vector<KeyFrame*>& keyFrames = map.GetKeyFrames();
 
   for(size_t i = 0; i < keyFrames.size(); ++i)
   {
@@ -125,7 +83,6 @@ void Relocaliser::ScoreKFs(Map * pMap, KeyFrame &kCurrent)
     {
       mdBestScore = dSSD;
       mnBest = i;
-      mpBestMap = pMap;
     }
   }
 }
