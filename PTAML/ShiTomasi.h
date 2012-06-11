@@ -7,10 +7,9 @@
 
 namespace PTAMM {
 
-
-double FindShiTomasiScoreAtPoint(CVD::BasicImage<CVD::byte> &image,
+double FindShiTomasiScoreAtPoint(const CVD::BasicImage<CVD::byte> &image,
                                  int nHalfBoxSize,
-                                 CVD::ImageRef irCenter);
+                                 const CVD::ImageRef &irCenter);
 
 
 }

@@ -19,6 +19,7 @@
 #define __KEYFRAME_H
 
 #include "ATANCamera.h"
+#include "FeatureGrid.h"
 
 #include <TooN/TooN.h>
 #include <TooN/se3.h>
@@ -41,16 +42,6 @@ const int LEVELS = 4;
 
 extern int g_nNumFeaturesFound[LEVELS];
 
-// Candidate: a feature in an image which could be made into a map point
-struct Candidate
-{
-  Candidate() {}
-  Candidate(const CVD::ImageRef &irLevelPos, double dSTScore)
-    : irLevelPos(irLevelPos), dSTScore(dSTScore) {}
-  CVD::ImageRef irLevelPos;
-  double dSTScore;
-};
-
 // Measurement: A 2D image measurement of a map point. Each keyframe stores a bunch of these.
 struct Measurement
 {
@@ -69,37 +60,30 @@ class Level
   friend class KeyFrame;
 
   public:
-    Level() : bImplaneCornersCached(false)
-    {
-    }
+    Level();
+    ~Level();
+
+    void Init(size_t nWidth, size_t nHeight, size_t nGridRows, size_t nGridCols);
 
     Level& operator=(const Level &rhs);
 
-    void FindCorners(int barrier);
-    void FindMaxCornersAndCandidates(double dCandidateMinSTScore);
+    void FindFeatures();
+    void FindBestFeatures();
 
-    const std::vector<CVD::ImageRef>& GetCorners() const { return vCorners; }
-    const std::vector<int>& GetCornerRowLUT() const { return vCornerRowLUT; }
-    const std::vector<CVD::ImageRef>& GetMaxCorners() const { return vMaxCorners; }
-    const std::vector<Candidate>& GetCandidates() const { return vCandidates; }
+    const std::vector<CVD::ImageRef>& Features() const { return mvAllFeatures; }
+    const std::vector<CVD::ImageRef>& BestFeatures() const { return mvBestFeatures; }
+
+    void GetFeaturesInsideCircle(const CVD::ImageRef &irPos, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const;
 
   public:
     CVD::Image<CVD::byte> im;                // The pyramid level pixels
-
     bool bImplaneCornersCached;           // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
     std::vector<Vector<2> > vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
 
   private:
-    void FindCornersInCell(int barrier, const CVD::ImageRef &start, const CVD::ImageRef &size);
-    void FindCandidatesInCell(const CVD::ImageRef &start, const CVD::ImageRef &size);
-
-  private:
-    std::vector<CVD::ImageRef> vCorners;     // All FAST corners on this level
-    std::vector<int> vCornerRowLUT;          // Row-index into the FAST corners, speeds up access
-    std::vector<CVD::ImageRef> vMaxCorners;  // The maximal FAST corners
-    std::vector<Candidate> vCandidates;      // Potential locations of new map points
-
-    int mBarrier;
+    FeatureGrid *mpFeatureGrid;
+    std::vector<CVD::ImageRef> mvAllFeatures;     // All FAST corners on this level
+    std::vector<CVD::ImageRef> mvBestFeatures;
 };
 
 // The actual KeyFrame struct. The map contains of a bunch of these. However, the tracker uses this

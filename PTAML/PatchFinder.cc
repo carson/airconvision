@@ -183,6 +183,7 @@ inline void PatchFinder::MakeTemplateSums()
 // the target keyframe to try and find the template. Looks only at FAST corner points
 // which are within radius nRange of the center. (Params are supplied in Level0
 // coords.) Returns true on patch found.
+/*
 bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned int nRange)
 {
   mbFound = false;
@@ -258,6 +259,50 @@ bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned i
     mbFound = false;
   }
   return mbFound;
+}
+*/
+
+
+// One of the main functions of the class! Looks at the appropriate level of
+// the target keyframe to try and find the template. Looks only at FAST corner points
+// which are within radius nRange of the center. (Params are supplied in Level0
+// coords.) Returns true on patch found.
+bool PatchFinder::FindPatchCoarse(ImageRef irPos, const KeyFrame &kf, unsigned int nRange)
+{
+  // Convert from L0 coords to search level quantities
+  int nLevelScale = LevelScale(mnSearchLevel);
+  mirPredictedPos = irPos;
+  irPos = irPos / nLevelScale;
+  nRange = (nRange + nLevelScale - 1) / nLevelScale;
+
+  // Ref variable for the search level
+  const Level &L = kf.aLevels[mnSearchLevel];
+
+  vector<ImageRef> vCorners;
+  L.GetFeaturesInsideCircle(irPos, nRange, vCorners);
+
+  ImageRef irBest;             // Best match so far
+  int nBestSSD = mnMaxSSD + 1; // Best score so far is beyond the max allowed
+
+  for (auto it = vCorners.begin(); it != vCorners.end(); ++it) {
+    if ((irPos - *it).mag_squared() > nRange * nRange)
+      continue;              // ... reject all those not close enough..
+
+    int nSSD = ZMSSDAtPoint(L.im, *it); // .. and find the ZMSSD at those near enough.
+    if (nSSD < nBestSSD) {      // Best yet?
+      irBest = *it;
+      nBestSSD = nSSD;
+    }
+  }
+
+  static int nTrackerSSDThreshold = GV3::get<int>("Tracker.PatchSSDThreshold", 20000, SILENT);
+
+  if(nBestSSD < mnMaxSSD && nBestSSD < nTrackerSSDThreshold) {     // Found a valid match?
+    mv2CoarsePos = LevelZeroPos(irBest, mnSearchLevel);
+    return true;
+  }
+
+  return false;
 }
 
 // Makes an inverse composition template out of the coarse template.

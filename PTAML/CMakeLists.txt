@@ -95,17 +95,16 @@ set(VIDEO_SOURCE_SRC
 #
 
 set(PTAML_SRC
-	Frontend.cc
-	ScaleMarkerTracker.cc
-	InitialTracker.cc
-	Utils.cc
 	ARDriver.cc
 	ARToolkit.cc
 	ATANCamera.cc
 	Bundle.cc
+	FeatureGrid.cc
+	Frontend.cc
 	GLWindow2.cc
 	GLWindowMenu.cc
 	HomographyInit.cc
+	InitialTracker.cc
 	KeyFrame.cc
 	main.cc
 	Map.cc
@@ -119,7 +118,9 @@ set(PTAML_SRC
 	MiniPatch.cc
 	PatchFinder.cc
 	TargetController.cc
+	Rectangle.cc
 	Relocaliser.cc
+	ScaleMarkerTracker.cc
 	ShiTomasi.cc
 	SmallBlurryImage.cc
 	System.cc
@@ -128,6 +129,7 @@ set(PTAML_SRC
 	tinyxmlerror.cc
 	tinyxmlparser.cc
 	Tracker.cc
+	Utils.cc
 	MKProtocol.cc
 	MKConnection.cc
 	MikroKopter.cc

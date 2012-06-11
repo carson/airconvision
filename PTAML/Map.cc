@@ -462,7 +462,7 @@ void Map::RemoveNonGroundPoints()
 bool Map::AddPointEpipolar(KeyFrame &kSrc,
                            KeyFrame &kTarget,
                            int nLevel,
-                           int nCandidate)
+                           const ImageRef &irLevelPos)
 {
 //   static Image<Vector<2> > imUnProj;
 //   static bool bMadeCache = false;
@@ -476,8 +476,6 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 //     }
 
   int nLevelScale = LevelScale(nLevel);
-  const Candidate &candidate = kSrc.aLevels[nLevel].GetCandidates()[nCandidate];
-  ImageRef irLevelPos = candidate.irLevelPos;
   Vector<2> v2RootPos = LevelZeroPos(irLevelPos, nLevel);
 
   Vector<3> v3Ray_SC = unproject(kSrc.Camera.UnProject(v2RootPos));
@@ -534,7 +532,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   if(Finder.TemplateBad())  return false;
 
   vector<Vector<2> > &vv2Corners = kTarget.aLevels[nLevel].vImplaneCorners;
-  const vector<ImageRef> &vIR = kTarget.aLevels[nLevel].GetCorners();
+  const vector<ImageRef> &vIR = kTarget.aLevels[nLevel].Features();
   if(!kTarget.aLevels[nLevel].bImplaneCornersCached)
   {
     for(unsigned int i=0; i<vIR.size(); i++)   // over all corners in target img..
@@ -830,13 +828,13 @@ void Map::AddSomeMapPoints(int nLevel)
 {
   KeyFrame &kSrc = *vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
   KeyFrame &kTarget = *ClosestKeyFrame(kSrc);
-  Level &l = kSrc.aLevels[nLevel];
 
   kSrc.ThinCandidates(nLevel);
 
-  size_t nCandidates = l.GetCandidates().size();
-  for (size_t i = 0; i < nCandidates; ++i) {
-    AddPointEpipolar(kSrc, kTarget, nLevel, i);
+  Level &l = kSrc.aLevels[nLevel];
+  const std::vector<ImageRef>& vBestFeatures = l.GetBestFeatures();
+  for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
+    AddPointEpipolar(kSrc, kTarget, nLevel, *it);
   }
 }
 
