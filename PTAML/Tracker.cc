@@ -128,13 +128,18 @@ bool Tracker::HasGoodCoverage()
 
 bool Tracker::ShouldAddNewKeyFrame()
 {
-  if (mTrackingQuality != GOOD) {
+  if (mTrackingQuality != GOOD || mpMap->QueueSize() > 0 ||
+      mnFrame - mnLastKeyFrameDropped <= 5)
+  {
     return false;
   }
 
-  return (!HasGoodCoverage() || IsFarAwayFromOldKeyFrames()) &&
-         mnFrame - mnLastKeyFrameDropped > 5  &&
-         mpMap->QueueSize() < 200;
+  double dDist = DistanceToClosestKeyFrame();
+  static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 2.00, SILENT);
+
+  bool bFarAwayFromOldKeyFrames = dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
+
+  return  bFarAwayFromOldKeyFrames || (!HasGoodCoverage() && dDist > 0.08);
 }
 
 void Tracker::UpdateStatsMessage()
@@ -834,20 +839,17 @@ void Tracker::AddNewKeyFrame()
   mnLastKeyFrameDropped = mnFrame;
 }
 
-bool Tracker::IsFarAwayFromOldKeyFrames()
+double Tracker::DistanceToClosestKeyFrame()
 {
   KeyFrame *pClosest = mpMap->ClosestKeyFrame(mCurrentKF);
 
   if (pClosest == NULL) {
-    return false;
+    return std::numeric_limits<double>::max();
   }
-
-  static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 1.00, SILENT);
 
   double dDist = mpMap->KeyFrameLinearDist(mCurrentKF, *pClosest);
   dDist *= (1.0 / mCurrentKF.dSceneDepthMean);
-
-  return dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
+  return dDist;
 }
 
 // Is the tracker's camera pose in cloud-cuckoo land?

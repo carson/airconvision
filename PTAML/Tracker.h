@@ -95,7 +95,7 @@ class Tracker
     void CalcSBIRotation();
 
     bool HasGoodCoverage();
-    bool IsFarAwayFromOldKeyFrames();
+    double DistanceToClosestKeyFrame();
     bool ShouldAddNewKeyFrame();
     void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
 
