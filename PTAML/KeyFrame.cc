@@ -159,10 +159,10 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
     width /= 2; height /= 2;
   }
 
-  aLevels[0].SetTargetFeatureCount(3500, 2500);
-  aLevels[1].SetTargetFeatureCount(1500, 1000);
-  aLevels[2].SetTargetFeatureCount(500, 300);
-  aLevels[3].SetTargetFeatureCount(400, 200);
+  aLevels[0].SetTargetFeatureCount(3500, 3000);
+  aLevels[1].SetTargetFeatureCount(1000, 800);
+  aLevels[2].SetTargetFeatureCount(400, 300);
+  aLevels[3].SetTargetFeatureCount(150, 100);
 }
 
 /**
@@ -220,6 +220,17 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
   }
 
   return *this;
+}
+
+void KeyFrame::Reset()
+{
+  mMeasurements.clear();
+  dSceneDepthMean = 1.0;
+  dSceneDepthSigma = 1.0;
+
+  for (int i = 0; i < LEVELS; ++i) {
+    aLevels[i].Clear();
+  }
 }
 
 // ThinCandidates() Thins out a key-frame's candidate list.
@@ -293,8 +304,10 @@ void KeyFrame::RefreshSceneDepth()
  * mapmaker but not the tracker go in MakeKeyFrame_Rest();
  * @param im image to make keyframe from
  */
-void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCornerBarriers)
+void KeyFrame::InitFromImage(const BasicImage<CVD::byte> &im)
 {
+  Reset();
+
   // First, copy out the image data to the pyramid's zero level.
   aLevels[0].im.copy_from(im);
 
@@ -305,12 +318,9 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
   }
 
   gFeatureTimer.Start();
-
   for (int i = 0; i < LEVELS; ++i) {
-    aLevels[i].Clear();
     aLevels[i].FindFeatures();
   }
-
   gFeatureTimer.Stop();
 }
 

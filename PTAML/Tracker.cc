@@ -53,9 +53,6 @@ Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMa
 
   mpSBILastFrame = NULL;
   mpSBIThisFrame = NULL;
-
-  // Most of the initialisation is done in Reset()
-  //Reset();
 }
 
 void Tracker::InitTracking()
@@ -75,18 +72,12 @@ void Tracker::ResetCommon()
   mTrackingQuality = GOOD;
   mnLostFrames = 0;
   mdMSDScaledVelocityMagnitude = 0;
-  mCurrentKF.dSceneDepthMean = 1.0;
-  mCurrentKF.dSceneDepthSigma = 1.0;
   mCamera.SetImageSize(mirSize);
-  mCurrentKF.mMeasurements.clear();
   mnLastKeyFrameDropped = -20;
   mnFrame=0;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
-
-  for (int i = 0; i < LEVELS; ++i) {
-    maFastCornerBarriers[i] = 15;
-  }
+  mCurrentKF.Reset();
 }
 
 /**
@@ -97,28 +88,69 @@ void Tracker::ResetCommon()
  */
 void Tracker::Reset()
 {
-  if( mpMap->bEditLocked ) {
+  if (mpMap->bEditLocked) {
     cerr << "MAP LOCKED: Cannot reset map " << mpMap->MapID() << "." << endl;
     return;
   }
 
   ResetCommon();
-
-  // Tell the MapMaker to reset itself..
-  // this may take some time, since the mapmaker thread may have to wait
-  // for an abort-check during calculation, so sleep while waiting.
-  // MapMaker will also clear the map.
   mMapMaker.Reset();
+}
+
+bool Tracker::HasGoodCoverage()
+{
+  bool aBins[4][4] = { { 0 } };
+  double dHori = 4.0 / mirSize.x;
+  double dVert = 4.0 / mirSize.y;
+
+  for (auto it = mvIterationSet.begin(); it != mvIterationSet.end(); ++it) {
+    const Vector<2>& v2Point = (*it)->v2Image;
+    size_t row = v2Point[1] * dVert;
+    size_t col = v2Point[0] * dHori;
+    aBins[row][col] = true;
+  }
+
+  int nEmpty = 0;
+
+  for (size_t i = 0; i < 4; ++i) {
+    for (size_t j = 0; j < 4; ++j) {
+      // Don't count inner cells
+      if ((i != 1 && i != 2) || (j != 1 && j != 2)) {
+        if (!aBins[i][j]) {
+          nEmpty++;
+        }
+      }
+    }
+  }
+
+  return nEmpty < 3;
 }
 
 bool Tracker::ShouldAddNewKeyFrame()
 {
-  return mTrackingQuality == GOOD &&
-         NeedNewKeyFrame(mCurrentKF) &&
-         // HACK for keyframe threshold for incorporation
-         // the parameter here determines how frequently keyframes are incorporateed
+  if (mTrackingQuality != GOOD) {
+    return false;
+  }
+
+  return (!HasGoodCoverage() || NeedNewKeyFrame(mCurrentKF)) &&
          mnFrame - mnLastKeyFrameDropped > 5  &&
          mpMap->QueueSize() < 200;
+}
+
+void Tracker::UpdateStatsMessage()
+{
+  mMessageForUser << "Tracking Map, quality ";
+  if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
+  if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
+  if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
+
+  mMessageForUser << " Found:";
+  for(int i=0; i<LEVELS; i++) {
+    mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
+  }
+
+  mMessageForUser << " Map " << mpMap->MapID() << ": "
+                  << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
 }
 
 // TrackFrame is called by System.cc with each incoming video frame.
@@ -131,30 +163,24 @@ void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
     InitTracking();
   }
 
-  mbDraw = false;
   mMessageForUser.str("");   // Wipe the user message clean
 
   // Take the input video image, and convert it into the tracker's keyframe struct
   // This does things like generate the image pyramid and find FAST corners
-  mCurrentKF.mMeasurements.clear();
-
-  mCurrentKF.MakeKeyFrame_Lite(imFrame, maFastCornerBarriers);
+  mCurrentKF.InitFromImage(imFrame);
 
   // Update the small images for the rotation estimator
   static gvar3<double> gvdSBIBlur("Tracker.RotationEstimatorBlur", 0.75, SILENT);
   static gvar3<int> gvnUseSBI("Tracker.UseRotationEstimator", 1, SILENT);
-  mbUseSBIInit = false; //*gvnUseSBI;
+  mbUseSBIInit = *gvnUseSBI;
 
   gSBIInitTimer.Start();
 
-  if(!mpSBIThisFrame)
-  {
+  if(!mpSBIThisFrame) {
     mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
     mpSBILastFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
-  }
-  else
-  {
-    delete  mpSBILastFrame;
+  } else {
+    delete mpSBILastFrame;
     mpSBILastFrame = mpSBIThisFrame;
     mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
   }
@@ -165,8 +191,8 @@ void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
   mnFrame++;
 
   // Decide what to do - if there is a map, try to track the map ...
-  if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
-  {
+  if (!IsLost()) { // .. but only if we're not lost!
+
     gSBITimer.Start();
     if(mbUseSBIInit) {
       CalcSBIRotation();
@@ -185,39 +211,25 @@ void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
     AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
     gTrackingQualityTimer.Stop();
 
-    { // Provide some feedback for the user:
-      mMessageForUser << "Tracking Map, quality ";
-      if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
-      if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
-      if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
-
-      mMessageForUser << " F:";
-      for(int i=0; i<LEVELS; i++) {
-        mMessageForUser << "/" << maFastCornerBarriers[i];
-      }
-
-      mMessageForUser << " Found:";
-      for(int i=0; i<LEVELS; i++) {
-        mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
-      }
-      mMessageForUser << " Map " << mpMap->MapID() << ": "
-                      << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
-    }
+    // Provide some feedback for the user:
+    UpdateStatsMessage();
 
     // Heuristics to check if a key-frame should be added to the map:
-    if(ShouldAddNewKeyFrame()) {
+    if (ShouldAddNewKeyFrame()) {
       mMessageForUser << " Adding key-frame.";
       AddNewKeyFrame();
     }
 
-  } else {
-    // what if there is a map, but tracking has been lost?
+  } else { // Tracking is lost
+
     cout << "Lost tracking..." << endl;
     mMessageForUser << "** Attempting recovery **.";
+
     if (AttemptRecovery()) {
       TrackMap();
       AssessTrackingQuality();
     }
+
   }
 }
 
@@ -247,14 +259,16 @@ bool Tracker::AttemptRecovery()
 {
   cout << "AttemptRecovery..." << endl;
 
-  bool bRelocGood = mpRelocaliser->AttemptRecovery( *mpMap, mCurrentKF );
-  if(!bRelocGood)
+  bool bRelocGood = mpRelocaliser->AttemptRecovery(*mpMap, mCurrentKF);
+  if(!bRelocGood) {
     return false;
+  }
 
   SE3<> se3Best = mpRelocaliser->BestPose();
   mse3CamFromWorld = mse3StartPos = se3Best;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = true;
+
   return true;
 }
 
@@ -560,7 +574,7 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
   }
 
   if(nNum > 20) {
-    mCurrentKF.dSceneDepthMean = dSum/nNum;
+    mCurrentKF.dSceneDepthMean = dSum / nNum;
     mCurrentKF.dSceneDepthSigma = sqrt((dSumSq / nNum) - mCurrentKF.dSceneDepthMean * mCurrentKF.dSceneDepthMean);
   }
 }
@@ -585,14 +599,14 @@ void Tracker::TrackMap()
     manMeasAttempted[i] = manMeasFound[i] = 0;
   }
 
+  // Clear out old iterations set
+  mvIterationSet.clear();
+
   // The Potentially-Visible-Set (PVS) is split into pyramid levels.
   vector<TrackerData*> avPVS[LEVELS];
   gPvsTimer.Start();
   FindPVS(avPVS);
   gPvsTimer.Stop();
-
-  // Clear out old iterations et
-  mvIterationSet.clear();
 
   // Start with a coarse tracking stage using features in the higher pyramid levels
   gCoarseTimer.Start();
@@ -930,49 +944,6 @@ void Tracker::CalcSBIRotation()
   result_pair = mpSBIThisFrame->IteratePosRelToTarget(*mpSBILastFrame, 6);
   SE3<> se3Adjust = SmallBlurryImage::SE3fromSE2(result_pair.first, mCamera);
   mv6SBIRot = se3Adjust.ln();
-}
-
-
-/**
- * Switch the map to the specified map.
- * @param map the map to switch to
- */
-bool Tracker::SwitchMap(Map *map)
-{
-  if( map == NULL ) {
-    return false;
-  }
-
-  if( mpMap == map)  {
-    return true;
-  }
-
-  //set variables
-  SE3<> se3Best = mpRelocaliser->BestPose();
-  mse3CamFromWorld = mse3StartPos = se3Best;
-  mv6CameraVelocity = Zeros;
-  mbJustRecoveredSoUseCoarse = true;
-
-  //set new map
-  mpMap = map;
-
-  return true;
-}
-
-/**
- * Re initialize the map.
- */
-void Tracker::SetNewMap(Map * map)
-{
-  if( mpMap == map)
-  {
-    cerr << "*** WARNING Tracker::SetNewMap() map is the same. Aborting ***" << endl;
-    return;
-  }
-
-  ResetCommon();
-
-  mpMap = map;
 }
 
 

@@ -63,11 +63,7 @@ void InitialTracker::Reset()
   mlTrails.clear();
   mvDeadTrails.clear();
   mCamera.SetImageSize(mirSize);
-  mCurrentKF.mMeasurements.clear();
-
-  for (int i = 0; i < LEVELS; ++i) {
-    maFastCornerBarriers[i] = 15;
-  }
+  mCurrentKF.Reset();
 }
 
 // TrackFrame is called by System.cc with each incoming video frame.
@@ -80,7 +76,7 @@ void InitialTracker::ProcessFrame(const Image<CVD::byte> &imFrame)
   // Take the input video image, and convert it into the tracker's keyframe struct
   // This does things like generate the image pyramid and find FAST corners
   mCurrentKF.mMeasurements.clear();
-  mCurrentKF.MakeKeyFrame_Lite(imFrame, maFastCornerBarriers);
+  mCurrentKF.InitFromImage(imFrame);
 
   TrackForInitialMap();
 }

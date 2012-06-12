@@ -435,7 +435,7 @@ bool MapSerializer::_LoadAKeyFrame( TiXmlHandle &phKF, const std::string & sPath
   KeyFrame * kf = new KeyFrame(Camera);
 
   ////////////// create keyframe
-  kf->MakeKeyFrame_Lite( im, NULL );
+  kf->InitFromImage(im);
   if(!bQueueFrame)  {
     //if the frame is in the queue it has not had the rest of the data made.
     kf->MakeKeyFrame_Rest();

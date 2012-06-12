@@ -103,13 +103,13 @@ class KeyFrame
 
     KeyFrame& operator=(const KeyFrame &rhs);
 
+    void InitFromImage(const CVD::BasicImage<CVD::byte> &im);
+    void Reset();
+
     void ThinCandidates(int nLevel, std::vector<CVD::ImageRef>& vCandidates);
     void RefreshSceneDepth();
 
-    // This takes an image and calculates pyramid levels etc to fill the
-    // keyframe data structures with everything that's needed by the tracker..
-    void MakeKeyFrame_Lite(const CVD::BasicImage<CVD::byte> &im, int* aFastCornerBarriers);
-    // ... while this calculates the rest of the data which the mapmaker needs.
+    // TODO: Try to remove the need for this call
     void MakeKeyFrame_Rest();
 
   public:
