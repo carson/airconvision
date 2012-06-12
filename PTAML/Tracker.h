@@ -59,13 +59,13 @@ class Tracker
     // Gets messages to be printed on-screen for the user.
     std::string GetMessageForUser() const;
 
-    bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
+    bool IsLost() const { return mnLostFrames > NUM_LOST_FRAMES; }
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
     Vector<3> RealWorldCoordinate() const {
       return mse3CamFromWorld.inverse().get_translation();
     }
 
-    void ForceRecovery() { if(mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
+    void ForceRecovery() { if (mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
     void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
 
   private:

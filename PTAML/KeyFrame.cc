@@ -159,10 +159,18 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
     width /= 2; height /= 2;
   }
 
+  size_t nDesiredFeatures = 3000;
+  for (int i = 0; i < LEVELS; ++i) {
+    aLevels[i].SetTargetFeatureCount(nDesiredFeatures * 0.9, nDesiredFeatures * 1.1);
+    nDesiredFeatures /= 4;
+  }
+
+/*
   aLevels[0].SetTargetFeatureCount(3500, 3000);
   aLevels[1].SetTargetFeatureCount(1000, 800);
   aLevels[2].SetTargetFeatureCount(400, 300);
   aLevels[3].SetTargetFeatureCount(150, 100);
+  */
 }
 
 /**
