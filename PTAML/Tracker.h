@@ -82,6 +82,7 @@ class Tracker
 
     void UpdateStatsMessage();
 
+    bool IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent);
     void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
     void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
     void UpdateMotionModel();       // Motion model is updated after TrackMap
@@ -94,8 +95,7 @@ class Tracker
     void CalcSBIRotation();
 
     bool HasGoodCoverage();
-    bool IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent);
-    bool NeedNewKeyFrame(const KeyFrame &kCurrent);
+    bool IsFarAwayFromOldKeyFrames();
     bool ShouldAddNewKeyFrame();
     void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
 

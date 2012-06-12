@@ -132,7 +132,7 @@ bool Tracker::ShouldAddNewKeyFrame()
     return false;
   }
 
-  return (!HasGoodCoverage() || NeedNewKeyFrame(mCurrentKF)) &&
+  return (!HasGoodCoverage() || IsFarAwayFromOldKeyFrames()) &&
          mnFrame - mnLastKeyFrameDropped > 5  &&
          mpMap->QueueSize() < 200;
 }
@@ -834,9 +834,9 @@ void Tracker::AddNewKeyFrame()
   mnLastKeyFrameDropped = mnFrame;
 }
 
-bool Tracker::NeedNewKeyFrame(const KeyFrame &kCurrent)
+bool Tracker::IsFarAwayFromOldKeyFrames()
 {
-  KeyFrame *pClosest = mpMap->ClosestKeyFrame(kCurrent);
+  KeyFrame *pClosest = mpMap->ClosestKeyFrame(mCurrentKF);
 
   if (pClosest == NULL) {
     return false;
@@ -844,8 +844,8 @@ bool Tracker::NeedNewKeyFrame(const KeyFrame &kCurrent)
 
   static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 1.00, SILENT);
 
-  double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
-  dDist *= (1.0 / kCurrent.dSceneDepthMean);
+  double dDist = mpMap->KeyFrameLinearDist(mCurrentKF, *pClosest);
+  dDist *= (1.0 / mCurrentKF.dSceneDepthMean);
 
   return dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
 }
