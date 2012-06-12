@@ -33,14 +33,15 @@ using namespace GVars3;
  * @param m current map
  * @param mm map maker
  */
-InitialTracker::InitialTracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm) :
-  mCurrentKF(c),
-  mFirstKF(c),
-  mPreviousFrameKF(c),
-  mpMap(m),
-  mMapMaker(mm),
-  mCamera(c),
-  mirSize(irVideoSize)
+InitialTracker::InitialTracker(const ImageRef &irVideoSize, const ATANCamera &c,
+                               Map *m, MapMaker *mm)
+  : mpMap(m)
+  , mpMapMaker(mm)
+  , mCamera(c)
+  , mirSize(irVideoSize)
+  , mCurrentKF(c)
+  , mFirstKF(c)
+  , mPreviousFrameKF(c)
 {
   mCurrentKF.bFixed = false;
 
@@ -57,8 +58,6 @@ InitialTracker::InitialTracker(const ImageRef &irVideoSize, const ATANCamera &c,
 void InitialTracker::Reset()
 {
   mbUserPressedSpacebar = false;
-  mCurrentKF.dSceneDepthMean = 1.0;
-  mCurrentKF.dSceneDepthSigma = 1.0;
   mStage = TRAIL_TRACKING_NOT_STARTED;
   mlTrails.clear();
   mvDeadTrails.clear();
@@ -75,9 +74,7 @@ void InitialTracker::ProcessFrame(const Image<CVD::byte> &imFrame)
   mMessageForUser.str("");   // Wipe the user message clean
   // Take the input video image, and convert it into the tracker's keyframe struct
   // This does things like generate the image pyramid and find FAST corners
-  mCurrentKF.mMeasurements.clear();
   mCurrentKF.InitFromImage(imFrame);
-
   TrackForInitialMap();
 }
 
@@ -89,24 +86,6 @@ void InitialTracker::GetDrawData(InitialTrackerDrawData &drawData)
   }
   drawData.vDeadTrails = mvDeadTrails;
   mCurrentKF.aLevels[0].GetAllFeatures(drawData.vCorners);
-}
-
-/**
- * Handle a key press command
- * This is a change from PTAM to enable games to use keys
- * @param sKey the key pressed
- * @return true if the key was used.
- */
-bool InitialTracker::HandleKeyPress( const string& sKey )
-{
-  // KeyPress commands are issued by GLWindow, and passed to Tracker via System
-  if(sKey == "Space")
-  {
-    mbUserPressedSpacebar = true;
-    return true;
-  }
-
-  return false;
 }
 
 /**
@@ -156,7 +135,7 @@ void InitialTracker::TrackForInitialMap()
         vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
       }
 
-      mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
+      mpMapMaker->InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
       mStage = WAITING_FOR_STEREO_INIT;
     }
     else
@@ -166,12 +145,10 @@ void InitialTracker::TrackForInitialMap()
   }
 
   if(mStage == WAITING_FOR_STEREO_INIT) {
-    if (mMapMaker.StereoInitDone()) {
+    if (mpMapMaker->StereoInitDone()) {
       if (mpMap->IsGood()) {
         mStage = TRAIL_TRACKING_COMPLETE;
-        cout << "Stereo init done, attempting to relocate..." << endl;
-        //AttemptRecovery();
-        // TODO; MARK THIS TRACKER AS READY
+        cout << "Stereo init done!" << endl;
       } else {
         Reset();
       }
@@ -275,6 +252,5 @@ string InitialTracker::GetMessageForUser() const
 {
   return mMessageForUser.str();
 }
-
 
 }

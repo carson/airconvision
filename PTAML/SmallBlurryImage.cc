@@ -83,7 +83,7 @@ void SmallBlurryImage::MakeJacs()
 
 // Calculate the zero-mean SSD between one image and the next.
 // Since both are zero mean already, just calculate the SSD...
-double SmallBlurryImage::ZMSSD(SmallBlurryImage &other)
+double SmallBlurryImage::ZMSSD(const SmallBlurryImage &other) const
 {
   double dSSD = 0.0;
   ImageRef ir;

@@ -31,7 +31,7 @@ public:
   const SE3<>& BestPose() const { return mse3Best; }
 
 protected:
-  void ScoreKFs(const Map &map, const KeyFrame &kCurrentF);
+  void ScoreKFs(const Map &map, const SmallBlurryImage &currentSBI);
 
   ATANCamera mCamera;
   int mnBest;

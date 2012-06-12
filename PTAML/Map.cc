@@ -782,6 +782,9 @@ void Map::ReFindFromFailureQueue()
 void Map::QueueKeyFrame(const KeyFrame &k)
 {
   KeyFrame *pK = new KeyFrame(k);
+
+  assert(pK->pSBI == NULL);
+
   if(pK->pSBI != NULL)
   {
     delete pK->pSBI;

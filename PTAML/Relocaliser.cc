@@ -43,24 +43,22 @@ Relocaliser::Relocaliser(const ATANCamera &camera)
 bool Relocaliser::AttemptRecovery(const Map &currentMap, KeyFrame &kCurrent)
 {
   // Ensure the incoming frame has a SmallBlurryImage attached
-  if(!kCurrent.pSBI) {
-    kCurrent.pSBI = new SmallBlurryImage(kCurrent);
-  } else {
-    kCurrent.pSBI->MakeFromKF(kCurrent);
-  }
+  SmallBlurryImage sbi(kCurrent);
 
   // Find the best ZMSSD match from all keyframes in all maps
-  ScoreKFs(currentMap, kCurrent);
+  ScoreKFs(currentMap, sbi);
 
   // And estimate a camera rotation from a 3DOF image alignment
-  pair<SE2<>, double> result_pair = kCurrent.pSBI->IteratePosRelToTarget(*currentMap.GetKeyFrames()[mnBest]->pSBI, 6);
+  pair<SE2<>, double> result_pair = sbi.IteratePosRelToTarget(*currentMap.GetKeyFrames()[mnBest]->pSBI, 6);
   SE2<> mse2 = result_pair.first;
   double dScore = result_pair.second;
 
   SE3<> se3KeyFramePos = currentMap.GetKeyFrames()[mnBest]->se3CfromW;
   mse3Best = SmallBlurryImage::SE3fromSE2(mse2, mCamera) * se3KeyFramePos;
 
-  return dScore < GV2.GetDouble("Reloc2.MaxScore", 9e6, SILENT);
+  cout << "Reloc score: " << dScore << endl;
+
+  return dScore < GV3::get<double>("Reloc2.MaxScore", 9e6, SILENT);
 }
 
 /**
@@ -69,18 +67,15 @@ bool Relocaliser::AttemptRecovery(const Map &currentMap, KeyFrame &kCurrent)
  * @param pMap the map to search
  * @param kCurrent the current camera frame
  */
-void Relocaliser::ScoreKFs(const Map &map, const KeyFrame &kCurrent)
+void Relocaliser::ScoreKFs(const Map &map, const SmallBlurryImage &currentSBI)
 {
-  mdBestScore = 99999999999999.9;
+  mdBestScore = 9e6;
   mnBest = -1;
 
   const std::vector<KeyFrame*>& keyFrames = map.GetKeyFrames();
-
-  for(size_t i = 0; i < keyFrames.size(); ++i)
-  {
-    double dSSD = kCurrent.pSBI->ZMSSD( *keyFrames[i]->pSBI);
-    if(dSSD < mdBestScore)
-    {
+  for (size_t i = 0; i < keyFrames.size(); ++i) {
+    double dSSD = currentSBI.ZMSSD(*keyFrames[i]->pSBI);
+    if (dSSD < mdBestScore) {
       mdBestScore = dSSD;
       mnBest = i;
     }

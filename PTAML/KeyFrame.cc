@@ -190,7 +190,8 @@ KeyFrame::~KeyFrame()
  * @param rhs
  */
 KeyFrame::KeyFrame(const KeyFrame &rhs)
-  : Camera( rhs.Camera )
+  : pSBI(NULL)
+  , Camera( rhs.Camera )
 {
   *this = rhs;
 }
@@ -219,12 +220,10 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
     aLevels[i] = rhs.aLevels[i];
   }
 
-  //should actually copy this, but is cheap to make.
-  if( rhs.pSBI ) {
+  delete pSBI;
+  pSBI = NULL;
+  if (rhs.pSBI) {
     pSBI = new SmallBlurryImage(rhs);
-  }
-  else {
-    pSBI = NULL;
   }
 
   return *this;
@@ -239,6 +238,9 @@ void KeyFrame::Reset()
   for (int i = 0; i < LEVELS; ++i) {
     aLevels[i].Clear();
   }
+
+  delete pSBI;
+  pSBI = nullptr;
 }
 
 // ThinCandidates() Thins out a key-frame's candidate list.

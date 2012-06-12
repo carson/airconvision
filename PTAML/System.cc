@@ -416,8 +416,8 @@ void System::CreateModules()
 
   // Move these into the frontend
   mModules.pRelocaliser = new Relocaliser(*mModules.pCamera);
-  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker, mModules.pRelocaliser);
-  mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker);
+  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker, mModules.pRelocaliser);
+  mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker);
   mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
 
 

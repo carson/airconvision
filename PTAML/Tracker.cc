@@ -39,14 +39,14 @@ namespace PTAMM {
  * @param m current map
  * @param mm map maker
  */
-Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm, Relocaliser *pRelocaliser) :
-  mCurrentKF(c),
-  mFirstKF(c),
-  mpMap(m),
-  mMapMaker(mm),
-  mCamera(c),
-  mpRelocaliser(pRelocaliser),
-  mirSize(irVideoSize)
+Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m,
+                 MapMaker *mm, Relocaliser *pRelocaliser)
+  : mpMap(m)
+  , mpMapMaker(mm)
+  , mCamera(c)
+  , mpRelocaliser(pRelocaliser)
+  , mirSize(irVideoSize)
+  , mCurrentKF(c)
 {
   mCurrentKF.bFixed = false;
   TrackerData::irImageSize = mirSize;
@@ -59,8 +59,7 @@ void Tracker::InitTracking()
 {
   auto keyframes = mpMap->GetKeyFrames();
   assert(keyframes.size() >= 2);
-  mFirstKF = *keyframes[0];
-  mCurrentKF = *keyframes[1];
+  mCurrentKF = *keyframes.back();
 }
 
 /**
@@ -94,7 +93,7 @@ void Tracker::Reset()
   }
 
   ResetCommon();
-  mMapMaker.Reset();
+  mpMapMaker->Reset();
 }
 
 bool Tracker::HasGoodCoverage()
@@ -835,7 +834,7 @@ void Tracker::UpdateMotionModel()
  */
 void Tracker::AddNewKeyFrame()
 {
-  mMapMaker.AddKeyFrame(mCurrentKF);
+  mpMapMaker->AddKeyFrame(mCurrentKF);
   mnLastKeyFrameDropped = mnFrame;
 }
 
