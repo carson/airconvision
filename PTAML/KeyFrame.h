@@ -64,29 +64,29 @@ class Level {
     ~Level();
 
     void Init(size_t nWidth, size_t nHeight, size_t nGridRows, size_t nGridCols);
+    void SetTargetFeatureCount(size_t nMinFeatures, size_t nMaxFeatures);
 
     Level& operator=(const Level &rhs);
 
     void Clear();
 
-    const std::vector<CVD::ImageRef>& Features();
+    const CVD::Image<CVD::byte>& GetImage() const { return im; }
 
+    void GetAllFeatures(std::vector<CVD::ImageRef>& vFeatures);
     void GetBestFeatures(size_t nMaxFeatures, std::vector<CVD::ImageRef>& vFeatures);
     void GetFeaturesInsideCircle(const CVD::ImageRef &irPos, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const;
 
   public:
-    CVD::Image<CVD::byte> im;                // The pyramid level pixels
     bool bImplaneCornersCached;              // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
-    std::vector<Vector<2> > vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
+    std::vector<std::pair<CVD::ImageRef, Vector<2>>> vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
 
   private:
     void FindFeatures();
     void FindBestFeatures();
 
   private:
+    CVD::Image<CVD::byte> im;                // The pyramid level pixels
     FeatureGrid *mpFeatureGrid;
-    std::vector<CVD::ImageRef> mvAllFeatures;
-    std::vector<CVD::ImageRef> mvBestFeatures;
     bool mbHasAllFeatures;
     bool mbHasBestFeatures;
 };

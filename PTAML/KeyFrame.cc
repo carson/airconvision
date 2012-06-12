@@ -66,9 +66,6 @@ Level& Level::operator=(const Level &rhs)
   bImplaneCornersCached = rhs.bImplaneCornersCached;
   vImplaneCorners = rhs.vImplaneCorners;
 
-  mvAllFeatures = rhs.mvAllFeatures;
-  mvBestFeatures = rhs.mvBestFeatures;
-
   mbHasAllFeatures = rhs.mbHasAllFeatures;
   mbHasBestFeatures = rhs.mbHasBestFeatures;
 
@@ -78,7 +75,13 @@ Level& Level::operator=(const Level &rhs)
 void Level::Init(size_t nWidth, size_t nHeight, size_t nGridRows, size_t nGridCols)
 {
   assert(mpFeatureGrid == NULL);
-  mpFeatureGrid = new FeatureGrid(nWidth, nHeight, nGridRows, nGridCols, 100, 50, 15);
+  mpFeatureGrid = new FeatureGrid(nWidth, nHeight, nGridRows, nGridCols);
+}
+
+void Level::SetTargetFeatureCount(size_t nMinFeatures, size_t nMaxFeatures)
+{
+  size_t numCells = mpFeatureGrid->Rows() * mpFeatureGrid->Cols();
+  mpFeatureGrid->SetTargetFeatureCount(nMinFeatures / numCells, nMaxFeatures / numCells);
 }
 
 void Level::Clear()
@@ -86,8 +89,7 @@ void Level::Clear()
   bImplaneCornersCached = false;
   vImplaneCorners.clear();
   mpFeatureGrid->Clear();
-  mvAllFeatures.clear();
-  mvBestFeatures.clear();
+
   mbHasAllFeatures = false;
   mbHasBestFeatures = false;
 }
@@ -95,21 +97,18 @@ void Level::Clear()
 void Level::FindFeatures()
 {
   if (!mbHasAllFeatures) {
-    mvAllFeatures.clear();
-    mpFeatureGrid->Clear();
     mpFeatureGrid->FindFeatures(im);
-    mpFeatureGrid->GetAllFeatures(mvAllFeatures);
     mbHasAllFeatures = true;
   }
 }
 
-const std::vector<CVD::ImageRef>& Level::Features()
+void Level::GetAllFeatures(std::vector<CVD::ImageRef>& vFeatures)
 {
   if (!mbHasAllFeatures) {
     FindFeatures();
   }
 
-  return mvAllFeatures;
+  mpFeatureGrid->GetAllFeatures(vFeatures);
 }
 
 void Level::FindBestFeatures()
@@ -120,7 +119,6 @@ void Level::FindBestFeatures()
       FindFeatures();
     }
 
-    mvBestFeatures.clear();
     mpFeatureGrid->FindBestFeatures(im);
     mbHasBestFeatures = true;
   }
@@ -148,12 +146,23 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
   : pSBI( NULL ),
     Camera(cam)
 {
-  int width = cam.GetImageSize()[0];
-  int height = cam.GetImageSize()[1];
-  aLevels[0].Init(width, height,        10, 8);
-  aLevels[1].Init(width / 2, height / 2, 6, 6);
-  aLevels[2].Init(width / 4, height / 4, 2, 2);
-  aLevels[3].Init(width / 8, height / 8, 1, 1);
+  const double DESIRED_CELL_SIZE = 50.0;
+
+  int width = std::round(cam.GetImageSize()[0]);
+  int height = std::round(cam.GetImageSize()[1]);
+
+  for (int i = 0; i < LEVELS; ++i) {
+    // Choose number of rows and cols so that the cell size is close to 50x50
+    int cols = std::round((double)width / DESIRED_CELL_SIZE);
+    int rows = std::round((double)height / DESIRED_CELL_SIZE);
+    aLevels[i].Init(width, height, rows, cols);
+    width /= 2; height /= 2;
+  }
+
+  aLevels[0].SetTargetFeatureCount(3500, 2500);
+  aLevels[1].SetTargetFeatureCount(1500, 1000);
+  aLevels[2].SetTargetFeatureCount(500, 300);
+  aLevels[3].SetTargetFeatureCount(400, 200);
 }
 
 /**

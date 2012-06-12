@@ -14,8 +14,9 @@ typedef std::pair<CVD::ImageRef, double> PointScorePair;
 
 class FeatureGrid {
   public:
-    FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCols,
-                size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell, int nInitialBarrier);
+    FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCols, int nInitialBarrier = 15);
+
+    void SetTargetFeatureCount(size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell);
 
     void Clear();
 
@@ -25,6 +26,9 @@ class FeatureGrid {
 
     void FindBestFeatures(const CVD::BasicImage<CVD::byte> &im);
     void GetBestFeatures(size_t nNumFeatures, std::vector<CVD::ImageRef> &vFeatures) const;
+
+    size_t Rows() const { return mnRows; }
+    size_t Cols() const { return mnCols; }
 
   private:
     void GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) const;

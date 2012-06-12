@@ -16,17 +16,17 @@ using namespace CVD;
 namespace PTAMM {
 
 FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCols,
-                         size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell, int nInitialBarrier)
+                         int nInitialBarrier)
   : mnRows(nRows)
   , mnCols(nCols)
+  , mnMinFeaturesPerCell(2000)
+  , mnMaxFeaturesPerCell(3000)
 {
   mirCellSize = ImageRef(nWidth / nCols, nHeight / nRows);
 
   size_t nCells = mnCols * mnRows;
   mvCells.resize(nCells);
 
-  mnMinFeaturesPerCell = nMinFeaturesPerCell;
-  mnMaxFeaturesPerCell = nMaxFeaturesPerCell;
 
   for (size_t i = 0; i < mnRows; ++i) {
     for (size_t j = 0; j < mnCols; ++j) {
@@ -35,6 +35,12 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
       mvCells[idx].nBarrier = nInitialBarrier;
     }
   }
+}
+
+void FeatureGrid::SetTargetFeatureCount(size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell)
+{
+  mnMinFeaturesPerCell = nMinFeaturesPerCell;
+  mnMaxFeaturesPerCell = nMaxFeaturesPerCell;
 }
 
 void FeatureGrid::Clear()
