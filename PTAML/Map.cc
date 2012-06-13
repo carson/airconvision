@@ -1162,7 +1162,7 @@ void Map::HandleBadPoints()
     MapPoint *p = vpPoints[i];
 
     // DEFAULT VALUE: 20
-    if(p->nMEstimatorOutlierCount > 5 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
+    if(p->nMEstimatorOutlierCount > 1 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
       p->bBad = true;
     }
   }
