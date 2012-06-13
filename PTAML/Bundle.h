@@ -104,58 +104,65 @@ struct Meas
 };
 
 // Core bundle adjustment class
-class Bundle
-{
-public:
+class Bundle {
+  public:
+    Bundle();
 
-  Bundle(); //PTAMM: Camera model is now part of keyframe class
-  int AddCamera(const SE3<>& se3CamFromWorld, bool bFixed); // Add a viewpoint. bFixed signifies that this one is not to be adjusted.
-  int AddPoint(const Vector<3>& v3Pos);       // Add a map point.
-  void AddMeas(int nCam, int nPoint, const Vector<2>& v2Pos, double dSigmaSquared, const Matrix<2>& m2CamDerivs); // Add a measurement
-  int Compute(bool *pbAbortSignal);    // Perform bundle adjustment. Aborts if *pbAbortSignal gets set to true. Returns number of accepted update iterations, or negative on error.
-  bool Converged() const { return mbConverged;}  // Has bundle adjustment converged?
-  const Vector<3>& GetPoint(int n) const;       // Point coords after adjustment
-  const SE3<>& GetCamera(int n) const;            // Camera pose after adjustment
-  const std::vector<std::pair<int,int> >& GetOutlierMeasurements() const;  // Measurements flagged as outliers
-  std::set<int> GetOutliers() const;                                // Points flagged as outliers
-  
-protected:
+    // Add a viewpoint. bFixed signifies that this one is not to be adjusted.
+    int AddCamera(const SE3<>& se3CamFromWorld, bool bFixed);
+    // Add a map point.
+    int AddPoint(const Vector<3>& v3Pos);
+    // Add a measurement of a map point in a camera
+    void AddMeas(int nCam, int nPoint, const Vector<2>& v2Pos, double dSigmaSquared, const Matrix<2>& m2CamDerivs);
 
-  inline void ProjectAndFindSquaredError(Meas &meas); // Project a single point in a single view, compare to measurement
-  template<class MEstimator> bool Do_LM_Step(bool *pbAbortSignal);
-  template<class MEstimator> double FindNewError();
-  void GenerateMeasLUTs();
-  void GenerateOffDiagScripts();
-  void ClearAccumulators(); // Zero temporary quantities stored in cameras and points
-  void ModifyLambda_GoodStep();
-  void ModifyLambda_BadStep();
-  
-  std::vector<Point> mvPoints;
-  std::vector<Camera> mvCameras;
-  std::list<Meas> mMeasList;
-  std::vector<std::pair<int,int> > mvOutlierMeasurementIdx;  // p-c pair
-  std::vector<std::vector<Meas*> > mvMeasLUTs;  //Each camera gets a per-point table of pointers to valid measurements
-  
-//   ATANCamera mCamera;
-  int mnCamsToUpdate;
-  int mnStartRow;
-  double mdSigmaSquared;
-  double mdLambda;
-  double mdLambdaFactor;
-  bool mbConverged;
-  bool mbHitMaxIterations;
-  int mnCounter;
-  int mnAccepted;
-  
-  GVars3::gvar3<int> mgvnMaxIterations;
-  GVars3::gvar3<double> mgvdUpdateConvergenceLimit;
-  GVars3::gvar3<int> mgvnBundleCout;
-  
-  bool *mpbAbortSignal;
+    // Perform bundle adjustment. Aborts if *pbAbortSignal gets set to true. Returns number of accepted update iterations, or negative on error.
+    int Compute(bool *pbAbortSignal);
+    // Has bundle adjustment converged?
+    bool Converged() const { return mbConverged;}
+
+    // Point coords after adjustment
+    const Vector<3>& GetPoint(int n) const;
+    // Camera pose after adjustment
+    const SE3<>& GetCamera(int n) const;
+    // Measurements flagged as outliers
+    const std::vector<std::pair<int,int> >& GetOutlierMeasurements() const;
+    // Points flagged as outliers
+    std::set<int> GetOutliers() const;
+
+  private:
+    inline void ProjectAndFindSquaredError(Meas &meas); // Project a single point in a single view, compare to measurement
+    template<class MEstimator> bool Do_LM_Step(bool *pbAbortSignal);
+    template<class MEstimator> double FindNewError();
+    void GenerateMeasLUTs();
+    void GenerateOffDiagScripts();
+    void ClearAccumulators(); // Zero temporary quantities stored in cameras and points
+    void ModifyLambda_GoodStep();
+    void ModifyLambda_BadStep();
+
+  private:
+    std::vector<Point> mvPoints;
+    std::vector<Camera> mvCameras;
+    std::list<Meas> mMeasList;
+    std::vector<std::pair<int,int> > mvOutlierMeasurementIdx;  // p-c pair
+    std::vector<std::vector<Meas*> > mvMeasLUTs;  //Each camera gets a per-point table of pointers to valid measurements
+
+    int mnCamsToUpdate;
+    int mnStartRow;
+    double mdSigmaSquared;
+    double mdLambda;
+    double mdLambdaFactor;
+    bool mbConverged;
+    bool mbHitMaxIterations;
+    int mnCounter;
+    int mnAccepted;
+
+    GVars3::gvar3<int> mgvnMaxIterations;
+    GVars3::gvar3<double> mgvdUpdateConvergenceLimit;
+    GVars3::gvar3<int> mgvnBundleCout;
+
+    bool *mpbAbortSignal;
 };
 
-
 }
-
 
 #endif

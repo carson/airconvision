@@ -152,7 +152,7 @@ void Frontend::operator()()
 
 
     if (fpsCounter.Update()) {
-      cout << fpsCounter.Fps() << endl;
+      //cout << fpsCounter.Fps() << endl;
     }
 
     gTrackFullTimer.Stop();

@@ -4,13 +4,21 @@
 #include <cvd/image_ref.h>
 #include <cvd/image.h>
 #include <cvd/byte.h>
+#include <gvars3/instances.h>
 
 #include <set>
 #include <vector>
 
 namespace PTAMM {
 
-typedef std::pair<CVD::ImageRef, double> PointScorePair;
+enum FeatureDetector {
+  PLAIN_FAST10,
+  FAST10,
+  OAST9_16,
+  AGAST7_12d,
+  AGAST7_12s,
+  AGAST5_8
+};
 
 class FeatureGrid {
   public:
@@ -29,13 +37,6 @@ class FeatureGrid {
 
     size_t Rows() const { return mnRows; }
     size_t Cols() const { return mnCols; }
-
-  private:
-    void GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) const;
-    void GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im, std::vector<CVD::ImageRef> &vFeatures) const;
-
-    int GetCellIndex(const CVD::ImageRef &irPoint) const;
-    int GetMinBarrier() const;
 
   private:
     struct ScoredPoint {
@@ -59,12 +60,30 @@ class FeatureGrid {
       std::multiset<ScoredPoint> vBestFeatures;
     };
 
+    void DetectFeatures(const CVD::BasicImage<CVD::byte> &im,
+                        const GridCell &cell,
+                        std::vector<CVD::ImageRef> &vCorners);
+
+    void NonMaximumSuppression(const CVD::BasicImage<CVD::byte> &im,
+                               const std::vector<CVD::ImageRef> &vAllFeatures,
+                               int nMinBarrier,
+                               std::vector<CVD::ImageRef> &vMaxFeatures);
+
+    void GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) const;
+    void GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im, std::vector<CVD::ImageRef> &vFeatures);
+
+    int GetCellIndex(const CVD::ImageRef &irPoint) const;
+    int GetMinBarrier() const;
+
+  private:
     size_t mnRows;
     size_t mnCols;
     CVD::ImageRef mirCellSize;
     std::vector<GridCell> mvCells;
     size_t mnMinFeaturesPerCell;
     size_t mnMaxFeaturesPerCell;
+
+    GVars3::gvar3<int> mgvnFeatureDectecor;
 };
 
 }
