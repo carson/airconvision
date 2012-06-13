@@ -47,6 +47,7 @@ bool Relocaliser::AttemptRecovery(const Map &currentMap, KeyFrame &kCurrent)
 
   // Find the best ZMSSD match from all keyframes in all maps
   ScoreKFs(currentMap, sbi);
+  //mnBest = currentMap.GetKeyFrames().size() - 1;
 
   // And estimate a camera rotation from a 3DOF image alignment
   pair<SE2<>, double> result_pair = sbi.IteratePosRelToTarget(*currentMap.GetKeyFrames()[mnBest]->pSBI, 6);

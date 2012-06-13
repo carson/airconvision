@@ -131,7 +131,7 @@ void Frontend::operator()()
       if (mpInitialTracker->IsDone()) {
         mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
         mbInitialTracking = false;
-        //mpTracker->ForceRecovery();
+        mpTracker->ForceRecovery();
       }
 
       mDrawData.bInitialTracking = true;
