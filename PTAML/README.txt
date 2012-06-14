@@ -56,7 +56,10 @@ cd ARToolKit
 ./Configure
 make -j4
 
-Compile the code
+Compile the code, you might have to specify the path to ARToolKit if the folder is not located in:
+  ~/ARToolKit
+  ~/Code/ARToolKit
+  EXTERNAL/ARToolKit
 
 cd
 git clone git@github.com:carson/airconvision.git
