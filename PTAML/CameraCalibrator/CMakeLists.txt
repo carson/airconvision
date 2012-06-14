@@ -1,0 +1,34 @@
+# Libraries
+set(CC_LIBS
+	${GSTREAMER_LIBRARIES}
+	gstapp-0.10
+	GVars3
+	cvd
+	GLU 
+	GL
+	lapack
+	blas
+)
+
+include_directories(
+    ../PTAML
+)
+
+#
+# CameraCalibrator
+#
+
+set(CC_SRC
+	../PTAML/GLWindow2.cc
+	../PTAML/VideoSource.cc
+	../PTAML/GLWindowMenu.cc
+	../PTAML/ATANCamera.cc
+	CalibImage.cc
+	CalibCornerPatch.cc
+	CameraCalibrator.cc
+	${VIDEO_SOURCE_SRC}
+)
+
+add_executable(CameraCalibrator ${CC_SRC})
+target_link_libraries(CameraCalibrator ${CC_LIBS})
+

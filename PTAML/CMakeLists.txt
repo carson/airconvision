@@ -1,14 +1,13 @@
 project(PTAML CXX C)
 cmake_minimum_required(VERSION 2.8)
-
 # Set default built type
 set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
     
 # Target platfrom
-set(TARGET_PLATFORM "HexaMac" CACHE STRING
-    "Set the target platform (HexaMac/Other).")
-    
+option(FULL_OPTIMIZATION "Enable all optimization flags" ON)
+
+set(RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
     
 # The CDT Error Parser cannot handle error messages that span more than one line, which is the default gcc behavior. 
 # This forces gcc to generate single line error messages with no line wrapping.  
@@ -28,11 +27,11 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     add_definitions(-std=gnu++0x)
     
     # Optimizations etc
-    if(TARGET_PLATFORM STREQUAL "HexaMac")
+    if(FULL_OPTIMIZATION)
     	message(STATUS "Building with a performance profile optimized for the HexaMac")
-    	add_definitions(-g -pthread -O6 -Wall -march=corei7 -mtune=corei7 -msse4.2 -mfpmath=sse)
+    	add_definitions(-g -pthread -O6 -Wall -march=corei7 -mtune=corei7 -msse -msse2 -msse3 -msse4 -msse4.2)
     else()
-    	message(STATUS "Building with a general peformance profile: ${TARGET_PLATFORM}")
+    	message(STATUS "Building with a general peformance profile.")
     	add_definitions(-g -pthread -O3 -Wall -march=core2 -mtune=core2 -msse3)
     endif()
     
@@ -50,24 +49,12 @@ endif()
 find_package(PkgConfig)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-0.10)
 
-# AR Toolkit   
-find_path(ARTOOLKIT_DIR 
-	NAMES include/AR 
-	HINTS ~/ARToolKit ~/Code/ARToolKit
-	DOC "Set the installation directory of AR Toolkit.")
-	
-if(NOT ARTOOLKIT_DIR)
-	message(FATAL_ERROR "Could not find ARToolKit, please set 'ARTOOLKIT_DIR' manually")
-endif()
-
 # Include paths
 include_directories(
-    "${ARTOOLKIT_DIR}/include"
     ${GSTREAMER_INCLUDE_DIRS}
 )
 
 link_directories(
-	"${ARTOOLKIT_DIR}/lib"
 	${GSTREAMER_LIBRARY_DIRS}
 )
 
@@ -86,110 +73,34 @@ set(LIBS
 )
 
 set(VIDEO_SOURCE_SRC
-	VideoSource_Linux_Gstreamer_File.cc
-	VideoSource_Linux_V4L.cc
+	${CMAKE_CURRENT_SOURCE_DIR}/PTAML/VideoSource_Linux_Gstreamer_File.cc
+	${CMAKE_CURRENT_SOURCE_DIR}/PTAML/VideoSource_Linux_V4L.cc
 )
 
 #
 # PTAML
 #
 
-set(AGAST_SRC
-    agast/nonMaximumSuppression.cc
-    agast/agast5_8_nms.cc
-    agast/agast5_8.cc
-    agast/agast7_12d_nms.cc
-    agast/agast7_12d.cc
-    agast/agast7_12s_nms.cc
-    agast/agast7_12s.cc
-    agast/oast9_16_nms.cc
-    agast/oast9_16.cc
-)
+add_subdirectory(PTAML)
 
-set(PTAML_SRC
-	${AGAST_SRC}
-	ARDriver.cc
-	ARToolkit.cc
-	ATANCamera.cc
-	Bundle.cc
-	FeatureGrid.cc
-	Frontend.cc
-	GLWindow2.cc
-	GLWindowMenu.cc
-	HomographyInit.cc
-	InitialTracker.cc
-	KeyFrame.cc
-	main.cc
-	Map.cc
-	MapLockManager.cc
-	MapMaker.cc
-	MapPoint.cc
-	MapSerializer.cc
-	MapViewer.cc
-	MD5.cc
-	MD5Wrapper.cc
-	MiniPatch.cc
-	PatchFinder.cc
-	TargetController.cc
-	Rectangle.cc
-	Relocaliser.cc
-	ScaleMarkerTracker.cc
-	ShiTomasi.cc
-	SmallBlurryImage.cc
-	System.cc
-	Timing.cc
-	tinyxml.cc
-	tinyxmlerror.cc
-	tinyxmlparser.cc
-	Tracker.cc
-	Utils.cc
-	MKProtocol.cc
-	MKConnection.cc
-	MikroKopter.cc
-	rs232.c
-	VideoSource.cc
-	${VIDEO_SOURCE_SRC}
-)
-
-add_executable(PTAML ${PTAML_SRC})
-target_link_libraries(PTAML ${LIBS})
 
 #
 # CameraCalibrator
 #
 
-set(CC_SRC
-	GLWindow2.cc
-	VideoSource.cc
-	GLWindowMenu.cc
-	CalibImage.cc
-	CalibCornerPatch.cc
-	ATANCamera.cc
-	CameraCalibrator.cc
-	${VIDEO_SOURCE_SRC}
-)
-
-add_executable(CameraCalibrator ${CC_SRC})
-target_link_libraries(CameraCalibrator ${LIBS})
+add_subdirectory(CameraCalibrator)
 
 #
 # Other programs
 #
 
-set(FASTTEST_SRC
-	Timing.cc
-	FastTest.cc
-)
-
-add_executable(FastTest ${FASTTEST_SRC})
-target_link_libraries(FastTest ${LIBS})
 
 #
 # Data Files
 #
 
-if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/settings.cfg)
-	file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/settings.cfg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+if(NOT EXISTS ${CMAKE_SOURCE_DIR}/settings.cfg)
+	#file(COPY ${CMAKE_SOURCE_DIR}/settings_template.cfg DESTINATION ${CMAKE_SOURCE_DIR}/settings.cfg)
+	configure_file(${CMAKE_SOURCE_DIR}/settings_template.cfg ${CMAKE_SOURCE_DIR}/settings.cfg COPYONLY)
 endif()
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Data DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
