@@ -4,7 +4,6 @@
 #include "ATANCamera.h"
 #include "MapMaker.h"
 #include "Tracker.h"
-#include "ARDriver.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
 #include "FPSCounter.h"
