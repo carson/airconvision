@@ -4,7 +4,6 @@
 #include <cvd/image_ref.h>
 #include <cvd/image.h>
 #include <cvd/byte.h>
-#include <gvars3/instances.h>
 
 #include <set>
 #include <vector>
@@ -12,12 +11,18 @@
 namespace PTAMM {
 
 enum FeatureDetector {
+  PLAIN_FAST7,
+  PLAIN_FAST8,
+  PLAIN_FAST9,
   PLAIN_FAST10,
+  PLAIN_FAST11,
+  PLAIN_FAST12,
   FAST10,
   OAST9_16,
   AGAST7_12d,
   AGAST7_12s,
-  AGAST5_8
+  AGAST5_8,
+  NUM_FEATURE_DETECTORS
 };
 
 class FeatureGrid {
@@ -41,6 +46,9 @@ class FeatureGrid {
 
     size_t Rows() const { return mnRows; }
     size_t Cols() const { return mnCols; }
+
+    FeatureDetector GetFeatureDetector() { return mFeatureDetector; }
+    void SetFeatureDetector(FeatureDetector featureDetector) { mFeatureDetector = featureDetector; }
 
   private:
     struct ScoredPoint {
@@ -79,8 +87,8 @@ class FeatureGrid {
 
     CVD::ImageRef CellSize(const CVD::ImageRef &irImSize, const GridCell &cell,
                            const CVD::ImageRef &irMargin) const;
-    int GetCellIndex(const CVD::ImageRef &irPoint) const;
-    int GetMinBarrier() const;
+    int CellIndex(const CVD::ImageRef &irPoint) const;
+    int MinBarrier() const;
 
   private:
     size_t mnRows;
@@ -89,8 +97,7 @@ class FeatureGrid {
     std::vector<GridCell> mvCells;
     size_t mnMinFeaturesPerCell;
     size_t mnMaxFeaturesPerCell;
-
-    GVars3::gvar3<int> mgvnFeatureDectecor;
+    FeatureDetector mFeatureDetector;
 };
 
 }

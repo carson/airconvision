@@ -12,13 +12,16 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace CVD
-{
-void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+namespace CVD {
+  void fast_corner_detect_plain_7(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_8(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_9(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_11(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_12(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
 }
 
 using namespace CVD;
-using namespace GVars3;
 
 namespace PTAMM {
 
@@ -28,9 +31,8 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   , mnCols(nCols)
   , mnMinFeaturesPerCell(2000)
   , mnMaxFeaturesPerCell(3000)
+  , mFeatureDetector(OAST9_16)
 {
-  GV3::Register(mgvnFeatureDectecor, "FeatureDetector", 3, SILENT);
-
   int nBorder = 0;
 
   nWidth -= 2 * nBorder;
@@ -51,21 +53,6 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   }
 }
 
-ImageRef FeatureGrid::CellSize(const ImageRef &irImSize, const GridCell &cell, const ImageRef &irMargin) const
-{
-  ImageRef irSize = mirCellSize + irMargin;
-
-  ImageRef irBottomRight = cell.irPosition + irSize;
-  if (irBottomRight.x > irImSize.x) {
-    irSize.x -= irBottomRight.x - irImSize.x;
-  }
-  if (irBottomRight.y > irImSize.y) {
-    irSize.y -= irBottomRight.y - irImSize.y;
-  }
-
-  return irSize;
-}
-
 void FeatureGrid::DetectFeatures(const CVD::BasicImage<CVD::byte> &im,
                                  const GridCell &cell,
                                  std::vector<ImageRef> &vCorners)
@@ -79,10 +66,30 @@ void FeatureGrid::DetectFeatures(const CVD::BasicImage<CVD::byte> &im,
 
   Image<byte> im2;
 
-  switch (*mgvnFeatureDectecor) {
+  switch (mFeatureDetector) {
+  case PLAIN_FAST7:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_7(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST8:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_8(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST9:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_9(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
   case PLAIN_FAST10:
     irSize = CellSize(im.size(), cell, ImageRef(6, 6));
     fast_corner_detect_plain_10(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST11:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_11(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST12:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_12(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
     break;
   case FAST10:
     irSize = CellSize(im.size(), cell, ImageRef(6, 6));
@@ -117,8 +124,13 @@ void FeatureGrid::NonMaximumSuppression(const CVD::BasicImage<CVD::byte> &im,
 {
   vMaxFeatures.clear();
 
-  switch (*mgvnFeatureDectecor) {
+  switch (mFeatureDetector) {
+  case PLAIN_FAST7:
+  case PLAIN_FAST8:
+  case PLAIN_FAST9:
   case PLAIN_FAST10:
+  case PLAIN_FAST11:
+  case PLAIN_FAST12:
   case FAST10:
     fast_nonmax(im, vAllFeatures, nMinBarrier, vMaxFeatures);
     break;
@@ -187,8 +199,7 @@ void FeatureGrid::FindBestFeatures(const CVD::BasicImage<CVD::byte> &im)
 
   for (size_t i = 0; i < vMaxFeatures.size(); ++i) {
     if (im.in_image_with_border(vMaxFeatures[i], 5)) {
-      ImageRef test = vMaxFeatures[i];
-      int idx = GetCellIndex(vMaxFeatures[i]);
+      int idx = CellIndex(vMaxFeatures[i]);
       assert(idx >= 0);
       double dScore = FindShiTomasiScoreAtPoint(im, 3, vMaxFeatures[i]);
 
@@ -238,27 +249,6 @@ void FeatureGrid::GetAllFeatures(std::vector<CVD::ImageRef> &vFeatures) const
   }
 }
 
-void FeatureGrid::GetBestFeatures(size_t nNumFeatures, std::vector<CVD::ImageRef> &vFeatures) const
-{
-  vFeatures.clear();
-  size_t nFeaturesPerCell = nNumFeatures / mvCells.size();
-  // Select the best N/num_cells features per cell
-  for (size_t i = 0; i < mvCells.size(); ++i) {
-    const std::multiset<ScoredPoint>& fts = mvCells[i].vBestFeatures;
-    if (fts.size() > nFeaturesPerCell) {
-      auto it = fts.begin();
-      for (size_t i = 0; i < nFeaturesPerCell; ++i) {
-        vFeatures.push_back(it->irPoint);
-        ++it;
-      }
-    } else {
-      for (auto it = fts.begin(); it != fts.end(); ++it) {
-        vFeatures.push_back(it->irPoint);
-      }
-    }
-  }
-}
-
 void FeatureGrid::GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) const
 {
   vFeatures.clear();
@@ -292,7 +282,43 @@ void FeatureGrid::GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) co
   }
 }
 
-int FeatureGrid::GetCellIndex(const CVD::ImageRef &irPoint) const
+void FeatureGrid::GetBestFeatures(size_t nNumFeatures, std::vector<CVD::ImageRef> &vFeatures) const
+{
+  vFeatures.clear();
+  size_t nFeaturesPerCell = nNumFeatures / mvCells.size();
+  // Select the best N/num_cells features per cell
+  for (size_t i = 0; i < mvCells.size(); ++i) {
+    const std::multiset<ScoredPoint>& fts = mvCells[i].vBestFeatures;
+    if (fts.size() > nFeaturesPerCell) {
+      auto it = fts.begin();
+      for (size_t i = 0; i < nFeaturesPerCell; ++i) {
+        vFeatures.push_back(it->irPoint);
+        ++it;
+      }
+    } else {
+      for (auto it = fts.begin(); it != fts.end(); ++it) {
+        vFeatures.push_back(it->irPoint);
+      }
+    }
+  }
+}
+
+ImageRef FeatureGrid::CellSize(const ImageRef &irImSize, const GridCell &cell, const ImageRef &irMargin) const
+{
+  ImageRef irSize = mirCellSize + irMargin;
+
+  ImageRef irBottomRight = cell.irPosition + irSize;
+  if (irBottomRight.x > irImSize.x) {
+    irSize.x -= irBottomRight.x - irImSize.x;
+  }
+  if (irBottomRight.y > irImSize.y) {
+    irSize.y -= irBottomRight.y - irImSize.y;
+  }
+
+  return irSize;
+}
+
+int FeatureGrid::CellIndex(const CVD::ImageRef &irPoint) const
 {
   int col = irPoint.x / mirCellSize.x;
   int row = irPoint.y / mirCellSize.y;
@@ -304,7 +330,7 @@ int FeatureGrid::GetCellIndex(const CVD::ImageRef &irPoint) const
   return row * mnCols + col;
 }
 
-int FeatureGrid::GetMinBarrier() const
+int FeatureGrid::MinBarrier() const
 {
   int nMinBarrier = std::numeric_limits<int>::max();
   for (size_t i = 0; i < mvCells.size(); ++i) {
@@ -317,9 +343,7 @@ void FeatureGrid::GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im, std:
 {
   std::vector<ImageRef> vSortedFeatures;
   GetAllFeaturesSorted(vSortedFeatures);
-
-  int nMinBarrier = GetMinBarrier();
-
+  int nMinBarrier = MinBarrier();
   NonMaximumSuppression(im, vSortedFeatures, nMinBarrier, vMaxFeatures);
 }
 

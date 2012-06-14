@@ -28,7 +28,7 @@ class InitialTracker {
     InitialTracker(const CVD::ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker *mm);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
-    void ProcessFrame(const CVD::Image<CVD::byte> &imFrame);
+    void ProcessFrame(KeyFrame &keyFrame);
     void GetDrawData(InitialTrackerDrawData &drawData);
     void Reset();
 
@@ -61,7 +61,7 @@ class InitialTracker {
 
     InitialTrackingStage mStage;    // How far are we towards making the initial map?
 
-    KeyFrame mCurrentKF;            // The current working frame as a keyframe struct
+    KeyFrame *mpCurrentKF;            // The current working frame as a keyframe struct
     KeyFrame mFirstKF;              // First of the stereo pair
     KeyFrame mPreviousFrameKF;      // Used by trail tracking to check married matches
     SE3<> mse3CamFromWorld;         // Camera pose: this is what the tracker updates every frame.

@@ -54,7 +54,7 @@ class Tracker
             MapMaker *mm, Relocaliser *pRelocaliser);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
-    void ProcessFrame(const CVD::Image<CVD::byte> &imFrame);
+    void ProcessFrame(KeyFrame &keyFrame);
 
     void GetDrawData(TrackerDrawData &drawData);
     // Gets messages to be printed on-screen for the user.
@@ -71,7 +71,6 @@ class Tracker
     void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
 
   private:
-    void InitTracking();
     void ResetCommon();              // Common reset code for the following two functions
 
     // Methods for tracking the map once it has been made:
@@ -84,7 +83,7 @@ class Tracker
 
     void UpdateStatsMessage();
 
-    bool IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent);
+    bool IsDistanceToNearestKeyFrameExcessive();
     void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
     void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
     void UpdateMotionModel();       // Motion model is updated after TrackMap
@@ -112,7 +111,7 @@ class Tracker
 
     CVD::ImageRef mirSize;          // Image size of whole image
 
-    KeyFrame mCurrentKF;            // The current working frame as a keyframe struct
+    KeyFrame *mpCurrentKF;            // The current working frame as a keyframe struct
     SE3<> mse3CamFromWorld;         // Camera pose: this is what the tracker updates every frame.
     SE3<> mse3StartPos;             // What the camera pose was at the start of the frame.
     Vector<6> mv6CameraVelocity;    // Motion model

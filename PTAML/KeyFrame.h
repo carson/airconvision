@@ -40,17 +40,15 @@ class SmallBlurryImage;
 
 const int LEVELS = 4;
 
-extern int g_nNumFeaturesFound[LEVELS];
-
 // Measurement: A 2D image measurement of a map point. Each keyframe stores a bunch of these.
-struct Measurement
-{
-  int nLevel;   // Which image level?
-  bool bSubPix; // Has this measurement been refined to sub-pixel level?
-  Vector<2> v2RootPos;  // Position of the measurement, REFERED TO PYRAMID LEVEL ZERO
-  Vector<2> v2ImplanePos;  // Position of the measurement, in Z=1 coords
-  Matrix<2> m2CamDerivs; // Cam derivs at found location
-  enum {SRC_TRACKER, SRC_REFIND, SRC_ROOT, SRC_TRAIL, SRC_EPIPOLAR} Source; // Where has this measurement come frome?
+struct Measurement {
+  int nLevel;                         // Which image level?
+  bool bSubPix;                       // Has this measurement been refined to sub-pixel level?
+  Vector<2> v2RootPos;                // Position of the measurement, REFERED TO PYRAMID LEVEL ZERO
+  Vector<2> v2ImplanePos;             // Position of the measurement, in Z=1 coords
+  Matrix<2> m2CamDerivs;              // Cam derivs at found location
+  // Where has this measurement come frome?
+  enum {SRC_TRACKER, SRC_REFIND, SRC_ROOT, SRC_TRAIL, SRC_EPIPOLAR} Source;
 };
 
 // Each keyframe is made of LEVELS pyramid levels, stored in struct Level.
@@ -77,6 +75,7 @@ class Level {
     void GetFeaturesInsideCircle(const CVD::ImageRef &irPos, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const;
 
   public:
+    // TODO: Move this to a decorator class for the MapMaker
     bool bImplaneCornersCached;              // Also keep image-plane (z=1) positions of FAST corners to speed up epipolar search
     std::vector<std::pair<CVD::ImageRef, Vector<2>>> vImplaneCorners; // Corner points un-projected into z=1-plane coordinates
 
@@ -94,8 +93,7 @@ class Level {
 // The actual KeyFrame struct. The map contains of a bunch of these. However, the tracker uses this
 // struct as well: every incoming frame is turned into a keyframe before tracking; most of these
 // are then simply discarded, but sometimes they're then just added to the map.
-class KeyFrame
-{
+class KeyFrame {
   public:
     KeyFrame(const ATANCamera &cam);
     KeyFrame(const KeyFrame &k);
@@ -103,7 +101,7 @@ class KeyFrame
 
     KeyFrame& operator=(const KeyFrame &rhs);
 
-    void InitFromImage(const CVD::BasicImage<CVD::byte> &im);
+    void InitFromImage(const CVD::BasicImage<CVD::byte> &im, FeatureDetector featureDetector);
     void Reset();
 
     void ThinCandidates(int nLevel, std::vector<CVD::ImageRef>& vCandidates);

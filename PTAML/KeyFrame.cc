@@ -17,8 +17,6 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
-int g_nNumFeaturesFound[LEVELS] = { 0 };
-
 Level::Level()
   : bImplaneCornersCached(false)
   , mpFeatureGrid(NULL)
@@ -314,7 +312,7 @@ void KeyFrame::RefreshSceneDepth()
  * mapmaker but not the tracker go in MakeKeyFrame_Rest();
  * @param im image to make keyframe from
  */
-void KeyFrame::InitFromImage(const BasicImage<CVD::byte> &im)
+void KeyFrame::InitFromImage(const BasicImage<CVD::byte> &im, FeatureDetector featureDetector)
 {
   Reset();
 
@@ -329,6 +327,7 @@ void KeyFrame::InitFromImage(const BasicImage<CVD::byte> &im)
 
   gFeatureTimer.Start();
   for (int i = 0; i < LEVELS; ++i) {
+    aLevels[i].mpFeatureGrid->SetFeatureDetector(featureDetector);
     aLevels[i].FindFeatures();
   }
   gFeatureTimer.Stop();

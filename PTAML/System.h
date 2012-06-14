@@ -83,6 +83,7 @@ class System
     void AddWaypoint();
     void ClearWaypoints();
     void FlyPath();
+    void ChangeFeatureDetector();
 
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window

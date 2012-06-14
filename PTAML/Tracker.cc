@@ -46,20 +46,11 @@ Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m,
   , mCamera(c)
   , mpRelocaliser(pRelocaliser)
   , mirSize(irVideoSize)
-  , mCurrentKF(c)
 {
-  mCurrentKF.bFixed = false;
   TrackerData::irImageSize = mirSize;
 
   mpSBILastFrame = NULL;
   mpSBIThisFrame = NULL;
-}
-
-void Tracker::InitTracking()
-{
-  auto keyframes = mpMap->GetKeyFrames();
-  assert(keyframes.size() >= 2);
-  mCurrentKF = *keyframes.back();
 }
 
 /**
@@ -76,7 +67,6 @@ void Tracker::ResetCommon()
   mnFrame=0;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
-  mCurrentKF.Reset();
 }
 
 /**
@@ -161,17 +151,11 @@ void Tracker::UpdateStatsMessage()
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
-void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
+void Tracker::ProcessFrame(KeyFrame &keyFrame)
 {
-  if (mnFrame == 0) {
-    InitTracking();
-  }
-
   mMessageForUser.str("");   // Wipe the user message clean
 
-  // Take the input video image, and convert it into the tracker's keyframe struct
-  // This does things like generate the image pyramid and find FAST corners
-  mCurrentKF.InitFromImage(imFrame);
+  mpCurrentKF = &keyFrame;
 
   // Update the small images for the rotation estimator
   static gvar3<double> gvdSBIBlur("Tracker.RotationEstimatorBlur", 0.75, SILENT);
@@ -181,12 +165,12 @@ void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
   gSBIInitTimer.Start();
 
   if(!mpSBIThisFrame) {
-    mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
-    mpSBILastFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
+    mpSBIThisFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
+    mpSBILastFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
   } else {
     delete mpSBILastFrame;
     mpSBILastFrame = mpSBIThisFrame;
-    mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
+    mpSBIThisFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
   }
 
   gSBIInitTimer.Stop();
@@ -241,7 +225,7 @@ void Tracker::GetDrawData(TrackerDrawData &drawData)
 {
   drawData.bDidCoarse = mbDidCoarse;
   drawData.se3CamFromWorld = mse3CamFromWorld;
-  mCurrentKF.aLevels[0].GetAllFeatures(drawData.vCorners);
+  mpCurrentKF->aLevels[0].GetAllFeatures(drawData.vCorners);
 
   drawData.vMapPoints.clear();
 
@@ -263,7 +247,7 @@ bool Tracker::AttemptRecovery()
 {
   cout << "AttemptRecovery..." << endl;
 
-  bool bRelocGood = mpRelocaliser->AttemptRecovery(*mpMap, mCurrentKF);
+  bool bRelocGood = mpRelocaliser->AttemptRecovery(*mpMap, *mpCurrentKF);
   if(!bRelocGood) {
     return false;
   }
@@ -551,9 +535,9 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
   // Strictly speaking this is unnecessary to do every frame, it'll only be
   // needed if the KF gets added to MapMaker. Do it anyway.
   // Export pose to current keyframe:
-  mCurrentKF.se3CfromW = mse3CamFromWorld;
+  mpCurrentKF->se3CfromW = mse3CamFromWorld;
   // Record successful measurements. Use the KeyFrame-Measurement struct for this.
-  mCurrentKF.mMeasurements.clear();
+  mpCurrentKF->mMeasurements.clear();
 
   // Variables used for calculation a new mean depth
   double dSum = 0;
@@ -568,7 +552,7 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
     m.m2CamDerivs = mCamera.GetProjectionDerivs();
     m.nLevel = (*it)->nSearchLevel;
     m.bSubPix = (*it)->bDidSubPix;
-    mCurrentKF.mMeasurements[& ((*it)->Point)] = m;
+    mpCurrentKF->mMeasurements[& ((*it)->Point)] = m;
 
     // Calc mean depth
     double z = (*it)->v3Cam[2];
@@ -578,8 +562,8 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
   }
 
   if(nNum > 20) {
-    mCurrentKF.dSceneDepthMean = dSum / nNum;
-    mCurrentKF.dSceneDepthSigma = sqrt((dSumSq / nNum) - mCurrentKF.dSceneDepthMean * mCurrentKF.dSceneDepthMean);
+    mpCurrentKF->dSceneDepthMean = dSum / nNum;
+    mpCurrentKF->dSceneDepthSigma = sqrt((dSumSq / nNum) - mpCurrentKF->dSceneDepthMean * mpCurrentKF->dSceneDepthMean);
   }
 }
 
@@ -651,7 +635,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
 
     manMeasAttempted[Finder.GetLevel()]++;  // Stats for tracking quality assessmenta
 
-    bool bFound = Finder.FindPatchCoarse(ir(TD.v2Image), mCurrentKF, nRange);
+    bool bFound = Finder.FindPatchCoarse(ir(TD.v2Image), *mpCurrentKF, nRange);
     TD.bSearched = true;
     if(!bFound)
     {
@@ -670,7 +654,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
     {
       TD.bDidSubPix = true;
       Finder.MakeSubPixTemplate();
-      bool bSubPixConverges=Finder.IterateSubPixToConvergence(mCurrentKF, nSubPixIts);
+      bool bSubPixConverges=Finder.IterateSubPixToConvergence(*mpCurrentKF, nSubPixIts);
       if(!bSubPixConverges)
       { // If subpix doesn't converge, the patch location is probably very dubious!
         TD.bFound = false;
@@ -825,7 +809,7 @@ void Tracker::UpdateMotionModel()
   // This is used to decide if we should use a coarse tracking stage.
   // We can tolerate more translational vel when far away from scene!
   Vector<6> v6 = mv6CameraVelocity;
-  v6.slice<0,3>() *= 1.0 / mCurrentKF.dSceneDepthMean;
+  v6.slice<0,3>() *= 1.0 / mpCurrentKF->dSceneDepthMean;
   mdMSDScaledVelocityMagnitude = sqrt(v6*v6);
 }
 
@@ -834,27 +818,27 @@ void Tracker::UpdateMotionModel()
  */
 void Tracker::AddNewKeyFrame()
 {
-  mpMapMaker->AddKeyFrame(mCurrentKF);
+  mpMapMaker->AddKeyFrame(*mpCurrentKF);
   mnLastKeyFrameDropped = mnFrame;
 }
 
 double Tracker::DistanceToClosestKeyFrame()
 {
-  KeyFrame *pClosest = mpMap->ClosestKeyFrame(mCurrentKF);
+  KeyFrame *pClosest = mpMap->ClosestKeyFrame(*mpCurrentKF);
 
   if (pClosest == NULL) {
     return std::numeric_limits<double>::max();
   }
 
-  double dDist = mpMap->KeyFrameLinearDist(mCurrentKF, *pClosest);
-  dDist *= (1.0 / mCurrentKF.dSceneDepthMean);
+  double dDist = mpMap->KeyFrameLinearDist(*mpCurrentKF, *pClosest);
+  dDist *= (1.0 / mpCurrentKF->dSceneDepthMean);
   return dDist;
 }
 
 // Is the tracker's camera pose in cloud-cuckoo land?
-bool Tracker::IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent)
+bool Tracker::IsDistanceToNearestKeyFrameExcessive()
 {
-  return mpMap->DistToNearestKeyFrame(kCurrent) > mpMap->GetWiggleScale() * 10.0;
+  return mpMap->DistToNearestKeyFrame(*mpCurrentKF) > mpMap->GetWiggleScale() * 10.0;
 }
 
 //
@@ -914,7 +898,7 @@ void Tracker::AssessTrackingQuality()
   {
     // Further heuristics to see if it's actually bad, not just dodgy...
     // If the camera pose estimate has run miles away, it's probably bad.
-    if(IsDistanceToNearestKeyFrameExcessive(mCurrentKF))
+    if(IsDistanceToNearestKeyFrameExcessive())
       mTrackingQuality = BAD;
   }
 
