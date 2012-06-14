@@ -1,14 +1,24 @@
 #include "FeatureGrid.h"
 #include "ShiTomasi.h"
 
+#include "agast/agast5_8.h"
+#include "agast/agast7_12s.h"
+#include "agast/agast7_12d.h"
+#include "agast/oast9_16.h"
+
 #include <cvd/fast_corner.h>
 
 #include <limits>
 #include <cmath>
+#include <stdexcept>
 
-namespace CVD
-{
-void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+namespace CVD {
+  void fast_corner_detect_plain_7(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_8(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_9(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_10(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_11(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
+  void fast_corner_detect_plain_12(const SubImage<byte>& i, std::vector<ImageRef>& corners, int b);
 }
 
 using namespace CVD;
@@ -21,7 +31,13 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   , mnCols(nCols)
   , mnMinFeaturesPerCell(2000)
   , mnMaxFeaturesPerCell(3000)
+  , mFeatureDetector(OAST9_16)
 {
+  int nBorder = 0;
+
+  nWidth -= 2 * nBorder;
+  nHeight -= 2 * nBorder;
+
   mirCellSize = ImageRef(nWidth / nCols, nHeight / nRows);
 
   size_t nCells = mnCols * mnRows;
@@ -31,9 +47,107 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   for (size_t i = 0; i < mnRows; ++i) {
     for (size_t j = 0; j < mnCols; ++j) {
       size_t idx = i * mnCols + j;
-      mvCells[idx].irPosition = ImageRef(j * mirCellSize.x, i * mirCellSize.y);
+      mvCells[idx].irPosition = ImageRef(j * mirCellSize.x + nBorder, i * mirCellSize.y + nBorder);
       mvCells[idx].nBarrier = nInitialBarrier;
     }
+  }
+}
+
+void FeatureGrid::DetectFeatures(const CVD::BasicImage<CVD::byte> &im,
+                                 const GridCell &cell,
+                                 std::vector<ImageRef> &vCorners)
+{
+  vCorners.clear();
+
+  ImageRef irSize;
+  int nStride = im.row_stride();
+  int nBarrier = cell.nBarrier;
+  const unsigned char *pData = im.data() + cell.irPosition.y * nStride + cell.irPosition.x;
+
+  Image<byte> im2;
+
+  switch (mFeatureDetector) {
+  case PLAIN_FAST7:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_7(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST8:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_8(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST9:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_9(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST10:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_10(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST11:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_11(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case PLAIN_FAST12:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    fast_corner_detect_plain_12(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
+    break;
+  case FAST10:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
+    im2.copy_from(im.sub_image(cell.irPosition, irSize));
+    fast_corner_detect_10(im2, vCorners, cell.nBarrier);
+    break;
+  case OAST9_16:
+    irSize = CellSize(im.size(), cell, ImageRef(8, 6));
+    oast9_16(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
+    break;
+  case AGAST7_12d:
+    irSize = CellSize(im.size(), cell, ImageRef(8, 6));
+    agast7_12d(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
+    break;
+  case AGAST7_12s:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 4));
+    agast7_12s(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
+    break;
+  case AGAST5_8:
+    irSize = CellSize(im.size(), cell, ImageRef(4, 2));
+    agast5_8(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
+    break;
+  default:
+    throw std::runtime_error("Invalid feature detector");
+  }
+}
+
+void FeatureGrid::NonMaximumSuppression(const CVD::BasicImage<CVD::byte> &im,
+                                        const std::vector<CVD::ImageRef> &vAllFeatures,
+                                        int nMinBarrier,
+                                        std::vector<CVD::ImageRef> &vMaxFeatures)
+{
+  vMaxFeatures.clear();
+
+  switch (mFeatureDetector) {
+  case PLAIN_FAST7:
+  case PLAIN_FAST8:
+  case PLAIN_FAST9:
+  case PLAIN_FAST10:
+  case PLAIN_FAST11:
+  case PLAIN_FAST12:
+  case FAST10:
+    fast_nonmax(im, vAllFeatures, nMinBarrier, vMaxFeatures);
+    break;
+  case OAST9_16:
+    oast9_16_nms(im.data(), im.row_stride(), nMinBarrier, vAllFeatures, vMaxFeatures);
+    break;
+  case AGAST7_12d:
+    agast7_12d_nms(im.data(), im.row_stride(), nMinBarrier, vAllFeatures, vMaxFeatures);
+    break;
+  case AGAST7_12s:
+    agast7_12s_nms(im.data(), im.row_stride(), nMinBarrier, vAllFeatures, vMaxFeatures);
+    break;
+  case AGAST5_8:
+    agast5_8_nms(im.data(), im.row_stride(), nMinBarrier, vAllFeatures, vMaxFeatures);
+    break;
+  default:
+    throw std::runtime_error("Invalid feature detector");
   }
 }
 
@@ -57,25 +171,8 @@ void FeatureGrid::FindFeatures(const CVD::BasicImage<CVD::byte> &im)
     GridCell& cell = mvCells[i];
     cell.vFeatures.clear();
 
-    ImageRef irSize = mirCellSize + ImageRef(6, 6);
-
-    ImageRef irBottomRight = cell.irPosition + irSize;
-    if (irBottomRight.x > im.size().x - 3) {
-      irSize.x -= irBottomRight.x - (im.size().x - 3);
-    }
-    if (irBottomRight.y > im.size().y - 3) {
-      irSize.y -= irBottomRight.y - (im.size().y - 3);
-    }
-
     std::vector<ImageRef> vTmpCorners;
-
-#if 1
-    CVD::fast_corner_detect_plain_10(im.sub_image(cell.irPosition, irSize), vTmpCorners, cell.nBarrier);
-#else
-    Image<byte> im2;
-    im2.copy_from(im.sub_image(cell.irPosition, irSize));
-    fast_corner_detect_10(im2, vTmpCorners, cell.nBarrier);
-#endif
+    DetectFeatures(im, cell, vTmpCorners);
 
     for (auto it = vTmpCorners.begin(); it != vTmpCorners.end(); ++it) {
       cell.vFeatures.push_back(cell.irPosition + *it);
@@ -102,7 +199,7 @@ void FeatureGrid::FindBestFeatures(const CVD::BasicImage<CVD::byte> &im)
 
   for (size_t i = 0; i < vMaxFeatures.size(); ++i) {
     if (im.in_image_with_border(vMaxFeatures[i], 5)) {
-      int idx = GetCellIndex(vMaxFeatures[i]);
+      int idx = CellIndex(vMaxFeatures[i]);
       assert(idx >= 0);
       double dScore = FindShiTomasiScoreAtPoint(im, 3, vMaxFeatures[i]);
 
@@ -152,27 +249,6 @@ void FeatureGrid::GetAllFeatures(std::vector<CVD::ImageRef> &vFeatures) const
   }
 }
 
-void FeatureGrid::GetBestFeatures(size_t nNumFeatures, std::vector<CVD::ImageRef> &vFeatures) const
-{
-  vFeatures.clear();
-  size_t nFeaturesPerCell = nNumFeatures / mvCells.size();
-  // Select the best N/num_cells features per cell
-  for (size_t i = 0; i < mvCells.size(); ++i) {
-    const std::multiset<ScoredPoint>& fts = mvCells[i].vBestFeatures;
-    if (fts.size() > nFeaturesPerCell) {
-      auto it = fts.begin();
-      for (size_t i = 0; i < nFeaturesPerCell; ++i) {
-        vFeatures.push_back(it->irPoint);
-        ++it;
-      }
-    } else {
-      for (auto it = fts.begin(); it != fts.end(); ++it) {
-        vFeatures.push_back(it->irPoint);
-      }
-    }
-  }
-}
-
 void FeatureGrid::GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) const
 {
   vFeatures.clear();
@@ -206,7 +282,43 @@ void FeatureGrid::GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) co
   }
 }
 
-int FeatureGrid::GetCellIndex(const CVD::ImageRef &irPoint) const
+void FeatureGrid::GetBestFeatures(size_t nNumFeatures, std::vector<CVD::ImageRef> &vFeatures) const
+{
+  vFeatures.clear();
+  size_t nFeaturesPerCell = nNumFeatures / mvCells.size();
+  // Select the best N/num_cells features per cell
+  for (size_t i = 0; i < mvCells.size(); ++i) {
+    const std::multiset<ScoredPoint>& fts = mvCells[i].vBestFeatures;
+    if (fts.size() > nFeaturesPerCell) {
+      auto it = fts.begin();
+      for (size_t i = 0; i < nFeaturesPerCell; ++i) {
+        vFeatures.push_back(it->irPoint);
+        ++it;
+      }
+    } else {
+      for (auto it = fts.begin(); it != fts.end(); ++it) {
+        vFeatures.push_back(it->irPoint);
+      }
+    }
+  }
+}
+
+ImageRef FeatureGrid::CellSize(const ImageRef &irImSize, const GridCell &cell, const ImageRef &irMargin) const
+{
+  ImageRef irSize = mirCellSize + irMargin;
+
+  ImageRef irBottomRight = cell.irPosition + irSize;
+  if (irBottomRight.x > irImSize.x) {
+    irSize.x -= irBottomRight.x - irImSize.x;
+  }
+  if (irBottomRight.y > irImSize.y) {
+    irSize.y -= irBottomRight.y - irImSize.y;
+  }
+
+  return irSize;
+}
+
+int FeatureGrid::CellIndex(const CVD::ImageRef &irPoint) const
 {
   int col = irPoint.x / mirCellSize.x;
   int row = irPoint.y / mirCellSize.y;
@@ -218,7 +330,7 @@ int FeatureGrid::GetCellIndex(const CVD::ImageRef &irPoint) const
   return row * mnCols + col;
 }
 
-int FeatureGrid::GetMinBarrier() const
+int FeatureGrid::MinBarrier() const
 {
   int nMinBarrier = std::numeric_limits<int>::max();
   for (size_t i = 0; i < mvCells.size(); ++i) {
@@ -227,13 +339,12 @@ int FeatureGrid::GetMinBarrier() const
   return nMinBarrier;
 }
 
-void FeatureGrid::GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im, std::vector<CVD::ImageRef> &vMaxFeatures) const
+void FeatureGrid::GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im, std::vector<CVD::ImageRef> &vMaxFeatures)
 {
   std::vector<ImageRef> vSortedFeatures;
   GetAllFeaturesSorted(vSortedFeatures);
-
-  int nMinBarrier = GetMinBarrier();
-  fast_nonmax(im, vSortedFeatures, nMinBarrier, vMaxFeatures);
+  int nMinBarrier = MinBarrier();
+  NonMaximumSuppression(im, vSortedFeatures, nMinBarrier, vMaxFeatures);
 }
 
 }

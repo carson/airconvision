@@ -9,6 +9,7 @@
 #include <cvd/image.h>
 #include <cvd/rgb.h>
 #include <cvd/byte.h>
+#include <gvars3/instances.h>
 
 #include <vector>
 #include <mutex>
@@ -91,7 +92,11 @@ class Frontend {
     Tracker *mpTracker;
     ScaleMarkerTracker *mpScaleMarkerTracker;
 
+    KeyFrame mCurrentKF;
+
     FrontendDrawData mDrawData;
+
+    GVars3::gvar3<int> mgvnFeatureDetector;
 };
 
 }

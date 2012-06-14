@@ -94,7 +94,20 @@ set(VIDEO_SOURCE_SRC
 # PTAML
 #
 
+set(AGAST_SRC
+    agast/nonMaximumSuppression.cc
+    agast/agast5_8_nms.cc
+    agast/agast5_8.cc
+    agast/agast7_12d_nms.cc
+    agast/agast7_12d.cc
+    agast/agast7_12s_nms.cc
+    agast/agast7_12s.cc
+    agast/oast9_16_nms.cc
+    agast/oast9_16.cc
+)
+
 set(PTAML_SRC
+	${AGAST_SRC}
 	ARDriver.cc
 	ARToolkit.cc
 	ATANCamera.cc

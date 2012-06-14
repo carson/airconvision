@@ -17,8 +17,6 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
-int g_nNumFeaturesFound[LEVELS] = { 0 };
-
 Level::Level()
   : bImplaneCornersCached(false)
   , mpFeatureGrid(NULL)
@@ -159,10 +157,18 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
     width /= 2; height /= 2;
   }
 
-  aLevels[0].SetTargetFeatureCount(3500, 2500);
-  aLevels[1].SetTargetFeatureCount(1500, 1000);
-  aLevels[2].SetTargetFeatureCount(500, 300);
-  aLevels[3].SetTargetFeatureCount(400, 200);
+  size_t nDesiredFeatures = 3000;
+  for (int i = 0; i < LEVELS; ++i) {
+    aLevels[i].SetTargetFeatureCount(nDesiredFeatures * 0.9, nDesiredFeatures * 1.1);
+    nDesiredFeatures /= 4;
+  }
+
+/*
+  aLevels[0].SetTargetFeatureCount(3500, 3000);
+  aLevels[1].SetTargetFeatureCount(1000, 800);
+  aLevels[2].SetTargetFeatureCount(400, 300);
+  aLevels[3].SetTargetFeatureCount(150, 100);
+  */
 }
 
 /**
@@ -182,7 +188,8 @@ KeyFrame::~KeyFrame()
  * @param rhs
  */
 KeyFrame::KeyFrame(const KeyFrame &rhs)
-  : Camera( rhs.Camera )
+  : pSBI(NULL)
+  , Camera( rhs.Camera )
 {
   *this = rhs;
 }
@@ -211,15 +218,27 @@ KeyFrame& KeyFrame::operator=(const KeyFrame &rhs)
     aLevels[i] = rhs.aLevels[i];
   }
 
-  //should actually copy this, but is cheap to make.
-  if( rhs.pSBI ) {
+  delete pSBI;
+  pSBI = NULL;
+  if (rhs.pSBI) {
     pSBI = new SmallBlurryImage(rhs);
-  }
-  else {
-    pSBI = NULL;
   }
 
   return *this;
+}
+
+void KeyFrame::Reset()
+{
+  mMeasurements.clear();
+  dSceneDepthMean = 1.0;
+  dSceneDepthSigma = 1.0;
+
+  for (int i = 0; i < LEVELS; ++i) {
+    aLevels[i].Clear();
+  }
+
+  delete pSBI;
+  pSBI = nullptr;
 }
 
 // ThinCandidates() Thins out a key-frame's candidate list.
@@ -293,8 +312,10 @@ void KeyFrame::RefreshSceneDepth()
  * mapmaker but not the tracker go in MakeKeyFrame_Rest();
  * @param im image to make keyframe from
  */
-void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCornerBarriers)
+void KeyFrame::InitFromImage(const BasicImage<CVD::byte> &im, FeatureDetector featureDetector)
 {
+  Reset();
+
   // First, copy out the image data to the pyramid's zero level.
   aLevels[0].im.copy_from(im);
 
@@ -305,12 +326,10 @@ void KeyFrame::MakeKeyFrame_Lite(const BasicImage<CVD::byte> &im, int* aFastCorn
   }
 
   gFeatureTimer.Start();
-
   for (int i = 0; i < LEVELS; ++i) {
-    aLevels[i].Clear();
+    aLevels[i].mpFeatureGrid->SetFeatureDetector(featureDetector);
     aLevels[i].FindFeatures();
   }
-
   gFeatureTimer.Stop();
 }
 

@@ -39,31 +39,18 @@ namespace PTAMM {
  * @param m current map
  * @param mm map maker
  */
-Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm, Relocaliser *pRelocaliser) :
-  mCurrentKF(c),
-  mFirstKF(c),
-  mpMap(m),
-  mMapMaker(mm),
-  mCamera(c),
-  mpRelocaliser(pRelocaliser),
-  mirSize(irVideoSize)
+Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m,
+                 MapMaker *mm, Relocaliser *pRelocaliser)
+  : mpMap(m)
+  , mpMapMaker(mm)
+  , mCamera(c)
+  , mpRelocaliser(pRelocaliser)
+  , mirSize(irVideoSize)
 {
-  mCurrentKF.bFixed = false;
   TrackerData::irImageSize = mirSize;
 
   mpSBILastFrame = NULL;
   mpSBIThisFrame = NULL;
-
-  // Most of the initialisation is done in Reset()
-  //Reset();
-}
-
-void Tracker::InitTracking()
-{
-  auto keyframes = mpMap->GetKeyFrames();
-  assert(keyframes.size() >= 2);
-  mFirstKF = *keyframes[0];
-  mCurrentKF = *keyframes[1];
 }
 
 /**
@@ -75,18 +62,11 @@ void Tracker::ResetCommon()
   mTrackingQuality = GOOD;
   mnLostFrames = 0;
   mdMSDScaledVelocityMagnitude = 0;
-  mCurrentKF.dSceneDepthMean = 1.0;
-  mCurrentKF.dSceneDepthSigma = 1.0;
   mCamera.SetImageSize(mirSize);
-  mCurrentKF.mMeasurements.clear();
   mnLastKeyFrameDropped = -20;
   mnFrame=0;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = false;
-
-  for (int i = 0; i < LEVELS; ++i) {
-    maFastCornerBarriers[i] = 15;
-  }
 }
 
 /**
@@ -97,66 +77,100 @@ void Tracker::ResetCommon()
  */
 void Tracker::Reset()
 {
-  if( mpMap->bEditLocked ) {
+  if (mpMap->bEditLocked) {
     cerr << "MAP LOCKED: Cannot reset map " << mpMap->MapID() << "." << endl;
     return;
   }
 
   ResetCommon();
+  mpMapMaker->Reset();
+}
 
-  // Tell the MapMaker to reset itself..
-  // this may take some time, since the mapmaker thread may have to wait
-  // for an abort-check during calculation, so sleep while waiting.
-  // MapMaker will also clear the map.
-  mMapMaker.Reset();
+bool Tracker::HasGoodCoverage()
+{
+  bool aBins[4][4] = { { 0 } };
+  double dHori = 4.0 / mirSize.x;
+  double dVert = 4.0 / mirSize.y;
+
+  for (auto it = mvIterationSet.begin(); it != mvIterationSet.end(); ++it) {
+    const Vector<2>& v2Point = (*it)->v2Image;
+    size_t row = v2Point[1] * dVert;
+    size_t col = v2Point[0] * dHori;
+    aBins[row][col] = true;
+  }
+
+  int nEmpty = 0;
+
+  for (size_t i = 0; i < 4; ++i) {
+    for (size_t j = 0; j < 4; ++j) {
+      // Don't count inner cells
+      if ((i != 1 && i != 2) || (j != 1 && j != 2)) {
+        if (!aBins[i][j]) {
+          nEmpty++;
+        }
+      }
+    }
+  }
+
+  return nEmpty < 3;
 }
 
 bool Tracker::ShouldAddNewKeyFrame()
 {
-  return mTrackingQuality == GOOD &&
-         NeedNewKeyFrame(mCurrentKF) &&
-         // HACK for keyframe threshold for incorporation
-         // the parameter here determines how frequently keyframes are incorporateed
-         mnFrame - mnLastKeyFrameDropped > 5  &&
-         mpMap->QueueSize() < 200;
+  if (mTrackingQuality != GOOD || mpMap->QueueSize() > 0 ||
+      mnFrame - mnLastKeyFrameDropped <= 5)
+  {
+    return false;
+  }
+
+  double dDist = DistanceToClosestKeyFrame();
+  static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 2.00, SILENT);
+
+  bool bFarAwayFromOldKeyFrames = dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
+
+  return  bFarAwayFromOldKeyFrames || (!HasGoodCoverage() && dDist > 0.08);
+}
+
+void Tracker::UpdateStatsMessage()
+{
+  mMessageForUser << "Tracking Map, quality ";
+  if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
+  if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
+  if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
+
+  mMessageForUser << " Found:";
+  for(int i=0; i<LEVELS; i++) {
+    mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
+  }
+
+  mMessageForUser << " Map " << mpMap->MapID() << ": "
+                  << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
 }
 
 // TrackFrame is called by System.cc with each incoming video frame.
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
-void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
+void Tracker::ProcessFrame(KeyFrame &keyFrame)
 {
-  if (mnFrame == 0) {
-    InitTracking();
-  }
-
-  mbDraw = false;
   mMessageForUser.str("");   // Wipe the user message clean
 
-  // Take the input video image, and convert it into the tracker's keyframe struct
-  // This does things like generate the image pyramid and find FAST corners
-  mCurrentKF.mMeasurements.clear();
-
-  mCurrentKF.MakeKeyFrame_Lite(imFrame, maFastCornerBarriers);
+  mpCurrentKF = &keyFrame;
 
   // Update the small images for the rotation estimator
   static gvar3<double> gvdSBIBlur("Tracker.RotationEstimatorBlur", 0.75, SILENT);
   static gvar3<int> gvnUseSBI("Tracker.UseRotationEstimator", 1, SILENT);
-  mbUseSBIInit = false; //*gvnUseSBI;
+  mbUseSBIInit = *gvnUseSBI;
 
   gSBIInitTimer.Start();
 
-  if(!mpSBIThisFrame)
-  {
-    mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
-    mpSBILastFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
-  }
-  else
-  {
-    delete  mpSBILastFrame;
+  if(!mpSBIThisFrame) {
+    mpSBIThisFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
+    mpSBILastFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
+  } else {
+    delete mpSBILastFrame;
     mpSBILastFrame = mpSBIThisFrame;
-    mpSBIThisFrame = new SmallBlurryImage(mCurrentKF, *gvdSBIBlur);
+    mpSBIThisFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
   }
 
   gSBIInitTimer.Stop();
@@ -165,8 +179,8 @@ void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
   mnFrame++;
 
   // Decide what to do - if there is a map, try to track the map ...
-  if(mnLostFrames < NUM_LOST_FRAMES)  // .. but only if we're not lost!
-  {
+  if (!IsLost()) { // .. but only if we're not lost!
+
     gSBITimer.Start();
     if(mbUseSBIInit) {
       CalcSBIRotation();
@@ -185,39 +199,25 @@ void Tracker::ProcessFrame(const Image<CVD::byte> &imFrame)
     AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
     gTrackingQualityTimer.Stop();
 
-    { // Provide some feedback for the user:
-      mMessageForUser << "Tracking Map, quality ";
-      if(mTrackingQuality == GOOD)  mMessageForUser << "good.";
-      if(mTrackingQuality == DODGY) mMessageForUser << "poor.";
-      if(mTrackingQuality == BAD)   mMessageForUser << "bad.";
-
-      mMessageForUser << " F:";
-      for(int i=0; i<LEVELS; i++) {
-        mMessageForUser << "/" << maFastCornerBarriers[i];
-      }
-
-      mMessageForUser << " Found:";
-      for(int i=0; i<LEVELS; i++) {
-        mMessageForUser << " " << manMeasFound[i] << "/" << manMeasAttempted[i];
-      }
-      mMessageForUser << " Map " << mpMap->MapID() << ": "
-                      << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
-    }
+    // Provide some feedback for the user:
+    UpdateStatsMessage();
 
     // Heuristics to check if a key-frame should be added to the map:
-    if(ShouldAddNewKeyFrame()) {
+    if (ShouldAddNewKeyFrame()) {
       mMessageForUser << " Adding key-frame.";
       AddNewKeyFrame();
     }
 
-  } else {
-    // what if there is a map, but tracking has been lost?
+  } else { // Tracking is lost
+
     cout << "Lost tracking..." << endl;
     mMessageForUser << "** Attempting recovery **.";
+
     if (AttemptRecovery()) {
       TrackMap();
       AssessTrackingQuality();
     }
+
   }
 }
 
@@ -225,7 +225,7 @@ void Tracker::GetDrawData(TrackerDrawData &drawData)
 {
   drawData.bDidCoarse = mbDidCoarse;
   drawData.se3CamFromWorld = mse3CamFromWorld;
-  mCurrentKF.aLevels[0].GetAllFeatures(drawData.vCorners);
+  mpCurrentKF->aLevels[0].GetAllFeatures(drawData.vCorners);
 
   drawData.vMapPoints.clear();
 
@@ -247,14 +247,16 @@ bool Tracker::AttemptRecovery()
 {
   cout << "AttemptRecovery..." << endl;
 
-  bool bRelocGood = mpRelocaliser->AttemptRecovery( *mpMap, mCurrentKF );
-  if(!bRelocGood)
+  bool bRelocGood = mpRelocaliser->AttemptRecovery(*mpMap, *mpCurrentKF);
+  if(!bRelocGood) {
     return false;
+  }
 
   SE3<> se3Best = mpRelocaliser->BestPose();
   mse3CamFromWorld = mse3StartPos = se3Best;
   mv6CameraVelocity = Zeros;
   mbJustRecoveredSoUseCoarse = true;
+
   return true;
 }
 
@@ -533,9 +535,9 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
   // Strictly speaking this is unnecessary to do every frame, it'll only be
   // needed if the KF gets added to MapMaker. Do it anyway.
   // Export pose to current keyframe:
-  mCurrentKF.se3CfromW = mse3CamFromWorld;
+  mpCurrentKF->se3CfromW = mse3CamFromWorld;
   // Record successful measurements. Use the KeyFrame-Measurement struct for this.
-  mCurrentKF.mMeasurements.clear();
+  mpCurrentKF->mMeasurements.clear();
 
   // Variables used for calculation a new mean depth
   double dSum = 0;
@@ -550,7 +552,7 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
     m.m2CamDerivs = mCamera.GetProjectionDerivs();
     m.nLevel = (*it)->nSearchLevel;
     m.bSubPix = (*it)->bDidSubPix;
-    mCurrentKF.mMeasurements[& ((*it)->Point)] = m;
+    mpCurrentKF->mMeasurements[& ((*it)->Point)] = m;
 
     // Calc mean depth
     double z = (*it)->v3Cam[2];
@@ -560,8 +562,8 @@ void Tracker::UpdateCurrentKeyframeWithNewTrackingData()
   }
 
   if(nNum > 20) {
-    mCurrentKF.dSceneDepthMean = dSum/nNum;
-    mCurrentKF.dSceneDepthSigma = sqrt((dSumSq / nNum) - mCurrentKF.dSceneDepthMean * mCurrentKF.dSceneDepthMean);
+    mpCurrentKF->dSceneDepthMean = dSum / nNum;
+    mpCurrentKF->dSceneDepthSigma = sqrt((dSumSq / nNum) - mpCurrentKF->dSceneDepthMean * mpCurrentKF->dSceneDepthMean);
   }
 }
 
@@ -585,14 +587,14 @@ void Tracker::TrackMap()
     manMeasAttempted[i] = manMeasFound[i] = 0;
   }
 
+  // Clear out old iterations set
+  mvIterationSet.clear();
+
   // The Potentially-Visible-Set (PVS) is split into pyramid levels.
   vector<TrackerData*> avPVS[LEVELS];
   gPvsTimer.Start();
   FindPVS(avPVS);
   gPvsTimer.Stop();
-
-  // Clear out old iterations et
-  mvIterationSet.clear();
 
   // Start with a coarse tracking stage using features in the higher pyramid levels
   gCoarseTimer.Start();
@@ -633,7 +635,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
 
     manMeasAttempted[Finder.GetLevel()]++;  // Stats for tracking quality assessmenta
 
-    bool bFound = Finder.FindPatchCoarse(ir(TD.v2Image), mCurrentKF, nRange);
+    bool bFound = Finder.FindPatchCoarse(ir(TD.v2Image), *mpCurrentKF, nRange);
     TD.bSearched = true;
     if(!bFound)
     {
@@ -652,7 +654,7 @@ int Tracker::SearchForPoints(vector<TrackerData*> &vTD, int nRange, int nSubPixI
     {
       TD.bDidSubPix = true;
       Finder.MakeSubPixTemplate();
-      bool bSubPixConverges=Finder.IterateSubPixToConvergence(mCurrentKF, nSubPixIts);
+      bool bSubPixConverges=Finder.IterateSubPixToConvergence(*mpCurrentKF, nSubPixIts);
       if(!bSubPixConverges)
       { // If subpix doesn't converge, the patch location is probably very dubious!
         TD.bFound = false;
@@ -807,7 +809,7 @@ void Tracker::UpdateMotionModel()
   // This is used to decide if we should use a coarse tracking stage.
   // We can tolerate more translational vel when far away from scene!
   Vector<6> v6 = mv6CameraVelocity;
-  v6.slice<0,3>() *= 1.0 / mCurrentKF.dSceneDepthMean;
+  v6.slice<0,3>() *= 1.0 / mpCurrentKF->dSceneDepthMean;
   mdMSDScaledVelocityMagnitude = sqrt(v6*v6);
 }
 
@@ -816,30 +818,27 @@ void Tracker::UpdateMotionModel()
  */
 void Tracker::AddNewKeyFrame()
 {
-  mMapMaker.AddKeyFrame(mCurrentKF);
+  mpMapMaker->AddKeyFrame(*mpCurrentKF);
   mnLastKeyFrameDropped = mnFrame;
 }
 
-bool Tracker::NeedNewKeyFrame(const KeyFrame &kCurrent)
+double Tracker::DistanceToClosestKeyFrame()
 {
-  KeyFrame *pClosest = mpMap->ClosestKeyFrame(kCurrent);
+  KeyFrame *pClosest = mpMap->ClosestKeyFrame(*mpCurrentKF);
 
   if (pClosest == NULL) {
-    return false;
+    return std::numeric_limits<double>::max();
   }
 
-  static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 1.00, SILENT);
-
-  double dDist = mpMap->KeyFrameLinearDist(kCurrent, *pClosest);
-  dDist *= (1.0 / kCurrent.dSceneDepthMean);
-
-  return dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
+  double dDist = mpMap->KeyFrameLinearDist(*mpCurrentKF, *pClosest);
+  dDist *= (1.0 / mpCurrentKF->dSceneDepthMean);
+  return dDist;
 }
 
 // Is the tracker's camera pose in cloud-cuckoo land?
-bool Tracker::IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent)
+bool Tracker::IsDistanceToNearestKeyFrameExcessive()
 {
-  return mpMap->DistToNearestKeyFrame(kCurrent) > mpMap->GetWiggleScale() * 10.0;
+  return mpMap->DistToNearestKeyFrame(*mpCurrentKF) > mpMap->GetWiggleScale() * 10.0;
 }
 
 //
@@ -899,7 +898,7 @@ void Tracker::AssessTrackingQuality()
   {
     // Further heuristics to see if it's actually bad, not just dodgy...
     // If the camera pose estimate has run miles away, it's probably bad.
-    if(IsDistanceToNearestKeyFrameExcessive(mCurrentKF))
+    if(IsDistanceToNearestKeyFrameExcessive())
       mTrackingQuality = BAD;
   }
 
@@ -930,49 +929,6 @@ void Tracker::CalcSBIRotation()
   result_pair = mpSBIThisFrame->IteratePosRelToTarget(*mpSBILastFrame, 6);
   SE3<> se3Adjust = SmallBlurryImage::SE3fromSE2(result_pair.first, mCamera);
   mv6SBIRot = se3Adjust.ln();
-}
-
-
-/**
- * Switch the map to the specified map.
- * @param map the map to switch to
- */
-bool Tracker::SwitchMap(Map *map)
-{
-  if( map == NULL ) {
-    return false;
-  }
-
-  if( mpMap == map)  {
-    return true;
-  }
-
-  //set variables
-  SE3<> se3Best = mpRelocaliser->BestPose();
-  mse3CamFromWorld = mse3StartPos = se3Best;
-  mv6CameraVelocity = Zeros;
-  mbJustRecoveredSoUseCoarse = true;
-
-  //set new map
-  mpMap = map;
-
-  return true;
-}
-
-/**
- * Re initialize the map.
- */
-void Tracker::SetNewMap(Map * map)
-{
-  if( mpMap == map)
-  {
-    cerr << "*** WARNING Tracker::SetNewMap() map is the same. Aborting ***" << endl;
-    return;
-  }
-
-  ResetCommon();
-
-  mpMap = map;
 }
 
 

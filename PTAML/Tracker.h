@@ -50,26 +50,24 @@ class TrackerData;
 class Tracker
 {
   public:
-    Tracker(const CVD::ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm, Relocaliser *pRelocaliser);
+    Tracker(const CVD::ImageRef &irVideoSize, const ATANCamera &c, Map *m,
+            MapMaker *mm, Relocaliser *pRelocaliser);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
-    void ProcessFrame(const CVD::Image<CVD::byte> &imFrame);
+    void ProcessFrame(KeyFrame &keyFrame);
 
     void GetDrawData(TrackerDrawData &drawData);
+    // Gets messages to be printed on-screen for the user.
+    std::string GetMessageForUser() const;
 
+    bool IsLost() const { return mnLostFrames > NUM_LOST_FRAMES; }
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
+    void SetCurrentPose(const SE3<> &se3Pose) { mse3CamFromWorld = se3Pose; }
     Vector<3> RealWorldCoordinate() const {
       return mse3CamFromWorld.inverse().get_translation();
     }
 
-    bool IsLost() const { return (mnLostFrames > NUM_LOST_FRAMES); }
-
-    // Gets messages to be printed on-screen for the user.
-    std::string GetMessageForUser() const;
-
-    bool SwitchMap(Map *map);
-    void SetNewMap(Map * map);
-    void ForceRecovery() { if(mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
+    void ForceRecovery() { if (mnLostFrames < NUM_LOST_FRAMES) mnLostFrames = NUM_LOST_FRAMES; }
     void Reset();                   // Restart from scratch. Also tells the mapmaker to reset itself.
 
   private:
@@ -84,6 +82,9 @@ class Tracker
     void TrackFine(std::vector<TrackerData*> avPVS[]);
     void UpdateCurrentKeyframeWithNewTrackingData();
 
+    void UpdateStatsMessage();
+
+    bool IsDistanceToNearestKeyFrameExcessive();
     void AssessTrackingQuality();   // Heuristics to choose between good, poor, bad.
     void ApplyMotionModel();        // Decaying velocity motion model applied prior to TrackMap
     void UpdateMotionModel();       // Motion model is updated after TrackMap
@@ -95,37 +96,31 @@ class Tracker
                              bool bMarkOutliers = false); // Updates pose from found points.
     void CalcSBIRotation();
 
-    bool NeedNewKeyFrame(const KeyFrame &kCurrent);
-    bool IsDistanceToNearestKeyFrameExcessive(const KeyFrame &kCurrent);
+    bool HasGoodCoverage();
+    double DistanceToClosestKeyFrame();
     bool ShouldAddNewKeyFrame();
     void AddNewKeyFrame();          // Gives the current frame to the mapmaker to use as a keyframe
 
     bool AttemptRecovery();         // Called by TrackFrame if tracking is lost.
 
   private:
-    KeyFrame mCurrentKF;            // The current working frame as a keyframe struct
-    KeyFrame mFirstKF;              // First of the stereo pair
-
     // The major components to which the tracker needs access:
     Map *mpMap;                     // The map, consisting of points and keyframes
-    MapMaker &mMapMaker;            // The class which maintains the map
+    MapMaker *mpMapMaker;           // The class which maintains the map
     ATANCamera mCamera;             // Projection model
-    Relocaliser *mpRelocaliser;       // Relocalisation module
+    Relocaliser *mpRelocaliser;     // Relocalisation module
 
     CVD::ImageRef mirSize;          // Image size of whole image
 
-    std::vector<TrackerData*> mvIterationSet;
-
-    int maFastCornerBarriers[LEVELS];
-
-    SE3<> mse3CamFromWorld;           // Camera pose: this is what the tracker updates every frame.
-    SE3<> mse3StartPos;               // What the camera pose was at the start of the frame.
+    KeyFrame *mpCurrentKF;            // The current working frame as a keyframe struct
+    SE3<> mse3CamFromWorld;         // Camera pose: this is what the tracker updates every frame.
+    SE3<> mse3StartPos;             // What the camera pose was at the start of the frame.
     Vector<6> mv6CameraVelocity;    // Motion model
     double mdVelocityMagnitude;     // Used to decide on coarse tracking
     double mdMSDScaledVelocityMagnitude; // Velocity magnitude scaled by relative scene depth.
     bool mbDidCoarse;               // Did tracking use the coarse tracking stage?
 
-    bool mbDraw;                    // Should the tracker draw anything to OpenGL?
+    std::vector<TrackerData*> mvIterationSet;
 
     // Interface with map maker:
     int mnFrame;                    // Frames processed since last reset

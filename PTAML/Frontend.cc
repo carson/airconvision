@@ -3,6 +3,7 @@
 #include "Tracker.h"
 #include "Timing.h"
 #include "FPSCounter.h"
+#include "FeatureGrid.h"
 
 #include <cvd/image_ref.h>
 
@@ -10,6 +11,7 @@
 
 using namespace std;
 using namespace CVD;
+using namespace GVars3;
 
 namespace PTAMM {
 
@@ -80,7 +82,10 @@ Frontend::Frontend(VideoSource *pVideoSource,
   , mpInitialTracker(pInitialTracker)
   , mpTracker(pTracker)
   , mpScaleMarkerTracker(pScaleMarkerTracker)
+  , mCurrentKF(camera)
 {
+  GV3::Register(mgvnFeatureDetector, "FeatureDetector", (int)OAST9_16, SILENT);
+
   ImageRef irVideoSize = mpVideoSource->Size();
   mimFrameBW.resize(irVideoSize);
   mimFrameRGB.resize(irVideoSize);
@@ -108,6 +113,8 @@ void Frontend::operator()()
 
     GrabNextFrame();
 
+    mCurrentKF.InitFromImage(mimFrameBW, (FeatureDetector)*mgvnFeatureDetector);
+
     mDrawData.imFrame.copy_from(mimFrameRGB);
     mDrawData.bInitialTracking = mbInitialTracking;
 
@@ -115,6 +122,7 @@ void Frontend::operator()()
       // Go back to initial tracking again
       mpInitialTracker->Reset();
       mpTracker->Reset();
+      mCurrentKF.Reset();
       mbInitialTracking = true;
       mbHasDeterminedScale = false;
     }
@@ -127,8 +135,9 @@ void Frontend::operator()()
         mpInitialTracker->UserInvoke();
       }
 
-      mpInitialTracker->ProcessFrame(mimFrameBW);
+      mpInitialTracker->ProcessFrame(mCurrentKF);
       if (mpInitialTracker->IsDone()) {
+        mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
         mbInitialTracking = false;
         mpTracker->ForceRecovery();
       }
@@ -138,7 +147,7 @@ void Frontend::operator()()
       mpInitialTracker->GetDrawData(mDrawData.initialTracker);
     } else {
       // Regular map tracking path
-      mpTracker->ProcessFrame(mimFrameBW);
+      mpTracker->ProcessFrame(mCurrentKF);
       mpTracker->GetDrawData(mDrawData.tracker);
       mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
 
@@ -151,7 +160,7 @@ void Frontend::operator()()
 
 
     if (fpsCounter.Update()) {
-      cout << fpsCounter.Fps() << endl;
+      //cout << fpsCounter.Fps() << endl;
     }
 
     gTrackFullTimer.Stop();

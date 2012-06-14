@@ -94,6 +94,26 @@ bool GetSingleParam(int &nAnswer, string sCommand, string sParams)
   return false;
 }
 
+string FeatureDetector2String(FeatureDetector featureDetector)
+{
+  switch (featureDetector) {
+  case PLAIN_FAST7: return "PLAIN_FAST7";
+  case PLAIN_FAST8: return "PLAIN_FAST8";
+  case PLAIN_FAST9: return "PLAIN_FAST9";
+  case PLAIN_FAST10: return "PLAIN_FAST10";
+  case PLAIN_FAST11: return "PLAIN_FAST11";
+  case PLAIN_FAST12: return "PLAIN_FAST12";
+  case FAST10: return "FAST10";
+  case OAST9_16: return "OAST9_16";
+  case AGAST7_12d: return "AGAST7_12d";
+  case AGAST7_12s: return "AGAST7_12s";
+  case AGAST5_8: return "AGAST5_8";
+  default: break;
+  }
+
+  return "Unknown";
+}
+
 class FrontendRenderer {
   public:
     FrontendRenderer(const ATANCamera &camera, const FrontendDrawData &drawData)
@@ -260,6 +280,7 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
     glColor3f(1,0,0);
     glVertex(ProjectPoint(*it));
   }
+}
 
   glEnd();
 
@@ -343,6 +364,8 @@ void System::CreateMenu()
   GUI.RegisterCommand("AddWaypoint", GUICommandCallBack, this);
   GUI.RegisterCommand("PositionHold", GUICommandCallBack, this);
 
+  GUI.RegisterCommand("ChangeFeatureDetector", GUICommandCallBack, this);
+
   GUI.RegisterCommand("KeyPress", GUICommandCallBack, this);
   GUI.RegisterCommand("Mouse.Click", GUICommandCallBack, this);
 
@@ -354,7 +377,10 @@ void System::CreateMenu()
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
   GUI.ParseLine("DrawMap=0");
   GUI.ParseLine("DrawMKDebug=1");
-  GUI.ParseLine("Menu.AddMenuToggle Root \"Draw MK\" DrawMKDebug Root");
+  GUI.ParseLine("Menu.AddMenuToggle Root \"Show debug\" DrawMKDebug Root");
+
+  GUI.ParseLine("GLWindow.AddMenu InternalMenu Internal");
+  GUI.ParseLine("InternalMenu.AddMenuButton Root \"Feature Detector\" ChangeFeatureDetector Root");
 
   GUI.ParseLine("GLWindow.AddMenu MapsMenu Maps");
   GUI.ParseLine("MapsMenu.AddMenuButton Root \"Serialize\" \"\" Serial");
@@ -416,8 +442,8 @@ void System::CreateModules()
 
   // Move these into the frontend
   mModules.pRelocaliser = new Relocaliser(*mModules.pCamera);
-  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker, mModules.pRelocaliser);
-  mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, *mModules.pMapMaker);
+  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker, mModules.pRelocaliser);
+  mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker);
   mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
 
 
@@ -521,6 +547,9 @@ void System::GUICommandCallBack(const string &sCommand, const string &sParams)
   else if( sCommand == "ClearWaypoints")  {
     ClearWaypoints();
   }
+  else if( sCommand == "ChangeFeatureDetector") {
+    ChangeFeatureDetector();
+  }
   else if( sCommand == "Mouse.Click" ) {
     vector<string> vs = ChopAndUnquoteString(sParams);
     if( vs.size() != 3 ) {
@@ -608,6 +637,16 @@ void System::FlyPath()
   mMikroKopter.FlyPath();
 }
 
+void System::ChangeFeatureDetector()
+{
+  int &current = GV3::get<int>("FeatureDetector", 0);
+  if (current >= NUM_FEATURE_DETECTORS - 1) {
+    current = 0;
+  } else {
+    ++current;
+  }
+}
+
 void System::Draw()
 {
   gDrawUITimer.Start();
@@ -656,12 +695,16 @@ void System::Draw()
 void System::DrawDebugInfo()
 {
   stringstream ss;
+
   /*
   ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
      << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
      << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
      << "VY: " << mPositionHold.GetVelocityFiltered()[1];
      */
+
+  FeatureDetector featureDetector = (FeatureDetector)GV3::get<int>("FeatureDetector", 0);
+  ss << "Features: " << FeatureDetector2String(featureDetector) << endl << endl;
 
   ss << "Frame: " << gFrameTimer.Milliseconds() << endl
      << "Video: " << gVideoSourceTimer.Milliseconds() << endl
@@ -677,11 +720,6 @@ void System::DrawDebugInfo()
      //<< "Grid: " << gDrawGridTimer.Milliseconds() << endl
      << "UI: " << gDrawUITimer.Milliseconds() << endl;
      //<< "GLSwap: " << gGLSwapTimer.Milliseconds() << endl;
-
-
-  for (int i = 0; i < LEVELS; ++i) {
-    //ss << g_nNumFeaturesFound[i] << endl;
-  }
 
   mGLWindow.DrawDebugOutput(ss.str());
 }

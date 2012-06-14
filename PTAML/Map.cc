@@ -29,40 +29,36 @@ BundleAdjustmentJob::BundleAdjustmentJob(Map *pMap,
   , mbRecent(bRecent)
 {
   // Add the keyframes' poses to the bundle adjuster. Two parts: first nonfixed, then fixed.
-  for(auto it = sAdjustSet.begin(); it!= sAdjustSet.end(); ++it)
-  {
+  for (auto it = sAdjustSet.begin(); it != sAdjustSet.end(); ++it) {
     int nBundleID = mBundle.AddCamera((*it)->se3CfromW, (*it)->bFixed);
     mView_BundleID[*it] = nBundleID;
     mBundleID_View[nBundleID] = *it;
   }
 
-  for(auto it = sFixedSet.begin(); it!= sFixedSet.end(); ++it)
-  {
+  for (auto it = sFixedSet.begin(); it != sFixedSet.end(); ++it) {
     int nBundleID = mBundle.AddCamera((*it)->se3CfromW, true);
     mView_BundleID[*it] = nBundleID;
     mBundleID_View[nBundleID] = *it;
   }
 
   // Add the points' 3D position
-  for(auto it = sMapPoints.begin(); it!=sMapPoints.end(); ++it)
-  {
+  for (auto it = sMapPoints.begin(); it != sMapPoints.end(); ++it) {
     int nBundleID = mBundle.AddPoint((*it)->v3WorldPos);
     mPoint_BundleID[*it] = nBundleID;
     mBundleID_Point[nBundleID] = *it;
   }
 
   // Add the relevant point-in-keyframe measurements
-  for(size_t i=0; i< mpMap->vpKeyFrames.size();++ i)
-  {
+  for (size_t i = 0; i < mpMap->vpKeyFrames.size(); ++i) {
     if(mView_BundleID.count(mpMap->vpKeyFrames[i]) == 0)
       continue;
 
     int nKF_BundleID = mView_BundleID[mpMap->vpKeyFrames[i]];
 
-    for(auto it = mpMap->vpKeyFrames[i]->mMeasurements.begin();
+    for (auto it = mpMap->vpKeyFrames[i]->mMeasurements.begin();
         it != mpMap->vpKeyFrames[i]->mMeasurements.end(); ++it)
     {
-      if(mPoint_BundleID.count(it->first) == 0)
+      if (mPoint_BundleID.count(it->first) == 0)
         continue;
 
       int nPoint_BundleID = mPoint_BundleID[it->first];
@@ -85,8 +81,7 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
   // Run the bundle adjuster. This returns the number of successful iterations
   int nAccepted = mBundle.Compute(pbAbortSignal);
 
-  if(nAccepted < 0)
-  {
+  if (nAccepted < 0) {
     // Crap: - LM Ran into a serious problem!
     // This is probably because the initial stereo was messed up.
     // Get rid of this map and start again!
@@ -97,49 +92,47 @@ bool BundleAdjustmentJob::Run(bool *pbAbortSignal)
   }
 
   // Bundle adjustment did some updates, apply these to the map
-  if(nAccepted > 0)
-  {
-    for(auto itr = mPoint_BundleID.begin();
+  if (nAccepted > 0) {
+    for (auto itr = mPoint_BundleID.begin();
         itr != mPoint_BundleID.end(); ++itr)
     {
       itr->first->v3WorldPos = mBundle.GetPoint(itr->second);
     }
 
-    for(auto itr = mView_BundleID.begin();
-        itr != mView_BundleID.end(); itr++)
+    for (auto itr = mView_BundleID.begin();
+        itr != mView_BundleID.end(); ++itr)
     {
       itr->first->se3CfromW = mBundle.GetCamera(itr->second);
     }
 
-    if(mbRecent) {
+    if (mbRecent) {
       mpMap->bBundleConverged_Recent = false;
     }
 
     mpMap->bBundleConverged_Full = false;
   }
 
-  if(mBundle.Converged()) {
+  if (mBundle.Converged()) {
     mpMap->bBundleConverged_Recent = true;
-    if(!mbRecent) {
+    if (!mbRecent) {
       mpMap->bBundleConverged_Full = true;
     }
   }
 
 
   // Handle outlier measurements:
-  vector<pair<int,int> > vOutliers_PC_pair = mBundle.GetOutlierMeasurements();
-  for(size_t i=0; i < vOutliers_PC_pair.size(); ++i)
-  {
+  const vector<pair<int,int>> &vOutliers_PC_pair = mBundle.GetOutlierMeasurements();
+  for (size_t i = 0; i < vOutliers_PC_pair.size(); ++i) {
     MapPoint *pp = mBundleID_Point[vOutliers_PC_pair[i].first];
     KeyFrame *pk = mBundleID_View[vOutliers_PC_pair[i].second];
     Measurement &m = pk->mMeasurements[pp];
 
     // Is the original source kf considered an outlier? That's bad.
-    if(pp->pMMData->GoodMeasCount() <= 2 || m.Source == Measurement::SRC_ROOT) {
+    if (pp->pMMData->GoodMeasCount() <= 2 || m.Source == Measurement::SRC_ROOT) {
       pp->bBad = true;
     } else {
       // Do we retry it? Depends where it came from!!
-      if(m.Source == Measurement::SRC_TRACKER || m.Source == Measurement::SRC_EPIPOLAR) {
+      if (m.Source == Measurement::SRC_TRACKER || m.Source == Measurement::SRC_EPIPOLAR) {
         mpMap->vFailureQueue.push_back(pair<KeyFrame*,MapPoint*>(pk,pp));
       } else {
         pp->pMMData->sNeverRetryKFs.insert(pk);
@@ -782,6 +775,9 @@ void Map::ReFindFromFailureQueue()
 void Map::QueueKeyFrame(const KeyFrame &k)
 {
   KeyFrame *pK = new KeyFrame(k);
+
+  assert(pK->pSBI == NULL);
+
   if(pK->pSBI != NULL)
   {
     delete pK->pSBI;
@@ -838,8 +834,9 @@ void Map::AddSomeMapPoints(int nLevel)
   Level &l = kSrc.aLevels[nLevel];
 
   // Find some good map points to add
+  size_t nNumFeatures = 1000 / std::pow(4, nLevel); // This formula could need some work....
   std::vector<ImageRef> vBestFeatures;
-  l.GetBestFeatures(1000, vBestFeatures);
+  l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
   // Remove the points in the set that overlapps points in lower pyramid levels
   kSrc.ThinCandidates(nLevel, vBestFeatures);
@@ -1159,7 +1156,7 @@ void Map::HandleBadPoints()
     MapPoint *p = vpPoints[i];
 
     // DEFAULT VALUE: 20
-    if(p->nMEstimatorOutlierCount > 5 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
+    if(p->nMEstimatorOutlierCount > 1 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
       p->bBad = true;
     }
   }

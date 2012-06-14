@@ -33,17 +33,16 @@ using namespace GVars3;
  * @param m current map
  * @param mm map maker
  */
-InitialTracker::InitialTracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m, MapMaker &mm) :
-  mCurrentKF(c),
-  mFirstKF(c),
-  mPreviousFrameKF(c),
-  mpMap(m),
-  mMapMaker(mm),
-  mCamera(c),
-  mirSize(irVideoSize)
+InitialTracker::InitialTracker(const ImageRef &irVideoSize, const ATANCamera &c,
+                               Map *m, MapMaker *mm)
+  : mpMap(m)
+  , mpMapMaker(mm)
+  , mCamera(c)
+  , mirSize(irVideoSize)
+  , mpCurrentKF(nullptr)
+  , mFirstKF(c)
+  , mPreviousFrameKF(c)
 {
-  mCurrentKF.bFixed = false;
-
   // Most of the initialisation is done in Reset()
   Reset();
 }
@@ -57,31 +56,20 @@ InitialTracker::InitialTracker(const ImageRef &irVideoSize, const ATANCamera &c,
 void InitialTracker::Reset()
 {
   mbUserPressedSpacebar = false;
-  mCurrentKF.dSceneDepthMean = 1.0;
-  mCurrentKF.dSceneDepthSigma = 1.0;
   mStage = TRAIL_TRACKING_NOT_STARTED;
   mlTrails.clear();
   mvDeadTrails.clear();
   mCamera.SetImageSize(mirSize);
-  mCurrentKF.mMeasurements.clear();
-
-  for (int i = 0; i < LEVELS; ++i) {
-    maFastCornerBarriers[i] = 15;
-  }
 }
 
 // TrackFrame is called by System.cc with each incoming video frame.
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
-void InitialTracker::ProcessFrame(const Image<CVD::byte> &imFrame)
+void InitialTracker::ProcessFrame(KeyFrame &keyFrame)
 {
   mMessageForUser.str("");   // Wipe the user message clean
-  // Take the input video image, and convert it into the tracker's keyframe struct
-  // This does things like generate the image pyramid and find FAST corners
-  mCurrentKF.mMeasurements.clear();
-  mCurrentKF.MakeKeyFrame_Lite(imFrame, maFastCornerBarriers);
-
+  mpCurrentKF = &keyFrame;
   TrackForInitialMap();
 }
 
@@ -92,25 +80,7 @@ void InitialTracker::GetDrawData(InitialTrackerDrawData &drawData)
     drawData.vTrails.emplace_back(it->irInitialPos, it->irCurrentPos);
   }
   drawData.vDeadTrails = mvDeadTrails;
-  mCurrentKF.aLevels[0].GetAllFeatures(drawData.vCorners);
-}
-
-/**
- * Handle a key press command
- * This is a change from PTAM to enable games to use keys
- * @param sKey the key pressed
- * @return true if the key was used.
- */
-bool InitialTracker::HandleKeyPress( const string& sKey )
-{
-  // KeyPress commands are issued by GLWindow, and passed to Tracker via System
-  if(sKey == "Space")
-  {
-    mbUserPressedSpacebar = true;
-    return true;
-  }
-
-  return false;
+  mpCurrentKF->aLevels[0].GetAllFeatures(drawData.vCorners);
 }
 
 /**
@@ -160,7 +130,7 @@ void InitialTracker::TrackForInitialMap()
         vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
       }
 
-      mMapMaker.InitFromStereo(mFirstKF, mCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
+      mpMapMaker->InitFromStereo(mFirstKF, *mpCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
       mStage = WAITING_FOR_STEREO_INIT;
     }
     else
@@ -170,12 +140,10 @@ void InitialTracker::TrackForInitialMap()
   }
 
   if(mStage == WAITING_FOR_STEREO_INIT) {
-    if (mMapMaker.StereoInitDone()) {
+    if (mpMapMaker->StereoInitDone()) {
       if (mpMap->IsGood()) {
         mStage = TRAIL_TRACKING_COMPLETE;
-        cout << "Stereo init done, attempting to relocate..." << endl;
-        //AttemptRecovery();
-        // TODO; MARK THIS TRACKER AS READY
+        cout << "Stereo init done!" << endl;
       } else {
         Reset();
       }
@@ -191,8 +159,7 @@ void InitialTracker::TrackForInitialMap()
  */
 void InitialTracker::TrailTracking_Start()
 {
-  mCurrentKF.MakeKeyFrame_Rest();
-  mFirstKF = mCurrentKF;
+  mFirstKF = *mpCurrentKF;
 
   mvDeadTrails.clear();
   mlTrails.clear();
@@ -200,16 +167,18 @@ void InitialTracker::TrailTracking_Start()
   int nToAdd = GV3::get<int>("MaxInitialTrails", 1000, SILENT);
 
   std::vector<ImageRef> vFeatures;
-  mCurrentKF.aLevels[0].GetBestFeatures(nToAdd, vFeatures);
+  mpCurrentKF->aLevels[0].GetBestFeatures(nToAdd, vFeatures);
+
+  const CVD::Image<CVD::byte>& im = mpCurrentKF->aLevels[0].GetImage();
 
   for (auto it = vFeatures.begin(); it != vFeatures.end(); ++it)  // Copy candidates into a trivially sortable vector
   {                                                                // so that we can choose the image corners with max ST score
-    if(!mCurrentKF.aLevels[0].GetImage().in_image_with_border(*it, MiniPatch::mnHalfPatchSize)) {
+    if (!im.in_image_with_border(*it, MiniPatch::mnHalfPatchSize)) {
       continue;
     }
 
     Trail t;
-    t.mPatch.SampleFromImage(*it, mCurrentKF.aLevels[0].GetImage());
+    t.mPatch.SampleFromImage(*it, im);
     t.irInitialPos = *it;
     t.irCurrentPos = t.irInitialPos;
     mlTrails.push_back(t);
@@ -227,7 +196,7 @@ int InitialTracker::TrailTracking_Advance()
   int nGoodTrails = 0;
 
   MiniPatch BackwardsPatch;
-  Level &lCurrentFrame = mCurrentKF.aLevels[0];
+  Level &lCurrentFrame = mpCurrentKF->aLevels[0];
   Level &lPreviousFrame = mPreviousFrameKF.aLevels[0];
 
   std::vector<ImageRef> vCurrentSearchPoints;
@@ -267,7 +236,7 @@ int InitialTracker::TrailTracking_Advance()
     }
   }
 
-  mPreviousFrameKF = mCurrentKF;
+  mPreviousFrameKF = *mpCurrentKF;
   return nGoodTrails;
 }
 
@@ -279,6 +248,5 @@ string InitialTracker::GetMessageForUser() const
 {
   return mMessageForUser.str();
 }
-
 
 }

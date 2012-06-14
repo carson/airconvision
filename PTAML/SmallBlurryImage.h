@@ -24,7 +24,7 @@ class SmallBlurryImage
   SmallBlurryImage(const KeyFrame &kf, double dBlur = 2.5);
   void MakeFromKF(const KeyFrame &kf, double dBlur = 2.5);
   void MakeJacs();
-  double ZMSSD(SmallBlurryImage &other);
+  double ZMSSD(const SmallBlurryImage &other) const;
   std::pair<SE2<>,double> IteratePosRelToTarget(SmallBlurryImage &other, int nIterations = 10);
   static SE3<> SE3fromSE2(SE2<> se2, ATANCamera camera);
   
