@@ -94,6 +94,7 @@ add_subdirectory(CameraCalibrator)
 # Other programs
 #
 
+add_subdirectory(FeatureScatterPlot)
 
 #
 # Data Files

@@ -25,5 +25,9 @@
 
 void oast9_16(const unsigned char* im, int xsize, int ysize, int stride, int b, std::vector<CVD::ImageRef> &corners);
 void oast9_16_nms(const unsigned char* im, int stride, int b, const std::vector<CVD::ImageRef>& corners_all, std::vector<CVD::ImageRef>& corners_max);
+void oast9_16_nms_with_scores(const unsigned char* im, int stride, int b,
+                              const std::vector<CVD::ImageRef>& corners_all,
+                              std::vector<CVD::ImageRef>& corners_max,
+                              std::vector<int>& scores);
 
 #endif /* OAST9_16_H */

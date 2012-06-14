@@ -400,3 +400,14 @@ void agast5_8_nms(const unsigned char* im, int stride, int b, const std::vector<
   agast5_8_score(im, stride, corners_all, b, scores);
   nonMaximumSuppression(corners_all, scores, corners_max);
 }
+
+void agast5_8_nms_with_scores(const unsigned char* im, int stride, int b,
+                              const std::vector<CVD::ImageRef>& corners_all,
+                              std::vector<CVD::ImageRef>& corners_max,
+                              std::vector<int>& scores)
+{
+  scores.resize(corners_all.size());
+  agast5_8_score(im, stride, corners_all, b, scores);
+  nonMaximumSuppression(corners_all, scores, corners_max);
+}
+

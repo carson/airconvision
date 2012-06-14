@@ -23,7 +23,14 @@
 #include <cvd/image_ref.h>
 #include <vector>
 
-void agast5_8(const unsigned char* im, int xsize, int ysize, int pitch, int b, std::vector<CVD::ImageRef> &corners);
-void agast5_8_nms(const unsigned char* im, int stride, int b, const std::vector<CVD::ImageRef>& corners_all, std::vector<CVD::ImageRef>& corners_max);
+void agast5_8(const unsigned char* im, int xsize, int ysize, int pitch, int b,
+              std::vector<CVD::ImageRef> &corners);
+void agast5_8_nms(const unsigned char* im, int stride, int b,
+                  const std::vector<CVD::ImageRef>& corners_all,
+                  std::vector<CVD::ImageRef>& corners_max);
+void agast5_8_nms_with_scores(const unsigned char* im, int stride, int b,
+                              const std::vector<CVD::ImageRef>& corners_all,
+                              std::vector<CVD::ImageRef>& corners_max,
+                              std::vector<int>& scores);
 
 #endif /* AGAST5_8_H */

@@ -25,5 +25,9 @@
 
 void agast7_12s(const unsigned char* im, int xsize, int ysize, int pitch, int b, std::vector<CVD::ImageRef> &corners);
 void agast7_12s_nms(const unsigned char* im, int stride, int b, const std::vector<CVD::ImageRef>& corners_all, std::vector<CVD::ImageRef>& corners_max);
+void agast7_12s_nms_with_scores(const unsigned char* im, int stride, int b,
+                                const std::vector<CVD::ImageRef>& corners_all,
+                                std::vector<CVD::ImageRef>& corners_max,
+                                std::vector<int>& scores);
 
 #endif /* AGAST7_12S_H */
