@@ -3,11 +3,11 @@ cmake_minimum_required(VERSION 2.8)
 # Set default built type
 set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
     
 # Target platfrom
 option(FULL_OPTIMIZATION "Enable all optimization flags" ON)
-
-set(RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
     
 # The CDT Error Parser cannot handle error messages that span more than one line, which is the default gcc behavior. 
 # This forces gcc to generate single line error messages with no line wrapping.  

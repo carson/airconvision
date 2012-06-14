@@ -279,7 +279,6 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
     glColor3f(1,0,0);
     glVertex(ProjectPoint(*it));
   }
-}
 
   glEnd();
 
