@@ -834,8 +834,9 @@ void Map::AddSomeMapPoints(int nLevel)
   Level &l = kSrc.aLevels[nLevel];
 
   // Find some good map points to add
+  size_t nNumFeatures = 1000 / std::pow(4, nLevel); // This formula could need some work....
   std::vector<ImageRef> vBestFeatures;
-  l.GetBestFeatures(1000, vBestFeatures);
+  l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
   // Remove the points in the set that overlapps points in lower pyramid levels
   kSrc.ThinCandidates(nLevel, vBestFeatures);

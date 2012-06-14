@@ -51,22 +51,28 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   }
 }
 
+ImageRef FeatureGrid::CellSize(const ImageRef &irImSize, const GridCell &cell, const ImageRef &irMargin) const
+{
+  ImageRef irSize = mirCellSize + irMargin;
+
+  ImageRef irBottomRight = cell.irPosition + irSize;
+  if (irBottomRight.x > irImSize.x) {
+    irSize.x -= irBottomRight.x - irImSize.x;
+  }
+  if (irBottomRight.y > irImSize.y) {
+    irSize.y -= irBottomRight.y - irImSize.y;
+  }
+
+  return irSize;
+}
+
 void FeatureGrid::DetectFeatures(const CVD::BasicImage<CVD::byte> &im,
                                  const GridCell &cell,
                                  std::vector<ImageRef> &vCorners)
 {
   vCorners.clear();
 
-  ImageRef irSize = mirCellSize + ImageRef(5, 5);
-
-  ImageRef irBottomRight = cell.irPosition + irSize;
-  if (irBottomRight.x > im.size().x - 3) {
-    irSize.x -= irBottomRight.x - (im.size().x - 3);
-  }
-  if (irBottomRight.y > im.size().y - 3) {
-    irSize.y -= irBottomRight.y - (im.size().y - 3);
-  }
-
+  ImageRef irSize;
   int nStride = im.row_stride();
   int nBarrier = cell.nBarrier;
   const unsigned char *pData = im.data() + cell.irPosition.y * nStride + cell.irPosition.x;
@@ -75,22 +81,28 @@ void FeatureGrid::DetectFeatures(const CVD::BasicImage<CVD::byte> &im,
 
   switch (*mgvnFeatureDectecor) {
   case PLAIN_FAST10:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
     fast_corner_detect_plain_10(im.sub_image(cell.irPosition, irSize), vCorners, nBarrier);
     break;
   case FAST10:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 6));
     im2.copy_from(im.sub_image(cell.irPosition, irSize));
     fast_corner_detect_10(im2, vCorners, cell.nBarrier);
     break;
   case OAST9_16:
+    irSize = CellSize(im.size(), cell, ImageRef(8, 6));
     oast9_16(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
     break;
   case AGAST7_12d:
+    irSize = CellSize(im.size(), cell, ImageRef(8, 6));
     agast7_12d(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
     break;
   case AGAST7_12s:
+    irSize = CellSize(im.size(), cell, ImageRef(6, 4));
     agast7_12s(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
     break;
   case AGAST5_8:
+    irSize = CellSize(im.size(), cell, ImageRef(4, 2));
     agast5_8(pData, irSize.x, irSize.y, nStride, nBarrier, vCorners);
     break;
   default:

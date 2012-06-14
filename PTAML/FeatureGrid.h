@@ -22,18 +22,22 @@ enum FeatureDetector {
 
 class FeatureGrid {
   public:
-    FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCols, int nInitialBarrier = 15);
+    FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCols,
+                int nInitialBarrier = 15);
 
-    void SetTargetFeatureCount(size_t nMinFeaturesPerCell, size_t nMaxFeaturesPerCell);
+    void SetTargetFeatureCount(size_t nMinFeaturesPerCell,
+                               size_t nMaxFeaturesPerCell);
 
     void Clear();
 
     void FindFeatures(const CVD::BasicImage<CVD::byte> &im);
     void GetAllFeatures(std::vector<CVD::ImageRef> &vFeatures) const;
-    void GetFeaturesInsideCircle(const CVD::ImageRef &irCenter, int nRadius, std::vector<CVD::ImageRef> &vFeatures) const;
+    void GetFeaturesInsideCircle(const CVD::ImageRef &irCenter, int nRadius,
+                                 std::vector<CVD::ImageRef> &vFeatures) const;
 
     void FindBestFeatures(const CVD::BasicImage<CVD::byte> &im);
-    void GetBestFeatures(size_t nNumFeatures, std::vector<CVD::ImageRef> &vFeatures) const;
+    void GetBestFeatures(size_t nNumFeatures,
+                         std::vector<CVD::ImageRef> &vFeatures) const;
 
     size_t Rows() const { return mnRows; }
     size_t Cols() const { return mnCols; }
@@ -70,8 +74,11 @@ class FeatureGrid {
                                std::vector<CVD::ImageRef> &vMaxFeatures);
 
     void GetAllFeaturesSorted(std::vector<CVD::ImageRef> &vFeatures) const;
-    void GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im, std::vector<CVD::ImageRef> &vFeatures);
+    void GetNonMaxSuppressed(const CVD::BasicImage<CVD::byte> &im,
+                             std::vector<CVD::ImageRef> &vFeatures);
 
+    CVD::ImageRef CellSize(const CVD::ImageRef &irImSize, const GridCell &cell,
+                           const CVD::ImageRef &irMargin) const;
     int GetCellIndex(const CVD::ImageRef &irPoint) const;
     int GetMinBarrier() const;
 
