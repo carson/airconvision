@@ -1,72 +1,72 @@
-This is a modified version of PTAM.
-
+This is a modified variant of PTAM that implements logging and marker-based scaling.
 
 Installation instructions on Ubuntu 12.04
 -----------------------------------------
 
-Install prerequisites:
+# Install prerequisites:
 
 sudo apt-get update
-sudo apt-get install build-essential libblas-dev liblapack-dev freeglut3-dev libreadline libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libv4l-dev libxi-dev libxmu-dev cmake git cvs
+sudo apt-get install build-essential libblas-dev liblapack-dev freeglut3-dev libreadline-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libv4l-dev libxi-dev libxmu-dev cmake git cvs
 
-Create a symbolic link to videodev.h:
+# Create a symbolic link to videodev.h:
 
-Note: This might not be best practice but I found it to be the easiest way to get everything compiling without modifying a lot of code.
+# Note: This might not be best practice but I found it to be the easiest way to get everything compiling without modifying a lot of code.
 
 sudo ln -s /usr/include/libv4l1-videodev.h /usr/include/linux/videodev.h
 
-Install TooN:
+# Install TooN:
 
-cd
+cd ..
 git clone git://git.savannah.nongnu.org/toon.git
 cd toon
 ./configure
 sudo make install
 
-Install libCVD:
+# Install libCVD:
 
+cd ..
 git clone git://git.savannah.nongnu.org/libcvd.git
 cd libcvd
 export CXXFLAGS=-D_REENTRANT
 ./configure --without-ffmpeg
 
 
-Open the file "Makefile" and insert the following line around line 114:
+# Open the file "Makefile" and insert the following addition after line 113:
+# Begin addition
+                        cvd_src/Linux/v4l1buffer.o                      \
+# End addition
 
-cvd_src/Linux/v4l1buffer.o  \
-
-
-make -j8
+make -j4
 sudo make install
 
-Install GVars3:
+# Install GVars3:
 
-cd
+cd ..
 cvs -z3 -d:pserver:anoncvs@cvs.savannah.nongnu.org:/cvsroot/libcvd co gvars3
 cd gvars3
 ./configure --disable-widgets
 make -j4
 sudo make install
 
-Install ARToolKit:
+# Install ARToolKit:
 
+cd ..
 wget http://downloads.sourceforge.net/project/artoolkit/artoolkit/2.72.1/ARToolKit-2.72.1.tgz
 tar -xvf ARToolKit-2.72.1.tgz
 cd ARToolKit
 ./Configure
+# select Video4Linux
+# do not use color conversion with x86 assembly
+# create debug symbols
+# build gsub libraries with texture rectangle support
 make -j4
 
-Compile the code, you might have to specify the path to ARToolKit if the folder is not located in:
-  ~/ARToolKit
-  ~/Code/ARToolKit
-  EXTERNAL/ARToolKit
-
-cd
+cd ..
 git clone git@github.com:carson/airconvision.git
-cd airconvision/PTAML
+cd airconvisio*/PTAML
 mkdir BUILD
 cd BUILD
-cmake -D ARTOOLKIT_DIR=~/ARToolKit ..
+# specify the correct directory for the ARToolKit
+cmake -D ARTOOLKIT_DIR=../../ARToolKit ..
 make -j4
-
 
