@@ -6,7 +6,7 @@ Installation instructions on Ubuntu 12.04
 # Install prerequisites:
 
 sudo apt-get update
-sudo apt-get install build-essential libblas-dev liblapack-dev freeglut3-dev libreadline-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libv4l-dev libxi-dev libxmu-dev cmake git cvs
+sudo apt-get install build-essential libpng12-dev libblas-dev liblapack-dev freeglut3-dev libreadline-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libv4l-dev libxi-dev libxmu-dev cmake git cvs
 
 # make project directory called airconvision
 
@@ -30,15 +30,17 @@ sudo make install
 cd ..
 
 # Install libCVD:
+# commit version 97e21898cca391d0239eb52d2412f92d7f101c69
 
 git clone git://git.savannah.nongnu.org/libcvd.git
 cd libcvd
+git checkout 97e21898cca391d0239eb52d2412f92d7f101c69
 export CXXFLAGS=-D_REENTRANT
 ./configure --without-ffmpeg
 
 # Open the file "Makefile" and insert the following addition after line 113:
 # Begin addition
-                        cvd_src/Linux/v4l1buffer.o                      \
+                        cvd_src/Linux/v4lbuffer.o                      \
 # End addition
 
 make -j4
@@ -72,4 +74,15 @@ mkdir BUILD
 cd BUILD
 # specify the correct directory for the ARToolKit
 cmake -D ARTOOLKIT_DIR=../ARToolKit ..
+sudo ldconfig
 make -j4
+
+
+cd ..
+# plug in usb camera
+# run PTAML
+./BUILD/bin/PTAML
+
+## TOFIX ##
+# rename root directory in git to airconvision from PTAML
+# check if newest libcvd builds
