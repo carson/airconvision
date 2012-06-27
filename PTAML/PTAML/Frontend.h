@@ -66,6 +66,7 @@ class Frontend {
   public:
     Frontend(VideoSource *pVideoSource,
              const ATANCamera &camera,
+             MapMaker *pMapMaker,
              InitialTracker *pInitialTracker,
              Tracker *pTracker,
              ScaleMarkerTracker *pScaleMarkerTracker);
@@ -77,11 +78,14 @@ class Frontend {
   private:
     void GrabNextFrame();
     void TryDetermineScale();
+    void InitFromStereo();
 
   private:
     VideoSource *mpVideoSource;
+    VideoSource *mpVideoSource2;
     CVD::Image<CVD::Rgb<CVD::byte>> mimFrameRGB;   // The RGB image used for AR
     CVD::Image<CVD::byte> mimFrameBW;               // The Black and white image for tracking/mapping
+    CVD::Image<CVD::byte> mimStereoFrameBW;
     bool mbFreezeVideo;
 
     bool mbInitialTracking;
@@ -91,8 +95,10 @@ class Frontend {
     InitialTracker *mpInitialTracker;
     Tracker *mpTracker;
     ScaleMarkerTracker *mpScaleMarkerTracker;
+    MapMaker *mpMapMaker;
 
     KeyFrame mCurrentKF;
+    KeyFrame mStereoKF;
 
     FrontendDrawData mDrawData;
 

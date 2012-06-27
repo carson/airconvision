@@ -423,6 +423,95 @@ bool Map::InitFromStereo(KeyFrame &kF,
   return true;
 }
 
+bool Map::InitFromStereo(KeyFrame &kF,
+                         KeyFrame &kS,
+                         const SE3<> &se3SecondCameraPos,
+                         bool *pbAbortSignal)
+{
+  bool bDummyAbortSignal = false;
+  if (!pbAbortSignal) {
+    pbAbortSignal = &bDummyAbortSignal;
+  }
+
+  ATANCamera &camera = kF.Camera;
+
+  kF.dSceneDepthMean = 100;
+  kF.dSceneDepthSigma = 200;
+  kS.dSceneDepthMean = 100;
+  kS.dSceneDepthSigma = 200;
+
+  KeyFrame *pkFirst = new KeyFrame(kF);
+  KeyFrame *pkSecond = new KeyFrame(kS);
+
+  pkFirst->bFixed = true;
+  pkFirst->se3CfromW = SE3<>();
+
+  pkSecond->bFixed = false;
+  pkSecond->se3CfromW = se3SecondCameraPos;
+
+  vpKeyFrames.push_back(pkFirst);
+  vpKeyFrames.push_back(pkSecond);
+
+  pkFirst->MakeKeyFrame_Rest();
+  pkSecond->MakeKeyFrame_Rest();
+
+  AddSomeMapPoints(0);
+  AddSomeMapPoints(3);
+  AddSomeMapPoints(1);
+  AddSomeMapPoints(2);
+
+  cout << vpPoints.size() << endl;
+
+  for (auto it = vpPoints.begin(); it != vpPoints.end(); ++it)
+    cout << (*it)->v3WorldPos << endl;
+
+  for(int i=0; i<5; i++)
+    FullBundleAdjust();
+
+  // Estimate the feature depth distribution in the first two key-frames
+  // (Needed for epipolar search)
+  pkFirst->RefreshSceneDepth();
+  pkSecond->RefreshSceneDepth();
+
+  ApplyGlobalScale(1.0 / pkFirst->dSceneDepthMean);
+
+  mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
+
+  bBundleConverged_Full = false;
+  bBundleConverged_Recent = false;
+
+  std::chrono::time_point<std::chrono::system_clock> startTime = std::chrono::system_clock::now();
+
+  while (!bBundleConverged_Full)
+  {
+    std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    if (now - startTime > std::chrono::seconds(5)) {
+      std::cout << "InitFromStereo timed out" << std::endl;
+      return false;
+    }
+
+    if (!FullBundleAdjust()) {
+      return false;
+    }
+
+    if(*pbAbortSignal) {
+      return false;
+    }
+  }
+
+  // Rotate and translate the map so the dominant plane is at z=0:
+  ApplyGlobalTransformation(CalcPlaneAligner(true));
+
+  RemoveNonGroundPoints();
+
+  bGood = true;
+
+  cout << "se3CfromW : " << pkFirst->se3CfromW.ln();
+  cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;
+
+  return true;
+}
+
 void Map::RemoveNonGroundPoints()
 {
   return; // The removal of non ground points is not really neccessary
@@ -475,10 +564,12 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   // Restrict epipolar search to a relatively narrow depth range
   // to increase reliability
-  double dMean = kSrc.dSceneDepthMean;
-  double dSigma = kSrc.dSceneDepthSigma;
-  double dStartDepth = max(mdWiggleScale, dMean - dSigma);
-  double dEndDepth = min(40 * mdWiggleScale, dMean + dSigma);
+//  double dMean = kSrc.dSceneDepthMean;
+//  double dSigma = kSrc.dSceneDepthSigma;
+//  double dStartDepth = max(mdWiggleScale, dMean - dSigma);
+//  double dEndDepth = min(40 * mdWiggleScale, dMean + dSigma);
+  double dStartDepth = 0.1;
+  double dEndDepth = 50.0;
 
   Vector<3> v3CamCenter_TC = kTarget.se3CfromW * kSrc.se3CfromW.inverse().get_translation(); // The camera end
   Vector<3> v3RayStart_TC = v3CamCenter_TC + dStartDepth * v3LineDirn_TC;                               // the far-away end
@@ -541,7 +632,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   int nBest = -1;
   int nBestZMSSD = Finder.GetMaxSSD() + 1;
   double dMaxDistDiff = kTarget.Camera.OnePixelDist() * (4.0 + 1.0 * nLevelScale);
-  double dMaxDistSq = dMaxDistDiff * dMaxDistDiff;
+  double dMaxDistSq = dMaxDistDiff * dMaxDistDiff * 5;
 
   for (size_t i = 0; i < vv2Corners.size(); ++i) {   // over all corners in target img..
     const ImageRef& irIm = vv2Corners[i].first;
@@ -549,8 +640,8 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
     double dDistDiff = dNormDist - v2Im * v2Normal;
 
     if ((dDistDiff * dDistDiff) > dMaxDistSq)       continue; // skip if not along epi line
-    if ((v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
-    if ((v2Im * v2AlongProjectedLine) > dMaxLen)    continue; // or too far
+//    if ((v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
+//    if ((v2Im * v2AlongProjectedLine) > dMaxLen)    continue; // or too far
 
     int nZMSSD = Finder.ZMSSDAtPoint(kTarget.aLevels[nLevel].GetImage(), irIm);
     if (nZMSSD < nBestZMSSD) {
@@ -563,7 +654,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   static int nMapSSDThreshold = GV3::get<int>("Map.PatchSSDThreshold", 6000, SILENT);
 
-  if (nBestZMSSD > nMapSSDThreshold) return false; // Chosen pretty arbitrary -- dhenell
+//  if (nBestZMSSD > nMapSSDThreshold) return false; // Chosen pretty arbitrary -- dhenell
 
   //  Found a likely candidate along epipolar ray
   Finder.MakeSubPixTemplate();
@@ -597,13 +688,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   normalize(pNew->v3OneRightFromCenter_NC);
 
   pNew->RefreshPixelVectors();
-
-  /**
-   *@hack by camparijet
-   * added color for painting
-   */
-  pNew->pColor = Rgb<byte>(255, 255, 255); // kSrc.im_cl[pNew->irCenter];
-  /*@hack end*/
+  pNew->pColor = Rgb<byte>(255, 255, 255);
 
   vpPoints.push_back(pNew);
   qNewQueue.push_back(pNew);
@@ -828,21 +913,29 @@ void Map::AddKeyFrameFromTopOfQueue()
 // the ClosestKeyFrame function.
 void Map::AddSomeMapPoints(int nLevel)
 {
-  KeyFrame &kSrc = *vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
-  KeyFrame &kTarget = *ClosestKeyFrame(kSrc);
+  KeyFrame *kSrc = vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
+  assert(kSrc != NULL);
 
-  Level &l = kSrc.aLevels[nLevel];
+  KeyFrame *kTarget = ClosestKeyFrame(*kSrc);
+  assert(kTarget != NULL);
+
+  assert(kSrc != kTarget);
+
+  Level &l = kSrc->aLevels[nLevel];
 
   // Find some good map points to add
-  size_t nNumFeatures = 1000 / std::pow(4, nLevel); // This formula could need some work....
+  double inv = 1.0 / (1 << nLevel);
+  size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
   std::vector<ImageRef> vBestFeatures;
   l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
   // Remove the points in the set that overlapps points in lower pyramid levels
-  kSrc.ThinCandidates(nLevel, vBestFeatures);
+  kSrc->ThinCandidates(nLevel, vBestFeatures);
+
+  cout << vBestFeatures.size() << endl;
 
   for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
-    AddPointEpipolar(kSrc, kTarget, nLevel, *it);
+    AddPointEpipolar(*kSrc, *kTarget, nLevel, *it);
   }
 }
 

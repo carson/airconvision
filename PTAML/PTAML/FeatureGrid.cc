@@ -31,7 +31,7 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   , mnCols(nCols)
   , mnMinFeaturesPerCell(2000)
   , mnMaxFeaturesPerCell(3000)
-  , mFeatureDetector(OAST9_16)
+  , mFeatureDetector(PLAIN_FAST10)
 {
   int nBorder = 0;
 

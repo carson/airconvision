@@ -4,8 +4,10 @@
 #include "Timing.h"
 #include "FPSCounter.h"
 #include "FeatureGrid.h"
+#include "StereoInitializer.h"
 
 #include <cvd/image_ref.h>
+#include <cvd/image_io.h>
 
 #include <iostream>
 
@@ -71,6 +73,7 @@ bool FrontendMonitor::PopUserResetInvoke()
 
 Frontend::Frontend(VideoSource *pVideoSource,
                    const ATANCamera &camera,
+                   MapMaker *pMapMaker,
                    InitialTracker *pInitialTracker,
                    Tracker *pTracker,
                    ScaleMarkerTracker *pScaleMarkerTracker)
@@ -82,13 +85,16 @@ Frontend::Frontend(VideoSource *pVideoSource,
   , mpInitialTracker(pInitialTracker)
   , mpTracker(pTracker)
   , mpScaleMarkerTracker(pScaleMarkerTracker)
+  , mpMapMaker(pMapMaker)
   , mCurrentKF(camera)
+  , mStereoKF(camera)
 {
-  GV3::Register(mgvnFeatureDetector, "FeatureDetector", (int)OAST9_16, SILENT);
+  GV3::Register(mgvnFeatureDetector, "FeatureDetector", (int)PLAIN_FAST10, SILENT);
 
   ImageRef irVideoSize = mpVideoSource->Size();
   mimFrameBW.resize(irVideoSize);
   mimFrameRGB.resize(irVideoSize);
+  mimStereoFrameBW.resize(irVideoSize);
 }
 
 void Frontend::GrabNextFrame()
@@ -100,16 +106,26 @@ void Frontend::GrabNextFrame()
     // and one RGB, for drawing.
 
     gVideoSourceTimer.Start();
-    mpVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
+
+    CVD::img_load(mimFrameRGB, "first.bmp");
+    convert_image(mimFrameRGB, mimFrameBW);
+
+//    mpVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
+
     gVideoSourceTimer.Stop();
   }
 }
 
 void Frontend::operator()()
 {
+  static gvar3<int> gvnStereoInit("StereoInit", 1, SILENT);
+
   FPSCounter fpsCounter;
 
   while (true) {
+
+    bool bUserInvoke = monitor.PopUserInvoke();
+    bool bUserResetInvoke = monitor.PopUserResetInvoke();
 
     GrabNextFrame();
 
@@ -118,7 +134,7 @@ void Frontend::operator()()
     mDrawData.imFrame.copy_from(mimFrameRGB);
     mDrawData.bInitialTracking = mbInitialTracking;
 
-    if (monitor.PopUserResetInvoke()) {
+    if (bUserResetInvoke) {
       // Go back to initial tracking again
       mpInitialTracker->Reset();
       mpTracker->Reset();
@@ -130,21 +146,32 @@ void Frontend::operator()()
     gTrackFullTimer.Start();
 
     if (mbInitialTracking) {
-      // Initial tracking path
-      if (monitor.PopUserInvoke()) {
-        mpInitialTracker->UserInvoke();
-      }
+      if (*gvnStereoInit) {
 
-      mpInitialTracker->ProcessFrame(mCurrentKF);
-      if (mpInitialTracker->IsDone()) {
-        mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
-        mbInitialTracking = false;
-        mpTracker->ForceRecovery();
-      }
+        if (bUserInvoke) {
+          InitFromStereo();
+        }
 
-      mDrawData.bInitialTracking = true;
-      mDrawData.sStatusMessage = mpInitialTracker->GetMessageForUser();
-      mpInitialTracker->GetDrawData(mDrawData.initialTracker);
+        mDrawData.bInitialTracking = true;
+        mDrawData.sStatusMessage = "Press spacebar to init";
+
+      } else {
+        // Initial tracking path
+        if (bUserInvoke) {
+          mpInitialTracker->UserInvoke();
+        }
+
+        mpInitialTracker->ProcessFrame(mCurrentKF);
+        if (mpInitialTracker->IsDone()) {
+          mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
+          mbInitialTracking = false;
+          mpTracker->ForceRecovery();
+        }
+
+        mDrawData.bInitialTracking = true;
+        mDrawData.sStatusMessage = mpInitialTracker->GetMessageForUser();
+        mpInitialTracker->GetDrawData(mDrawData.initialTracker);
+      }
     } else {
       // Regular map tracking path
       mpTracker->ProcessFrame(mCurrentKF);
@@ -191,6 +218,37 @@ void Frontend::TryDetermineScale()
       mbHasDeterminedScale = true;
     }
   }
+}
+
+void Frontend::InitFromStereo()
+{
+//  mpVideoSource2->GetAndFillFrameBWandRGB(imFrameBW2, imFrameRGB2);
+
+  CVD::Image<CVD::Rgb<CVD::byte> > tmp;
+  CVD::img_load(tmp, "second.bmp");
+  convert_image(tmp, mimStereoFrameBW);
+
+
+  mStereoKF.InitFromImage(mimStereoFrameBW, (FeatureDetector)*mgvnFeatureDetector);
+
+  cout << mimStereoFrameBW.size() << endl;
+
+  SE3<> se3SecondCameraPos; // = GV3::get<SE3<>>("SecondCameraPos", SE3<>(), SILENT);
+
+
+  Matrix<3> r;
+  r[0] = makeVector( 9.9919373211873597e-01, -1.7221945311748101e-03, -4.0111341795413702e-02);
+  r[1] = makeVector( 3.9772309517540523e-03, 9.9841117628130216e-01, 5.6207692627815442e-02);
+  r[2] = makeVector( 3.9950811363326774e-02, -5.6321906240674777e-02, 9.9761303898296594e-01);
+  Vector<3> t = makeVector( -1.1837034695051358e+01, -1.6813272577166739e-02, -1.1040735338436671e+00 );
+
+  se3SecondCameraPos = SE3<>(r, t);
+
+  cout << se3SecondCameraPos << endl;
+
+  mpMapMaker->InitFromStereo(mCurrentKF, mStereoKF, se3SecondCameraPos);
+
+  mbInitialTracking = false;
 }
 
 }

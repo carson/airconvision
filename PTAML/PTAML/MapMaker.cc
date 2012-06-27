@@ -182,7 +182,7 @@ void MapMaker::operator()()
     if (mbAbortRequested || !mDispatcher.Empty()) continue;
 
     DEBUG_MAP_MAKER(cout << "START: Handling bad points" << endl);
-    mpMap->HandleBadPoints();
+    //mpMap->HandleBadPoints();
     DEBUG_MAP_MAKER(cout << "  END: Handling bad points" << endl);
   }
 }
@@ -272,6 +272,19 @@ void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
     mbStereoInitDone = true;
   });
 }
+
+void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
+                              const SE3<> &se3SecondCameraPos)
+{
+  mbStereoInitDone = false;
+  mbAbortRequested = true;
+  mDispatcher.PushAction([kFirst, kSecond, se3SecondCameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+    mbAbortRequested = false;
+    mpMap->InitFromStereo(kFirst, kSecond, se3SecondCameraPos, &mbAbortRequested);
+    mbStereoInitDone = true;
+  });
+}
+
 
 /**
  * The tracker entry point for adding a new keyframe;

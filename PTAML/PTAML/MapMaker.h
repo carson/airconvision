@@ -59,6 +59,8 @@ class MapMaker
     void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
                         SE3<> &se3CameraPos);
+    void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
+                        const SE3<> &se3SecondCameraPos);
     bool StereoInitDone() const { return mbStereoInitDone; }
 
     // Add a key-frame to the map. Called by the tracker.

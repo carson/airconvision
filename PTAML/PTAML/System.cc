@@ -445,7 +445,7 @@ void System::CreateModules()
   mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
 
 
-  mModules.pFrontend = new Frontend(mVideoSource, *mModules.pCamera,
+  mModules.pFrontend = new Frontend(mVideoSource, *mModules.pCamera, mModules.pMapMaker,
                                     mModules.pInitialTracker,
                                     mModules.pTracker,
                                     mModules.pScaleMarkerTracker);

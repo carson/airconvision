@@ -109,6 +109,19 @@ class ATANCamera
     const std::string& Name() const { return msName; }
     const Vector<2>& ImageSize() const { return mvImageSize; }
 
+    Matrix<3,3> Intrinsics() const {
+      const Vector<NUMTRACKERCAMPARAMETERS> &p = *mgvvCameraParams;
+      double fx = p[0];
+      double fy = p[1];
+      double ox = p[2];
+      double oy = p[3];
+      Matrix<3,3> m;
+      m[0] = makeVector(fx, 0, ox);
+      m[1] = makeVector(0, fy, oy);
+      m[2] = makeVector(0, 0, 1);
+      return m;
+    }
+
     // Useful for gvar-related reasons (in case some external func tries to read the camera params gvar, and needs some defaults.)
     static const Vector<NUMTRACKERCAMPARAMETERS> mvDefaultParams;
 
