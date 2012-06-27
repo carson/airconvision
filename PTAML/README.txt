@@ -30,7 +30,6 @@ sudo make install
 cd ..
 
 # Install libCVD:
-# commit version 97e21898cca391d0239eb52d2412f92d7f101c69
 
 git clone git://git.savannah.nongnu.org/libcvd.git
 cd libcvd
@@ -69,14 +68,13 @@ make -j4
 cd ..
 
 git clone git@github.com:carson/airconvision.git
-cd airconvisio*
+# move PTAML subdirectory to airconvision
 mkdir BUILD
 cd BUILD
 # specify the correct directory for the ARToolKit
 cmake -D ARTOOLKIT_DIR=../ARToolKit ..
 sudo ldconfig
 make -j4
-
 
 cd ..
 # plug in usb camera
