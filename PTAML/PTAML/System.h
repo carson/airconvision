@@ -38,8 +38,10 @@ class Frontend;
 class InitialTracker;
 class ScaleMarkerTracker;
 class Relocaliser;
+class FrameGrabber;
 
 struct Modules {
+  FrameGrabber *pFrameGrabber;
   Relocaliser *pRelocaliser;
   MapMaker *pMapMaker;                           // The map maker
   Tracker *pTracker;                             // The tracker
@@ -54,7 +56,7 @@ struct Modules {
 class System
 {
   public:
-    System(VideoSource* videoSource);
+    System();
     ~System();
 
     void Run();
@@ -87,7 +89,6 @@ class System
 
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window
-    VideoSource *mVideoSource;
     Modules mModules;
     MikroKopter mMikroKopter;
     ARToolkitTracker mARTracker;

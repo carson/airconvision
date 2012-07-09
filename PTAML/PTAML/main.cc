@@ -50,9 +50,7 @@ int main(int argc, char *argv[])
 
   try
   {
-    std::unique_ptr<VideoSource> videoSource(CreateVideoSource());
-
-    System s(videoSource.get());
+    System s;
     s.Run();
   }
   catch(CVD::Exceptions::All& e)

@@ -9,13 +9,13 @@ using namespace CVD;
 using namespace std;
 using namespace GVars3;
 
-VideoSource_Linux_V4L::VideoSource_Linux_V4L()
+VideoSource_Linux_V4L::VideoSource_Linux_V4L(const std::string &sName)
 {
   cout << "  VideoSource_Linux_V4L: Opening video source..." << endl;
-  string QuickCamFile = GV3::get<string>("VideoSource.V4LDevice", "/dev/video0");
-  ImageRef irSize = GV3::get<ImageRef>("VideoSource.Resolution", ImageRef(640, 480));
-  int nFrameRate = GV3::get<int>("VideoSource.Framerate", 60);
-  mVideoBuffer = new V4LBuffer<yuv422>(QuickCamFile, irSize, -1, false, nFrameRate);
+  string sDevice = GV3::get<string>(sName + ".V4LDevice", "/dev/video0");
+  ImageRef irSize = GV3::get<ImageRef>(sName + ".Resolution", ImageRef(640, 480));
+  int nFrameRate = GV3::get<int>(sName + ".Framerate", 60);
+  mVideoBuffer = new V4LBuffer<yuv422>(sDevice, irSize, -1, false, nFrameRate);
   mirSize = mVideoBuffer->size();
   cout << "  V4L initialized." << endl;
 }

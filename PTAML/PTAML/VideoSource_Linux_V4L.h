@@ -17,7 +17,7 @@ namespace PTAMM {
 class VideoSource_Linux_V4L : public VideoSource
 {
   public:
-    VideoSource_Linux_V4L();
+    VideoSource_Linux_V4L(const std::string &sName);
     void GetAndFillFrameBWandRGB(CVD::Image<CVD::byte> &imBW, CVD::Image<CVD::Rgb<CVD::byte> > &imRGB);
     const CVD::ImageRef& Size() const { return mirSize; }
   private:

@@ -59,12 +59,12 @@ class FrontendMonitor {
     bool mbUserResetInvoke;
 };
 
-class VideoSource;
+class FrameGrabber;
 class Tracker;
 
 class Frontend {
   public:
-    Frontend(VideoSource *pVideoSource,
+    Frontend(FrameGrabber *pFrameGrabber,
              const ATANCamera &camera,
              MapMaker *pMapMaker,
              InitialTracker *pInitialTracker,
@@ -76,29 +76,22 @@ class Frontend {
     FrontendMonitor monitor;
 
   private:
-    void GrabNextFrame();
-    void TryDetermineScale();
-    void InitFromStereo();
+    void Reset();
+    void ProcessInitialization(bool bUserInvoke);
+    void DetermineScaleFromMarker(bool bUserInvoke);
 
   private:
-    VideoSource *mpVideoSource;
-    VideoSource *mpVideoSource2;
-    CVD::Image<CVD::Rgb<CVD::byte>> mimFrameRGB;   // The RGB image used for AR
-    CVD::Image<CVD::byte> mimFrameBW;               // The Black and white image for tracking/mapping
-    CVD::Image<CVD::byte> mimStereoFrameBW;
-    bool mbFreezeVideo;
-
     bool mbInitialTracking;
     bool mbHasDeterminedScale;
 
     ATANCamera mCamera;
+    FrameGrabber *mpFrameGrabber;
     InitialTracker *mpInitialTracker;
     Tracker *mpTracker;
     ScaleMarkerTracker *mpScaleMarkerTracker;
     MapMaker *mpMapMaker;
 
-    KeyFrame mCurrentKF;
-    KeyFrame mStereoKF;
+    KeyFrame mKeyFrame;
 
     FrontendDrawData mDrawData;
 

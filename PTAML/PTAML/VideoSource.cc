@@ -18,7 +18,7 @@ VideoSource* CreateVideoSource()
   string videoSourceFileName = GV3::get<string>("VideoInput", "");
 
   if (videoSourceFileName.empty()) {
-    return new CameraVideoSource();
+    return new CameraVideoSource("VideoSource1");
   } else {
     return new FileVideoSource(videoSourceFileName);
   }

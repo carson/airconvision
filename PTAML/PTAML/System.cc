@@ -13,6 +13,7 @@
 #include "InitialTracker.h"
 #include "ScaleMarkerTracker.h"
 #include "LevelHelpers.h"
+#include "FrameGrabber.h"
 
 #include <gvars3/GStringUtil.h>
 #include <cvd/image_io.h>
@@ -309,9 +310,8 @@ void FrontendRenderer::Draw()
 }
 
 
-System::System(VideoSource* videoSource)
-  : mGLWindow(videoSource->Size(), "PTAML")
-  , mVideoSource(videoSource)
+System::System()
+  : mGLWindow(ImageRef(640, 480), "PTAML")
   , mbDone(false)
   , mbDisableRendering(false)
 {
@@ -408,8 +408,6 @@ void System::CreateMenu()
 
 void System::CreateModules()
 {
-  ImageRef irVideoSize = mVideoSource->Size();
-
   // First, check if the camera is calibrated.
   // If not, we need to run the calibration widget.
   Vector<NUMTRACKERCAMPARAMETERS> vTest;
@@ -420,6 +418,9 @@ void System::CreateModules()
     cerr << "  and/or put the Camera.Parameters= line into the appropriate .cfg file." << endl;
     throw std::runtime_error("Missing camera parameters");
   }
+
+  mModules.pFrameGrabber = new FrameGrabber();
+  ImageRef irVideoSize = mModules.pFrameGrabber->GetFrameSize();
 
   mModules.pCamera = new ATANCamera("Camera");
   mModules.pCamera->SetImageSize(irVideoSize);
@@ -445,7 +446,8 @@ void System::CreateModules()
   mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
 
 
-  mModules.pFrontend = new Frontend(mVideoSource, *mModules.pCamera, mModules.pMapMaker,
+  mModules.pFrontend = new Frontend(mModules.pFrameGrabber, *mModules.pCamera,
+                                    mModules.pMapMaker,
                                     mModules.pInitialTracker,
                                     mModules.pTracker,
                                     mModules.pScaleMarkerTracker);

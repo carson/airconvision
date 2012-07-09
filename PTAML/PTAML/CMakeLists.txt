@@ -53,6 +53,7 @@ set(PTAML_SRC
 	ATANCamera.cc
 	Bundle.cc
 	FeatureGrid.cc
+	FrameGrabber.cc
 	Frontend.cc
 	GLWindow2.cc
 	GLWindowMenu.cc
