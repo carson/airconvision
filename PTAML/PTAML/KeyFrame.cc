@@ -298,7 +298,7 @@ void KeyFrame::RefreshSceneDepth()
     nMeas++;
   }
 
-  assert(nMeas > 2); // If not then something is seriously wrong with this KF!!
+  //assert(nMeas > 2); // If not then something is seriously wrong with this KF!!
 
   // Update scene depth variables
   dSceneDepthMean = dSumDepth / nMeas;

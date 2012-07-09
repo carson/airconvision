@@ -103,7 +103,8 @@ void Frontend::operator()()
     mpFrameGrabber->GrabNextFrame();
 
     // Initialize keyframe, find features etc
-    mKeyFrame.InitFromImage(mpFrameGrabber->GetFrameBW1(), (FeatureDetector)*mgvnFeatureDetector);
+    mKeyFrame.InitFromImage(mpFrameGrabber->GetFrameBW1(),
+                            static_cast<FeatureDetector>(*mgvnFeatureDetector));
 
     // Set some of the draw data
     mDrawData.imFrame.copy_from(mpFrameGrabber->GetFrameRGB1());
@@ -159,12 +160,13 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
     mStereoPlaneFinder.Update(mpFrameGrabber->GetPointCloud());
 
     if (bUserInvoke) {
-      //mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneTracker.GetPlane());
+      mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneFinder.GetPlane());
       mbInitialTracking = false;
     }
 
     mDrawData.bInitialTracking = true;
     mDrawData.sStatusMessage = "Press spacebar to init";
+    mDrawData.se3GroundPlane = mStereoPlaneFinder.GetPlane();
 
   } else {
     // Initial tracking path

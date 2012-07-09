@@ -138,7 +138,7 @@ class FrontendRenderer {
   private:
     const FrontendDrawData &mDrawData;
     ATANCamera mCamera;
-    const SE3<> &mse3CamFromWorld;
+    SE3<> mse3CamFromWorld;
 };
 
 Vector<2> FrontendRenderer::ProjectPoint(const Vector<3> &v3Point)
@@ -297,6 +297,13 @@ void FrontendRenderer::Draw()
     }
 
     DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
+
+    mse3CamFromWorld = mDrawData.se3GroundPlane;
+    mse3CamFromWorld.get_translation() *= 0.02;
+    mse3CamFromWorld.get_rotation() = mse3CamFromWorld.get_rotation().inverse();
+
+    DrawGrid(false);
+
   } else {
     if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
       DrawCorners(mDrawData.tracker.vCorners);

@@ -120,7 +120,7 @@ void FrameGrabber::ExtractPointCloud(const cv::Mat &_3dImage,
     for (int j = 0; j < _3dImage.cols; ++j) {
       const cv::Vec3f &pt = _3dImage.at<cv::Vec3f>(i, j);
       if (fabs(pt[2]) < max_z) {
-        points.push_back(makeVector(-pt[0], pt[1], pt[2]));
+        points.push_back(makeVector(pt[0], pt[1], pt[2]));
       }
     }
   }
@@ -145,6 +145,13 @@ void FrameGrabber::ProcessStereoImages()
 
   // Convert the Mat into a list of points (with some filtering)
   ExtractPointCloud(xyz, mPointCloud);
+
+/*
+  cv::Mat disp8;
+  mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
+  cv::imshow("disp", disp8);
+  cv::waitKey(10);
+  */
 }
 
 void FrameGrabber::LoadCalibration()

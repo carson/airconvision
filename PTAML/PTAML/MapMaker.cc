@@ -285,6 +285,13 @@ void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
   });
 }
 
+void MapMaker::InitFromKnownPlane(KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane)
+{
+  mbAbortRequested = true;
+  mDispatcher.PushActionAndWait([kKeyFrame, se3GroundPlane, mpMap] () {
+    mpMap->InitFromKnownPlane(kKeyFrame, se3GroundPlane);
+  });
+}
 
 /**
  * The tracker entry point for adding a new keyframe;

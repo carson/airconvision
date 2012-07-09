@@ -30,6 +30,8 @@ struct FrontendDrawData {
   bool bInitialTracking;
   InitialTrackerDrawData initialTracker;
   TrackerDrawData tracker;
+
+  TooN::SE3<> se3GroundPlane;
 };
 
 class FrontendMonitor {
