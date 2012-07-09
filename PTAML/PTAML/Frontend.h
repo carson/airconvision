@@ -5,6 +5,7 @@
 #include "InitialTracker.h"
 #include "ScaleMarkerTracker.h"
 #include "ATANCamera.h"
+#include "StereoPlaneFinder.h"
 
 #include <cvd/image.h>
 #include <cvd/rgb.h>
@@ -90,6 +91,7 @@ class Frontend {
     Tracker *mpTracker;
     ScaleMarkerTracker *mpScaleMarkerTracker;
     MapMaker *mpMapMaker;
+    StereoPlaneFinder mStereoPlaneFinder;
 
     KeyFrame mKeyFrame;
 

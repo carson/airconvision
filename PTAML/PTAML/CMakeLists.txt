@@ -29,6 +29,17 @@ set(PTAML_LIBS
 	GL
 	lapack
 	blas
+	opencv_core
+	opencv_imgproc
+	opencv_highgui
+	opencv_ml
+	opencv_video
+	opencv_features2d
+	opencv_calib3d
+	opencv_objdetect
+	opencv_contrib
+	opencv_legacy
+	opencv_flann
 )
 
 #
@@ -77,6 +88,7 @@ set(PTAML_SRC
 	ScaleMarkerTracker.cc
 	ShiTomasi.cc
 	SmallBlurryImage.cc
+	StereoPlaneFinder.cc
 	System.cc
 	Timing.cc
 	tinyxml.cc

@@ -151,7 +151,12 @@ void Frontend::Reset()
 void Frontend::ProcessInitialization(bool bUserInvoke)
 {
   if (mpFrameGrabber->IsUsingStereo()) {
-    //mStereoPlaneTracker.Update();
+
+    // Calculate a dense point cloud
+    mpFrameGrabber->ProcessStereoImages();
+
+    // Find the ground plane in the point cloud
+    mStereoPlaneFinder.Update(mpFrameGrabber->GetPointCloud());
 
     if (bUserInvoke) {
       //mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneTracker.GetPlane());
