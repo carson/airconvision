@@ -543,7 +543,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
         continue;
       }
 
-      v3New *= -0.01;
+      v3New *= 0.01;
 
       MapPoint *pNew = new MapPoint;
       pNew->v3WorldPos = v3New;
