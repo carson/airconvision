@@ -160,7 +160,10 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
     mStereoPlaneFinder.Update(mpFrameGrabber->GetPointCloud());
 
     if (bUserInvoke) {
-      mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneFinder.GetPlane());
+      SE3<> se3CurrentPose;
+      mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneFinder.GetPlane(), se3CurrentPose);
+      mpTracker->SetCurrentPose(se3CurrentPose);
+      //mpTracker->ForceRecovery();
       mbInitialTracking = false;
     }
 

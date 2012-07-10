@@ -1,4 +1,5 @@
 #include "StereoPlaneFinder.h"
+#include "Utils.h"
 
 #include <TooN/SymEigen.h>
 
@@ -8,38 +9,6 @@ using namespace std;
 using namespace TooN;
 
 namespace PTAMM {
-
-SE3<> AlignerFromPointAndUp(const TooN::Vector<3>& point,
-                            const TooN::Vector<3>& normal)
-{
-  Matrix<3> m3Rot = Identity;
-  m3Rot[2] = normal;
-  m3Rot[0] = m3Rot[0] - (normal * (m3Rot[0] * normal));
-  normalize(m3Rot[0]);
-  m3Rot[1] = m3Rot[2] ^ m3Rot[0];
-
-  SE3<> se3;
-  se3.get_rotation() = m3Rot;
-  TooN::Vector<3> v3RMean = se3 * point;
-  se3.get_translation() = -v3RMean;
-
-  return se3;
-}
-
-TooN::Vector<4> Se3ToPlane(const SE3<>& se3)
-{
-  TooN::Vector<3> normal = se3.get_rotation().get_matrix()[2];
-  double d = -normal * se3.inverse().get_translation();
-  return makeVector(normal[0], normal[1], normal[2], d);
-}
-
-TooN::SE3<> PlaneToSe3(const TooN::Vector<4>& plane)
-{
-  TooN::Vector<3> normal = plane.slice<0,3>();
-  normalize(normal);
-  TooN::Vector<3> point = -plane[3] * normal;
-  return AlignerFromPointAndUp(point, normal);
-}
 
 bool FindPlaneAligner(const std::vector<TooN::Vector<3> >& points,
                       bool bFlipNormal, double inlierThreshold,

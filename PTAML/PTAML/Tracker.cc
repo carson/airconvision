@@ -205,7 +205,7 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame)
     // Heuristics to check if a key-frame should be added to the map:
     if (ShouldAddNewKeyFrame()) {
       mMessageForUser << " Adding key-frame.";
-      //AddNewKeyFrame();
+      AddNewKeyFrame();
     }
 
   } else { // Tracking is lost
@@ -213,13 +213,10 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame)
     cout << "Lost tracking..." << endl;
     mMessageForUser << "** Attempting recovery **.";
 
-    /*
     if (AttemptRecovery()) {
       TrackMap();
       AssessTrackingQuality();
     }
-    */
-
   }
 }
 

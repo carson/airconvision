@@ -77,7 +77,7 @@ class Map
     bool InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         const TooN::SE3<> &se3SecondCameraPos,
                         bool *pbAbortSignal = NULL);
-    void InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane);
+    void InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane, SE3<> &se3TrackerPose);
 
     // Keyframe queue
     size_t QueueSize() const { return vpKeyFrameQueue.size(); } // How many KFs in the queue waiting to be added?

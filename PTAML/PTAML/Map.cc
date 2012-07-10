@@ -513,16 +513,16 @@ bool Map::InitFromStereo(KeyFrame &kF,
   return true;
 }
 
-void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane)
+void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane,
+                             SE3<> &se3TrackerPose)
 {
   KeyFrame *pkFirst = new KeyFrame(kKeyFrame);
   pkFirst->bFixed = true;
   pkFirst->se3CfromW = SE3<>();
 
-  SE3<> se3CamFromWorld = se3GroundPlane.inverse();
-  se3CamFromWorld.get_translation() *= -1;
+  Vector<4> v4Plane = Se3ToPlane(se3GroundPlane);
 
-  cout << "Ground plane: " << se3CamFromWorld << endl;
+  cout << "Ground plane: " << v4Plane << endl;
 
   for (int nLevel = 0; nLevel < LEVELS; ++nLevel) {
     Level &l = pkFirst->aLevels[nLevel];
@@ -542,11 +542,13 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
     for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
 
       Vector<3> v3New;
-      if (!PickPointOnGround(pkFirst->Camera, se3CamFromWorld,
+      if (!PickPointOnPlane(pkFirst->Camera, v4Plane,
                              makeVector(it->x, it->y), v3New))
       {
         continue;
       }
+
+      v3New *= 0.01;
 
       cout << v3New << endl;
 
@@ -604,7 +606,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
 
   bGood = true;
 
-  //se3TrackerPose = pkFirst->se3CfromW;
+  se3TrackerPose = pkFirst->se3CfromW;
 
   cout << "se3CfromW : " << pkFirst->se3CfromW.ln();
   cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;

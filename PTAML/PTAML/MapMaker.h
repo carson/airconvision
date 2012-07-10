@@ -65,7 +65,7 @@ class MapMaker
 
     bool StereoInitDone() const { return mbStereoInitDone; }
 
-    void InitFromKnownPlane(KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane);
+    void InitFromKnownPlane(KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane, SE3<> &se3TrackerPose);
 
     // Add a key-frame to the map. Called by the tracker.
     void AddKeyFrame(const KeyFrame &k);
