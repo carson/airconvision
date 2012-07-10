@@ -78,15 +78,15 @@ void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)
   using namespace std::chrono;
 
   // Send world position if connect to MK NaviCtrl
-  if (mMkConn) {
-    mMkConn.ProcessIncoming();
+  if (true || mMkConn) {
+    //mMkConn.ProcessIncoming();
 
     if (bHasTracking) {
       switch (mControllerType) {
       case TARGET_CONTROLLER:
         mTargetController.Update(se3Pose, TargetController::Clock::now());
-        mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
-                                       mTargetController.GetVelocityFiltered());
+        //mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
+        //                               mTargetController.GetVelocityFiltered());
         break;
       default:
         break;
@@ -100,10 +100,12 @@ void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)
 
     // Request debug data being sent from the MK, this has to be done every few seconds or
     // the MK will stop sending the data
+    /*
     if (mSendDebugTimeout.HasTimedOut()) {
       mMkConn.SendDebugOutputInterval(1);
       mSendDebugTimeout.Reset();
     }
+    */
   }
 }
 
@@ -150,14 +152,15 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
 void MikroKopter::LogControlValues()
 {
   mControlValuesFile
-    << mTargetController.GetTime() << " "
-    << mTargetController.GetTargetOffset() << " "
+//    << mTargetController.GetTime() << " "
+//    << mTargetController.GetTargetOffset() << " "
     << mTargetController.GetTargetOffsetFiltered() << " "
-    << mTargetController.GetVelocity() << " "
-    << mTargetController.GetVelocityFiltered();
+//    << mTargetController.GetVelocity() << " "
+//    << mTargetController.GetVelocityFiltered();
+    ;
 
   for (size_t i = 0; i < 32; ++i) {
-    mControlValuesFile << " " << mMkDebugOutput.Analog[i];
+    //mControlValuesFile << " " << mMkDebugOutput.Analog[i];
   }
 
   mControlValuesFile << endl;

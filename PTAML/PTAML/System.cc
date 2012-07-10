@@ -688,12 +688,6 @@ void System::DrawDebugInfo()
 {
   stringstream ss;
 
-  /*
-  ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
-     << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
-     << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
-     << "VY: " << mPositionHold.GetVelocityFiltered()[1];
-     */
 
   FeatureDetector featureDetector = (FeatureDetector)GV3::get<int>("FeatureDetector", 0);
   ss << "Features: " << FeatureDetector2String(featureDetector) << endl << endl;
@@ -712,6 +706,14 @@ void System::DrawDebugInfo()
      //<< "Grid: " << gDrawGridTimer.Milliseconds() << endl
      << "UI: " << gDrawUITimer.Milliseconds() << endl;
      //<< "GLSwap: " << gGLSwapTimer.Milliseconds() << endl;
+
+
+  /*
+  ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
+     << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
+     << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
+     << "VY: " << mPositionHold.GetVelocityFiltered()[1];
+*/
 
   mGLWindow.DrawDebugOutput(ss.str());
 }
