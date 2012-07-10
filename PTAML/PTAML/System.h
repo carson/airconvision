@@ -23,8 +23,6 @@
 #include <cvd/byte.h>
 #include <TooN/TooN.h>
 
-#include <fstream>
-
 namespace PTAMM {
 
 class ATANCamera;
@@ -51,6 +49,7 @@ struct Modules {
   MapViewer *pMapViewer;                         // The Map Viewer
   MapSerializer *pMapSerializer;                 // The map serializer for saving and loading maps
   Frontend *pFrontend;
+  MikroKopter *pMikroKopter;
 };
 
 class System
@@ -90,7 +89,6 @@ class System
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window
     Modules mModules;
-    MikroKopter mMikroKopter;
     ARToolkitTracker mARTracker;
     Map *mpMap;                                     // The current map
 
@@ -99,8 +97,6 @@ class System
     // Rendering
     FrontendDrawData mFrontendDrawData;
     bool mbDisableRendering;
-
-    std::ofstream mCoordinateLogFile;                  // Debug output file handle
 };
 
 }

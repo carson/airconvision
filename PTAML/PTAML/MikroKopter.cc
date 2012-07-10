@@ -1,8 +1,14 @@
 #include "MikroKopter.h"
+#include "Timing.h"
+#include "FPSCounter.h"
+#include "Tracker.h"
 
 #include <gvars3/instances.h>
 
 #include <functional>
+#include <fstream>
+#include <thread>
+#include <chrono>
 
 using namespace std;
 using namespace std::placeholders;
@@ -10,8 +16,9 @@ using namespace GVars3;
 
 namespace PTAMM {
 
-MikroKopter::MikroKopter()
-  : mControllerType(NO_CONTROLLER)
+MikroKopter::MikroKopter(const Tracker* pTracker)
+  : mpTracker(pTracker)
+  , mControllerType(NO_CONTROLLER)
   , mSendDebugTimeout(1.0)
   , mbWriteControlValuesLog(false)
 {
@@ -31,6 +38,39 @@ MikroKopter::MikroKopter()
   int nComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, SILENT); // 16 is /dev/ttyUSB0
   int nCcomPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", SILENT);
   ConnectToMK(nComPortId, nCcomPortBaudrate);
+}
+
+void MikroKopter::operator()()
+{
+  static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
+
+  std::ofstream coordinateLogFile("coordinates.txt", ios::out | ios::trunc);
+  if (!coordinateLogFile) {
+    cerr << "Failed to open coordinates.txt" << endl;
+  }
+
+  FPSCounter fpsCounter;
+  StopWatch stopWatch;
+  stopWatch.Start();
+
+  auto t = std::chrono::high_resolution_clock::now();
+
+  while (true) {
+    Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
+
+    if (*gvnOutputWorldCoordinates) {
+      coordinateLogFile << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
+    }
+
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now() - t);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200 - elapsed.count()));
+    t = std::chrono::high_resolution_clock::now();
+
+    if (fpsCounter.Update()) {
+      cout << "MK FPS: " << fpsCounter.Fps() << endl;
+    }
+  }
 }
 
 void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)

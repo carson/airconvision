@@ -14,6 +14,7 @@
 #include "ScaleMarkerTracker.h"
 #include "LevelHelpers.h"
 #include "FrameGrabber.h"
+#include "Utils.h"
 
 #include <gvars3/GStringUtil.h>
 #include <cvd/image_io.h>
@@ -325,11 +326,6 @@ System::System()
   // Create the on-screen menu and register all the commands
   CreateMenu();
 
-  mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
-  if (!mCoordinateLogFile) {
-    cerr << "Failed to open coordinates.txt" << endl;
-  }
-
   // Force the program to run on CPU0
   /*
   cpu_set_t cpuset;
@@ -458,6 +454,9 @@ void System::CreateModules()
                                     mModules.pInitialTracker,
                                     mModules.pTracker,
                                     mModules.pScaleMarkerTracker);
+
+
+  mModules.pMikroKopter = new MikroKopter(mModules.pTracker);
 }
 
 /**
@@ -467,17 +466,15 @@ void System::CreateModules()
 void System::Run()
 {
   static gvar3<int> gvnLockMap("LockMap", 0, HIDDEN|SILENT);
-  static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
 
   CreateModules();
 
   // Start threads
   std::thread mapMakerThread(std::ref(*mModules.pMapMaker));
   std::thread frontendThread(std::ref(*mModules.pFrontend));
+  std::thread mikroKopterThread(std::ref(*mModules.pMikroKopter));
 
   FPSCounter fpsCounter;
-  StopWatch stopWatch;
-  stopWatch.Start();
 
   while(!mbDone)
   {
@@ -493,18 +490,10 @@ void System::Run()
 
 #ifdef _LINUX
       static gvar3<int> gvnSaveFIFO("SaveFIFO", 0, HIDDEN|SILENT);
-      if(*gvnSaveFIFO) {
+      if (*gvnSaveFIFO) {
         SaveFIFO();
       }
 #endif
-    }
-
-    const Tracker* pTracker = mModules.pTracker;
-
-    mMikroKopter.Update(pTracker->GetCurrentPose(), !pTracker->IsLost());
-
-    if (*gvnOutputWorldCoordinates) {
-      mCoordinateLogFile << stopWatch.Elapsed() << " " << pTracker->RealWorldCoordinate() << endl;
     }
 
     mGLWindow.HandlePendingEvents();
@@ -520,7 +509,6 @@ void System::Run()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
-
 
 /**
  * Parse commands sent via the GVars command system.
@@ -595,19 +583,17 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
 {
   static gvar3<int> gvnEnableMouseControl("EnableMouseControl", 0, HIDDEN|SILENT);
   if (*gvnEnableMouseControl) {
-
     Vector<3> v3PointOnPlane;
-
-    /*
-    if (PickPointOnGround(makeVector(irWin.x, irWin.y), v3PointOnPlane)) {
+    if (PickPointOnGround(*mModules.pCamera, mModules.pTracker->GetCurrentPose(),
+                          makeVector(irWin.x, irWin.y), v3PointOnPlane))
+    {
       // Set the targets Z value same as the current positions
       v3PointOnPlane[2] = mModules.pTracker->GetCurrentPose().inverse().get_translation()[2];
 
       SE3<> se3TargetPose;
       se3TargetPose.get_translation() = v3PointOnPlane;
-      mMikroKopter.GoToPosition(se3TargetPose);
+      mModules.pMikroKopter->GoToPosition(se3TargetPose);
     }
-    */
   }
 }
 
@@ -625,23 +611,22 @@ void System::StartMapSerialization(std::string sCommand, std::string sParams)
 
 void System::PositionHold()
 {
-  mMikroKopter.GoToPosition(mModules.pTracker->GetCurrentPose().inverse());
-
+  mModules.pMikroKopter->GoToPosition(mModules.pTracker->GetCurrentPose().inverse());
 }
 
 void System::AddWaypoint()
 {
-  mMikroKopter.AddWaypoint(mModules.pTracker->GetCurrentPose().inverse());
+  mModules.pMikroKopter->AddWaypoint(mModules.pTracker->GetCurrentPose().inverse());
 }
 
 void System::ClearWaypoints()
 {
-  mMikroKopter.ClearWaypoints();
+  mModules.pMikroKopter->ClearWaypoints();
 }
 
 void System::FlyPath()
 {
-  mMikroKopter.FlyPath();
+  mModules.pMikroKopter->FlyPath();
 }
 
 void System::ChangeFeatureDetector()
