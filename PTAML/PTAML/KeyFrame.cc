@@ -346,26 +346,4 @@ void KeyFrame::MakeKeyFrame_Rest()
   pSBI->MakeJacs();
 }
 
-// -------------------------------------------------------------
-// Some useful globals defined in LevelHelpers.h live here:
-Vector<3> gavLevelColors[LEVELS];
-
-// These globals are filled in here. A single static instance of this struct is run before main()
-struct LevelHelpersFiller // Code which should be initialised on init goes here; this runs before main()
-{
-  LevelHelpersFiller()
-  {
-    for(int i=0; i<LEVELS; i++)
-      {
-        if(i==0)  gavLevelColors[i] = makeVector( 1.0, 0.0, 0.0);
-        else if(i==1)  gavLevelColors[i] = makeVector( 1.0, 1.0, 0.0);
-        else if(i==2)  gavLevelColors[i] = makeVector( 0.0, 1.0, 0.0);
-        else if(i==3)  gavLevelColors[i] = makeVector( 0.0, 0.0, 0.7);
-        else gavLevelColors[i] =  makeVector( 1.0, 1.0, 0.7); // In case I ever run with LEVELS > 4
-      }
-  }
-};
-
-static LevelHelpersFiller foo;
-
 }

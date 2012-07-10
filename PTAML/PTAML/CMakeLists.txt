@@ -66,6 +66,7 @@ set(PTAML_SRC
 	FeatureGrid.cc
 	FrameGrabber.cc
 	Frontend.cc
+	FrontendRenderer.cc
 	GLWindow2.cc
 	GLWindowMenu.cc
 	HomographyInit.cc
