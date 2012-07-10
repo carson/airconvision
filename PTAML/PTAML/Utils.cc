@@ -71,6 +71,8 @@ bool PickPointOnGround(ATANCamera camera,
   double t = se3CamInv.get_translation()[2];
   double dDistToPlane = -t / (v4W[2] - t);
 
+  cout << v4W[2] << "    " << t << "   " << dDistToPlane << endl;
+
   if(v4W[2] -t <= 0) // Clicked the wrong side of the horizon?
   {
     v4C.slice<0,3>() *= dDistToPlane;

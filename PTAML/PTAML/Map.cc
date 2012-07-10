@@ -519,7 +519,10 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
   pkFirst->bFixed = true;
   pkFirst->se3CfromW = SE3<>();
 
-  // Add points here!!!!
+  SE3<> se3CamFromWorld = se3GroundPlane.inverse();
+  se3CamFromWorld.get_translation() *= -1;
+
+  cout << "Ground plane: " << se3CamFromWorld << endl;
 
   for (int nLevel = 0; nLevel < LEVELS; ++nLevel) {
     Level &l = pkFirst->aLevels[nLevel];
@@ -533,7 +536,8 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
     // Remove the points in the set that overlapps points in lower pyramid levels
     pkFirst->ThinCandidates(nLevel, vBestFeatures);
 
-    SE3<> se3CamFromWorld = se3GroundPlane;
+
+    cout << "Level " << nLevel << ": " << vBestFeatures.size() << endl;
 
     for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
 
