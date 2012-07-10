@@ -78,15 +78,15 @@ void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)
   using namespace std::chrono;
 
   // Send world position if connect to MK NaviCtrl
-  if (true || mMkConn) {
-    //mMkConn.ProcessIncoming();
+  if (mMkConn) {
+    mMkConn.ProcessIncoming();
 
     if (bHasTracking) {
       switch (mControllerType) {
       case TARGET_CONTROLLER:
         mTargetController.Update(se3Pose, TargetController::Clock::now());
-        //mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
-        //                               mTargetController.GetVelocityFiltered());
+        mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
+                                       mTargetController.GetVelocityFiltered());
         break;
       default:
         break;
@@ -100,12 +100,10 @@ void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)
 
     // Request debug data being sent from the MK, this has to be done every few seconds or
     // the MK will stop sending the data
-    /*
     if (mSendDebugTimeout.HasTimedOut()) {
       mMkConn.SendDebugOutputInterval(1);
       mSendDebugTimeout.Reset();
     }
-    */
   }
 }
 
@@ -113,6 +111,7 @@ void MikroKopter::GoToPosition(const TooN::SE3<> &se3PoseInWorld)
 {
   cout << "Go to position: " << se3PoseInWorld.get_translation() << endl;
   mTargetController.SetTarget(se3PoseInWorld);
+  mMkConn.SendNewTargetNotice();
   mControllerType = TARGET_CONTROLLER;
 }
 

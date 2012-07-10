@@ -101,6 +101,8 @@ void GLWindow2::GUICommandHandler(string sCommand, string sParams)  // Called by
 
 void GLWindow2::DrawMenus()
 {
+  SetupWindowOrtho();
+
   glDisable(GL_STENCIL_TEST);
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_TEXTURE_2D);
@@ -124,7 +126,6 @@ void GLWindow2::DrawMenus()
       (*i)->Render(nTop, nHeight, size()[0], *this);
       nTop+=nHeight+1;
     }
-  
 }
 
 void GLWindow2::SetupUnitOrtho()
@@ -198,6 +199,8 @@ void GLWindow2::DrawCaption(const string &s)
   // Draw the caption text in yellow
   glColor3f(1,1,0);      
   PrintString(ImageRef(10,nTopOfBox + 13), s);
+
+  glDisable(GL_BLEND);
 }
 
 void GLWindow2::DrawDebugOutput(const string &s)

@@ -24,6 +24,7 @@ enum RxCommand : uint8_t {
 
 enum TxCommands : uint8_t {
   TXCMD_POSITION_DELTA = 'p',
+  TXCMD_NEW_TARGET = 'n',
   TXCMD_DEBUG_OUTPUT = 'd'
 };
 
@@ -48,6 +49,20 @@ MKConnection::~MKConnection() {
 int32_t DistanceToInt32(double dist)
 {
   return int32_t(dist * 1000.0 + 0.5);
+}
+
+void MKConnection::SendNewTargetNotice()
+{
+  assert(mOpen);
+
+  // Initialize a buffer for the packet
+  Buffer_t txBuffer;
+  Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
+
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_NEW_TARGET, NC_ADDRESS, 0);
+
+  // Send txBuffer to NaviCtrl
+  SendBuffer(txBuffer);
 }
 
 void MKConnection::SendPositionHoldUpdate(const TooN::Vector<3>& v3Offset,

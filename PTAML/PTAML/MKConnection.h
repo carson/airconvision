@@ -28,6 +28,8 @@ class MKConnection {
 
     void ProcessIncoming();
 
+    void SendNewTargetNotice();
+
     void SendPositionHoldUpdate(const TooN::Vector<3> &v3OffsetToTargetInCam,
                                 const TooN::Vector<3> &v3VelocityInCam);
 

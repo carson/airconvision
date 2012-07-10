@@ -290,6 +290,7 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
 
 void FrontendRenderer::Draw()
 {
+  glColor4f(1,1,1,1);
   glDrawPixels(mDrawData.imFrame);
 
   if (mDrawData.bInitialTracking) {
@@ -297,13 +298,13 @@ void FrontendRenderer::Draw()
       DrawCorners(mDrawData.initialTracker.vCorners);
     }
 
-    DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
+    //DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
 
     mse3CamFromWorld = mDrawData.se3GroundPlane;
     mse3CamFromWorld.get_translation() *= 0.02;
     mse3CamFromWorld.get_rotation() = mse3CamFromWorld.get_rotation().inverse();
 
-    DrawGrid(false);
+    //DrawGrid(false);
 
   } else {
     if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
@@ -651,6 +652,8 @@ void System::Draw()
   mGLWindow.SetupVideoRasterPosAndZoom();
 
   string sCaption;
+
+  glClear(GL_COLOR_BUFFER_BIT);
 
   if(bDrawMap) {
     // TODO: This is not thread safe at all... The whole mapviewer thing is in a rather bad state...
