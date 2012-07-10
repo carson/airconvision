@@ -101,22 +101,8 @@ bool PickPointOnGround(ATANCamera camera,
                        const TooN::Vector<2> &pixelCoord,
                        TooN::Vector<3> &pointOnPlane)
 {
-  Vector<2> v2VidCoords = pixelCoord;
-
-  Vector<2> v2UFBCoords;
-#ifdef WIN32
-  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = numeric_limits<double>::quiet_NaN();   v2PlaneCoords[1] = numeric_limits<double>::quiet_NaN();
-#else
-  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = NAN;   v2PlaneCoords[1] = NAN;
-#endif
-  Vector<3> v3RayDirn_W;
-
-  // Work out image coords 0..1:
-  v2UFBCoords[0] = (v2VidCoords[0] + 0.5) / camera.GetImageSize()[0];
-  v2UFBCoords[1] = (v2VidCoords[1] + 0.5) / camera.GetImageSize()[1];
-
   // Work out plane coords:
-  Vector<2> v2ImPlane = camera.UnProject(v2VidCoords);
+  Vector<2> v2ImPlane = camera.UnProject(pixelCoord);
   Vector<3> v3C = unproject(v2ImPlane);
   Vector<4> v4C = unproject(v3C);
   SE3<> se3CamInv = se3CamFromWorld.inverse();
