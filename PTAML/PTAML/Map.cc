@@ -534,8 +534,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
     l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
     // Remove the points in the set that overlapps points in lower pyramid levels
-    pkFirst->ThinCandidates(nLevel, vBestFeatures);
-
+   // pkFirst->ThinCandidates(nLevel, vBestFeatures);
 
     cout << "Level " << nLevel << ": " << vBestFeatures.size() << endl;
 
@@ -549,8 +548,6 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
       }
 
       v3New *= 0.01;
-
-      cout << v3New << endl;
 
       MapPoint *pNew = new MapPoint;
       pNew->v3WorldPos = v3New;
