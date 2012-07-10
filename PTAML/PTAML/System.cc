@@ -127,12 +127,12 @@ class FrontendRenderer {
     void Draw();
 
   private:
-    Vector<2> ProjectPoint(const Vector<3> &v3Point);
+    Vector<2> ProjectPoint(const SE3<> &se3CamFromWorld, const Vector<3> &v3Point);
     void DrawTrails(const std::vector<std::pair<CVD::ImageRef, CVD::ImageRef>> &vTrails,
                     const std::vector<CVD::ImageRef> &vDeadTrails);
 
     void DrawCorners(const std::vector<CVD::ImageRef> &vCorners);
-    void DrawGrid(bool bDidCoarse);
+    void DrawGrid(const SE3<> &se3CamFromWorld);
     void DrawMapPoints(const std::vector<std::pair<int, TooN::Vector<2> >> &vMapPoints);
     void DrawMarkerPose(const SE3<> &se3WorldFromNormWorld);
 
@@ -142,9 +142,9 @@ class FrontendRenderer {
     SE3<> mse3CamFromWorld;
 };
 
-Vector<2> FrontendRenderer::ProjectPoint(const Vector<3> &v3Point)
+Vector<2> FrontendRenderer::ProjectPoint(const SE3<> &se3CamFromWorld, const Vector<3> &v3Point)
 {
-  Vector<3> v3Cam = mse3CamFromWorld * v3Point;
+  Vector<3> v3Cam = se3CamFromWorld * v3Point;
 
   if(v3Cam[2] < 0.001) {
     v3Cam[2] = 0.001;
@@ -191,16 +191,8 @@ void FrontendRenderer::DrawCorners(const std::vector<CVD::ImageRef> &vCorners)
   glEnd();
 }
 
-void FrontendRenderer::DrawGrid(bool bDidCoarse)
+void FrontendRenderer::DrawGrid(const SE3<> &se3CamFromWorld)
 {
-  // The colour of the ref grid shows if the coarse stage of tracking was used
-  // (it's turned off when the camera is sitting still to reduce jitter.)
-  if (bDidCoarse) {
-    glColor4f(0.0f, 0.5f, 0.0f, 0.6f);
-  } else {
-    glColor4f(0.0f,0.0f,0.0f,0.6f);
-  }
-
   // The grid is projected manually, i.e. GL receives projected 2D coords to draw.
   int nHalfCells = 4;
   int nTot = nHalfCells * 2 + 1;
@@ -213,12 +205,10 @@ void FrontendRenderer::DrawGrid(bool bDidCoarse)
       v3[0] = (i - nHalfCells) * 0.1;
       v3[1] = (j - nHalfCells) * 0.1;
       v3[2] = 0.0;
-      imVertices[i][j] = ProjectPoint(v3);
+      imVertices[i][j] = ProjectPoint(se3CamFromWorld, v3);
     }
   }
 
-  //glEnable(GL_LINE_SMOOTH);
-  //glEnable(GL_BLEND);
   glDisable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glLineWidth(1);
@@ -260,7 +250,7 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
 
   glBegin(GL_POINTS);
     glColor3f(0,1,1);
-    glVertex(ProjectPoint(se3WorldFromNormWorld.get_translation()));
+    glVertex(ProjectPoint(mse3CamFromWorld, se3WorldFromNormWorld.get_translation()));
   glEnd();
 
   Vector<3> wo2 = se3WorldFromNormWorld * makeVector(0, 0, 0);
@@ -279,7 +269,7 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
   std::vector<Vector<2> > screenPts;
   for (auto it = pts.begin(); it != pts.end(); ++it) {
     glColor3f(1,0,0);
-    glVertex(ProjectPoint(*it));
+    glVertex(ProjectPoint(mse3CamFromWorld, *it));
   }
 
   glEnd();
@@ -298,21 +288,36 @@ void FrontendRenderer::Draw()
       DrawCorners(mDrawData.initialTracker.vCorners);
     }
 
-    //DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
+    DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
 
-    mse3CamFromWorld = mDrawData.se3GroundPlane;
-    mse3CamFromWorld.get_translation() *= 0.02;
-    mse3CamFromWorld.get_rotation() = mse3CamFromWorld.get_rotation().inverse();
+    Vector<3> v3PointOnPlane;
+    if (PickPointOnPlane(mCamera, mDrawData.v4GroundPlane,
+    		             makeVector(320, 240), v3PointOnPlane))
+    {
+		v3PointOnPlane *= -0.02;
+		Vector<3> v3Normal = mDrawData.v4GroundPlane.slice<0, 3>();
+		SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
+		SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
 
-    //DrawGrid(false);
+		glColor3f(1,1,1);
+		DrawGrid(se3CamFromPlane);
+    }
 
   } else {
     if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {
       DrawCorners(mDrawData.tracker.vCorners);
     }
 
-    // Draw grid and time it
-    DrawGrid(mDrawData.tracker.bDidCoarse);
+    // The colour of the ref grid shows if the coarse stage of tracking was used
+    // (it's turned off when the camera is sitting still to reduce jitter.)
+    if (mDrawData.tracker.bDidCoarse) {
+      glColor4f(0.0f, 0.5f, 0.0f, 0.6f);
+    } else {
+      glColor4f(0.0f,0.0f,0.0f,0.6f);
+    }
+
+    DrawGrid(mse3CamFromWorld);
+
     // Draw all the matched map points
     DrawMapPoints(mDrawData.tracker.vMapPoints);
   }
@@ -652,8 +657,6 @@ void System::Draw()
   mGLWindow.SetupVideoRasterPosAndZoom();
 
   string sCaption;
-
-  glClear(GL_COLOR_BUFFER_BIT);
 
   if(bDrawMap) {
     // TODO: This is not thread safe at all... The whole mapviewer thing is in a rather bad state...

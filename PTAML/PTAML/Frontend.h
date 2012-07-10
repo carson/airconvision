@@ -31,7 +31,7 @@ struct FrontendDrawData {
   InitialTrackerDrawData initialTracker;
   TrackerDrawData tracker;
 
-  TooN::SE3<> se3GroundPlane;
+  TooN::Vector<4> v4GroundPlane;
 };
 
 class FrontendMonitor {

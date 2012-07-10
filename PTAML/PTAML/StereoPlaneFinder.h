@@ -63,10 +63,10 @@ class StereoPlaneFinder {
     StereoPlaneFinder();
 
     void Update(const std::vector<TooN::Vector<3> >& pointCloud);
-    SE3<> GetPlane() const;
+    const TooN::Vector<4>& GetPlane() const;
 
   private:
-    void UpdateFilter(const SE3<>& planeAligner);
+    void UpdateFilter(const TooN::Vector<4>& v4Plane);
 
   private:
     bool mbFirstUpdate;

@@ -434,8 +434,6 @@ bool Map::InitFromStereo(KeyFrame &kF,
     pbAbortSignal = &bDummyAbortSignal;
   }
 
-  ATANCamera &camera = kF.Camera;
-
   kF.dSceneDepthMean = 100;
   kF.dSceneDepthSigma = 200;
   kS.dSceneDepthMean = 100;
@@ -513,14 +511,12 @@ bool Map::InitFromStereo(KeyFrame &kF,
   return true;
 }
 
-void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPlane,
+void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v4Plane,
                              SE3<> &se3TrackerPose)
 {
   KeyFrame *pkFirst = new KeyFrame(kKeyFrame);
   pkFirst->bFixed = true;
   pkFirst->se3CfromW = SE3<>();
-
-  Vector<4> v4Plane = Se3ToPlane(se3GroundPlane);
 
   cout << "Ground plane: " << v4Plane << endl;
 
@@ -547,7 +543,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const SE3<> &se3GroundPl
         continue;
       }
 
-      v3New *= 0.01;
+      v3New *= -0.01;
 
       MapPoint *pNew = new MapPoint;
       pNew->v3WorldPos = v3New;

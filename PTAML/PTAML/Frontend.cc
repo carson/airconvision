@@ -169,7 +169,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     mDrawData.bInitialTracking = true;
     mDrawData.sStatusMessage = "Press spacebar to init";
-    mDrawData.se3GroundPlane = mStereoPlaneFinder.GetPlane();
+    mDrawData.v4GroundPlane = mStereoPlaneFinder.GetPlane();
 
   } else {
     // Initial tracking path

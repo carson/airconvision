@@ -127,23 +127,23 @@ void StereoPlaneFinder::Update(const std::vector<TooN::Vector<3> >& pointCloud)
   SE3<> plane;
   if (FindPlaneAligner(pointCloud, false, 1.0, plane)) {
     // Send it through the Kalman filter
-    UpdateFilter(plane);
+    UpdateFilter(Se3ToPlane(plane));
   }
 }
 
-void StereoPlaneFinder::UpdateFilter(const SE3<>& planeAligner)
+void StereoPlaneFinder::UpdateFilter(const TooN::Vector<4>& v4Plane)
 {
   if (mbFirstUpdate) {
-    mFilter.init(Se3ToPlane(planeAligner), Identity);
+    mFilter.init(v4Plane, Identity);
     mbFirstUpdate = false;
   } else {
     mFilter.predict(Zeros);
-    mFilter.observe(Se3ToPlane(planeAligner));
+    mFilter.observe(v4Plane);
   }
 }
 
-SE3<> StereoPlaneFinder::GetPlane() const {
-  return PlaneToSe3(mFilter.mu());
+const TooN::Vector<4>& StereoPlaneFinder::GetPlane() const {
+  return mFilter.mu();
 }
 
 }

@@ -59,6 +59,5 @@ double TargetController::GetTime() const
   return duration_cast<RealSeconds>(mLastUpdate - mStartTime).count();
 }
 
-
-
 }
+
