@@ -12,6 +12,7 @@ typedef duration<double> RealSeconds;
 void TargetController::SetTarget(const TooN::SE3<> &se3PoseInWorld)
 {
   mv3TargetPosInWorld = se3PoseInWorld.get_translation();
+  mOffsetFilter.Reset();
 }
 
 void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
