@@ -182,7 +182,7 @@ void MapMaker::operator()()
     if (mbAbortRequested || !mDispatcher.Empty()) continue;
 
     DEBUG_MAP_MAKER(cout << "START: Handling bad points" << endl);
-    //mpMap->HandleBadPoints();
+    mpMap->HandleBadPoints();
     DEBUG_MAP_MAKER(cout << "  END: Handling bad points" << endl);
   }
 }
