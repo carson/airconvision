@@ -88,7 +88,7 @@ void Tracker::Reset()
 
 bool Tracker::HasGoodCoverage()
 {
-  bool aBins[4][4] = { { 0 } };
+  Matrix<4,4> bins = Zeros;
   double dHori = 4.0 / mirSize.x;
   double dVert = 4.0 / mirSize.y;
 
@@ -96,7 +96,7 @@ bool Tracker::HasGoodCoverage()
     const Vector<2>& v2Point = (*it)->v2Image;
     size_t row = v2Point[1] * dVert;
     size_t col = v2Point[0] * dHori;
-    aBins[row][col] = true;
+    ++bins[row][col];
   }
 
   int nEmpty = 0;
@@ -105,7 +105,7 @@ bool Tracker::HasGoodCoverage()
     for (size_t j = 0; j < 4; ++j) {
       // Don't count inner cells
       if ((i != 1 && i != 2) || (j != 1 && j != 2)) {
-        if (!aBins[i][j]) {
+        if (bins[i][j] < 5) {
           nEmpty++;
         }
       }
