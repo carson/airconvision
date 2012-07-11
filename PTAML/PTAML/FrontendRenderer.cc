@@ -175,13 +175,13 @@ void FrontendRenderer::Draw()
     if (PickPointOnPlane(mCamera, mDrawData.v4GroundPlane,
     		             makeVector(320, 240), v3PointOnPlane))
     {
-		v3PointOnPlane *= 0.02;
-		Vector<3> v3Normal = mDrawData.v4GroundPlane.slice<0, 3>();
-		SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
-		SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
+      v3PointOnPlane *= 0.02;
+      Vector<3> v3Normal = mDrawData.v4GroundPlane.slice<0, 3>();
+      SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
+      SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
 
-		glColor3f(1,1,1);
-		DrawGrid(se3CamFromPlane);
+      glColor3f(1,1,1);
+      DrawGrid(se3CamFromPlane);
     }
 
   } else {
