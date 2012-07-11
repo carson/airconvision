@@ -525,7 +525,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
 
     // Find some good map points to add
     double inv = 1.0 / (1 << nLevel);
-    size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
+    size_t nNumFeatures = 500 * inv * inv; // This formula could need some work....
     std::vector<ImageRef> vBestFeatures;
     l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
