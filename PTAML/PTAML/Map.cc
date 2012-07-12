@@ -382,10 +382,12 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
+  /*
   AddSomeMapPoints(0);
   AddSomeMapPoints(3);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
+  */
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -429,6 +431,8 @@ bool Map::InitFromStereo(KeyFrame &kF,
                          const SE3<> &se3SecondCameraPos,
                          bool *pbAbortSignal)
 {
+  assert(false);
+
   bool bDummyAbortSignal = false;
   if (!pbAbortSignal) {
     pbAbortSignal = &bDummyAbortSignal;
@@ -525,7 +529,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
 
     // Find some good map points to add
     double inv = 1.0 / (1 << nLevel);
-    size_t nNumFeatures = 500 * inv * inv; // This formula could need some work....
+    size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
     std::vector<ImageRef> vBestFeatures;
     l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
@@ -543,7 +547,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
         continue;
       }
 
-      v3New *= 0.01;
+      v3New *= -0.01;
 
       MapPoint *pNew = new MapPoint;
       pNew->v3WorldPos = v3New;
@@ -657,12 +661,17 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   // Restrict epipolar search to a relatively narrow depth range
   // to increase reliability
-//  double dMean = kSrc.dSceneDepthMean;
-//  double dSigma = kSrc.dSceneDepthSigma;
-//  double dStartDepth = max(mdWiggleScale, dMean - dSigma);
-//  double dEndDepth = min(40 * mdWiggleScale, dMean + dSigma);
+
+
+  double dMean = kSrc.dSceneDepthMean;
+  double dSigma = kSrc.dSceneDepthSigma;
+  double dStartDepth = max(mdWiggleScale, dMean - dSigma);
+  double dEndDepth = min(40 * mdWiggleScale, dMean + dSigma);
+
+/*
   double dStartDepth = 0.1;
   double dEndDepth = 50.0;
+  */
 
   Vector<3> v3CamCenter_TC = kTarget.se3CfromW * kSrc.se3CfromW.inverse().get_translation(); // The camera end
   Vector<3> v3RayStart_TC = v3CamCenter_TC + dStartDepth * v3LineDirn_TC;                               // the far-away end
@@ -733,8 +742,8 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
     double dDistDiff = dNormDist - v2Im * v2Normal;
 
     if ((dDistDiff * dDistDiff) > dMaxDistSq)       continue; // skip if not along epi line
-//    if ((v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
-//    if ((v2Im * v2AlongProjectedLine) > dMaxLen)    continue; // or too far
+    if ((v2Im * v2AlongProjectedLine) < dMinLen)    continue; // skip if not far enough along line
+    if ((v2Im * v2AlongProjectedLine) > dMaxLen)    continue; // or too far
 
     int nZMSSD = Finder.ZMSSDAtPoint(kTarget.aLevels[nLevel].GetImage(), irIm);
     if (nZMSSD < nBestZMSSD) {
@@ -747,7 +756,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   static int nMapSSDThreshold = GV3::get<int>("Map.PatchSSDThreshold", 6000, SILENT);
 
-//  if (nBestZMSSD > nMapSSDThreshold) return false; // Chosen pretty arbitrary -- dhenell
+  if (nBestZMSSD > nMapSSDThreshold) return false; // Chosen pretty arbitrary -- dhenell
 
   //  Found a likely candidate along epipolar ray
   Finder.MakeSubPixTemplate();
@@ -1342,7 +1351,7 @@ void Map::HandleBadPoints()
     MapPoint *p = vpPoints[i];
 
     // DEFAULT VALUE: 20
-    if(p->nMEstimatorOutlierCount > 1 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
+    if(p->nMEstimatorOutlierCount > 60 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
       p->bBad = true;
     }
   }
