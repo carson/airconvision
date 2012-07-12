@@ -104,6 +104,7 @@ class Frontend {
     FrontendDrawData mDrawData;
 
     SE3<> mse3MarkerPose;
+    bool mbSetScaleNextTime;
 
     GVars3::gvar3<int> mgvnFeatureDetector;
 };

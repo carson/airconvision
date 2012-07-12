@@ -200,7 +200,7 @@ void FrontendRenderer::Draw()
     if (mDrawData.tracker.bDidCoarse) {
       glColor4f(0.0f, 0.5f, 0.0f, 0.6f);
     } else {
-      glColor4f(0.0f,0.0f,0.0f,0.6f);
+      glColor4f(1.0f, 0.0f, 0.5f, 0.6f);
     }
 
     DrawGrid(mse3CamFromWorld);
