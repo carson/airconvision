@@ -137,9 +137,9 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
   glEnd();
 
   Vector<3> wo2 = se3WorldFromNormWorld * makeVector(0, 0, 0);
-  Vector<3> wx2 = se3WorldFromNormWorld * makeVector(8, 0, 0);
-  Vector<3> wy2 = se3WorldFromNormWorld * makeVector(0, 8, 0);
-  Vector<3> wz2 = se3WorldFromNormWorld * makeVector(0, 0, 8);
+  Vector<3> wx2 = se3WorldFromNormWorld * makeVector(.1, 0, 0);
+  Vector<3> wy2 = se3WorldFromNormWorld * makeVector(0, .1, 0);
+  Vector<3> wz2 = se3WorldFromNormWorld * makeVector(0, 0, .1);
 
   std::vector<Vector<3> > pts;
 
@@ -207,6 +207,10 @@ void FrontendRenderer::Draw()
 
     // Draw all the matched map points
     DrawMapPoints(mDrawData.tracker.vMapPoints);
+
+    if (!mDrawData.bHasDeterminedScale) {
+      DrawMarkerPose(mDrawData.se3MarkerPose);
+    }
   }
 }
 

@@ -31,6 +31,8 @@ struct FrontendDrawData {
   InitialTrackerDrawData initialTracker;
   TrackerDrawData tracker;
 
+  bool bHasDeterminedScale;
+  SE3<> se3MarkerPose;
   TooN::Vector<4> v4GroundPlane;
 
   bool bUseStereo;
@@ -100,6 +102,8 @@ class Frontend {
     KeyFrame mKeyFrame;
 
     FrontendDrawData mDrawData;
+
+    SE3<> mse3MarkerPose;
 
     GVars3::gvar3<int> mgvnFeatureDetector;
 };

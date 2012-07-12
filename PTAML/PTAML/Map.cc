@@ -382,13 +382,10 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
-  AddSomeMapPoints(3);
-
-  /*
+  AddSomeMapPoints(2);
   AddSomeMapPoints(0);
   AddSomeMapPoints(1);
-  AddSomeMapPoints(2);
-  */
+  AddSomeMapPoints(3);
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -459,10 +456,10 @@ bool Map::InitFromStereo(KeyFrame &kF,
   pkFirst->MakeKeyFrame_Rest();
   pkSecond->MakeKeyFrame_Rest();
 
-  AddSomeMapPoints(0);
   AddSomeMapPoints(3);
-  AddSomeMapPoints(1);
   AddSomeMapPoints(2);
+  AddSomeMapPoints(1);
+  AddSomeMapPoints(0);
 
   for (auto it = vpPoints.begin(); it != vpPoints.end(); ++it)
     cout << (*it)->v3WorldPos << endl;
@@ -999,9 +996,9 @@ void Map::AddKeyFrameFromTopOfQueue()
   ReFindInSingleKeyFrame(*pK);
 
   AddSomeMapPoints(3);       // .. and add more map points by epipolar search.
-  AddSomeMapPoints(0);
-  AddSomeMapPoints(1);
   AddSomeMapPoints(2);
+  AddSomeMapPoints(1);
+  AddSomeMapPoints(0);
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -1026,7 +1023,7 @@ void Map::AddSomeMapPoints(int nLevel)
 
   // Find some good map points to add
   double inv = 1.0 / (1 << nLevel);
-  size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
+  size_t nNumFeatures = 1000 * inv * inv; // This formula could need some work....
   std::vector<ImageRef> vBestFeatures;
   l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
@@ -1442,7 +1439,7 @@ void Map::ApplyGlobalScale(double dScale)
     vpKeyFrames[i]->se3CfromW.get_translation() *= dScale;
     vpKeyFrames[i]->dSceneDepthMean *= dScale;
     vpKeyFrames[i]->dSceneDepthSigma *= dScale;
-    //vpKeyFrames[i]->RefreshSceneDepth();
+    vpKeyFrames[i]->RefreshSceneDepth();
   }
 
   for(size_t i=0; i < vpPoints.size(); ++i) {
@@ -1453,7 +1450,7 @@ void Map::ApplyGlobalScale(double dScale)
   }
 
   mdWiggleScale *= dScale;
-  //mdWiggleScaleDepthNormalized = mdWiggleScale / vpKeyFrames[0]->dSceneDepthMean; // Should be invariant to scale
+  mdWiggleScaleDepthNormalized = mdWiggleScale / vpKeyFrames[0]->dSceneDepthMean; // Should be invariant to scale
 }
 
 }

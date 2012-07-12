@@ -79,7 +79,7 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
                    Tracker *pTracker,
                    ScaleMarkerTracker *pScaleMarkerTracker)
   : mbInitialTracking(true)
-  , mbHasDeterminedScale(true)
+  , mbHasDeterminedScale(false)
   , mCamera(camera)
   , mpFrameGrabber(pFrameGrabber)
   , mpInitialTracker(pInitialTracker)
@@ -122,13 +122,16 @@ void Frontend::operator()()
     } else {
       // Regular map tracking path
       mpTracker->ProcessFrame(mKeyFrame);
-      mpTracker->GetDrawData(mDrawData.tracker);
-      mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
-      mDrawData.bInitialTracking = false;
 
       if (!mbHasDeterminedScale) {
         DetermineScaleFromMarker(bUserInvoke);
       }
+
+      mpTracker->GetDrawData(mDrawData.tracker);
+      mDrawData.bHasDeterminedScale = mbHasDeterminedScale;
+      mDrawData.se3MarkerPose = mse3MarkerPose;
+      mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
+      mDrawData.bInitialTracking = false;
     }
 
     monitor.PushDrawData(mDrawData);
@@ -153,6 +156,8 @@ void Frontend::Reset()
 void Frontend::ProcessInitialization(bool bUserInvoke)
 {
   if (mpFrameGrabber->IsUsingStereo()) {
+
+    mbHasDeterminedScale = true;
 
     // Calculate a dense point cloud
     mpFrameGrabber->ProcessStereoImages();
@@ -201,23 +206,24 @@ void Frontend::DetermineScaleFromMarker(bool bUserInvoke)
                                                      mpTracker->GetCurrentPose(),
                                                      se3WorldFromNormWorld, dScale))
   {
-    if (bUserInvoke) {
-      cout << "SCALE: " << dScale << endl;
-      //mMapMaker.RequestMapTransformation(se3WorldFromNormWorld.inverse());
-      //mMapMaker.RequestMapScaling(dScale);
-
-      /*
-      mMapMaker.RequestCallback([&] () {
-        mse3CamFromWorld = se3WorldFromNormWorld * mse3CamFromWorld;
-        mse3CamFromWorld.get_translation() *= scale;
-        mbFreezeTracking = false;
-        ForceRecovery();
-      } );
-      */
-
-      mbHasDeterminedScale = true;
-    }
+    cout << "SCALE: " << dScale << endl;
+    mse3MarkerPose = se3WorldFromNormWorld;
   }
+
+  if (bUserInvoke) {
+
+    //mpMapMaker->TransformMapPoints(mse3MarkerPose.inverse());
+    mpMapMaker->ScaleMapPoints(dScale);
+
+    SE3<> se3CamFromWorld = /*mse3MarkerPose * */ mpTracker->GetCurrentPose();
+    se3CamFromWorld.get_translation() *= dScale;
+    mpTracker->SetCurrentPose(se3CamFromWorld);
+
+    mbHasDeterminedScale = true;
+
+    cout << "Scale is set!" << endl;
+  }
+
 }
 
 }

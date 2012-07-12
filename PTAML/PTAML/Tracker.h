@@ -62,7 +62,9 @@ class Tracker
 
     bool IsLost() const { return mnLostFrames > NUM_LOST_FRAMES; }
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
-    void SetCurrentPose(const SE3<> &se3Pose) { mse3CamFromWorld = se3Pose; }
+    void SetCurrentPose(const SE3<> &se3Pose) {
+      mse3StartPos = mse3CamFromWorld = se3Pose;
+    }
     Vector<3> RealWorldCoordinate() const {
       return mse3CamFromWorld.inverse().get_translation();
     }
