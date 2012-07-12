@@ -203,7 +203,7 @@ void FeatureGrid::FindBestFeatures(const CVD::BasicImage<CVD::byte> &im)
       assert(idx >= 0);
       double dScore = FindShiTomasiScoreAtPoint(im, 3, vMaxFeatures[i]);
 
-      if (dScore > 20)
+      if (dScore > 5)
       { // Just a small threshold to not add really bad points
         mvCells[idx].vBestFeatures.insert(ScoredPoint(vMaxFeatures[i], dScore));
       }

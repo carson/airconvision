@@ -382,9 +382,10 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
+  AddSomeMapPoints(3);
+
   /*
   AddSomeMapPoints(0);
-  AddSomeMapPoints(3);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
   */
@@ -462,8 +463,6 @@ bool Map::InitFromStereo(KeyFrame &kF,
   AddSomeMapPoints(3);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
-
-  cout << vpPoints.size() << endl;
 
   for (auto it = vpPoints.begin(); it != vpPoints.end(); ++it)
     cout << (*it)->v3WorldPos << endl;
@@ -999,7 +998,7 @@ void Map::AddKeyFrameFromTopOfQueue()
   // And maybe we missed some - this now adds to the map itself, too.
   ReFindInSingleKeyFrame(*pK);
 
-  //AddSomeMapPoints(3);       // .. and add more map points by epipolar search.
+  AddSomeMapPoints(3);       // .. and add more map points by epipolar search.
   AddSomeMapPoints(0);
   AddSomeMapPoints(1);
   AddSomeMapPoints(2);
@@ -1033,8 +1032,6 @@ void Map::AddSomeMapPoints(int nLevel)
 
   // Remove the points in the set that overlapps points in lower pyramid levels
   kSrc->ThinCandidates(nLevel, vBestFeatures);
-
-  cout << vBestFeatures.size() << endl;
 
   for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
     AddPointEpipolar(*kSrc, *kTarget, nLevel, *it);

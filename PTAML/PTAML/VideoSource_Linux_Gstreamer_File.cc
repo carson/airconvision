@@ -80,6 +80,8 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
   int videoHeight = GV3::get<int>("VideoSource.Height", 480, HIDDEN);
   double contrast = GV3::get<double>("VideoSource.Contrast", 1.0, HIDDEN);
 
+  cout << "Contrast: " << contrast << endl;
+
   mirSize = ImageRef(videoWidth, videoHeight);
 
   std::stringstream ss; ss << "rgbvideo" << id;
