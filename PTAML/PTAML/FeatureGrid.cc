@@ -183,7 +183,7 @@ void FeatureGrid::FindFeatures(const CVD::BasicImage<CVD::byte> &im)
     if (nFoundCorners > mnMaxFeaturesPerCell) {
       cell.nBarrier = std::min(cell.nBarrier + 1, 100);
     } else if (nFoundCorners < mnMinFeaturesPerCell) {
-      cell.nBarrier = std::max(cell.nBarrier - 1, 10);
+      cell.nBarrier = std::max(cell.nBarrier - 1, 5);
     }
   }
 }
@@ -203,7 +203,8 @@ void FeatureGrid::FindBestFeatures(const CVD::BasicImage<CVD::byte> &im)
       assert(idx >= 0);
       double dScore = FindShiTomasiScoreAtPoint(im, 3, vMaxFeatures[i]);
 
-      if (dScore > 50) { // Just a small threshold to not add really bad points
+      if (dScore > 20)
+      { // Just a small threshold to not add really bad points
         mvCells[idx].vBestFeatures.insert(ScoredPoint(vMaxFeatures[i], dScore));
       }
     }
