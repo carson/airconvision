@@ -88,14 +88,19 @@ void Tracker::Reset()
 
 bool Tracker::HasGoodCoverage()
 {
-  Matrix<4,4> bins = Zeros;
-  double dHori = 4.0 / mirSize.x;
-  double dVert = 4.0 / mirSize.y;
+  Matrix<4,4,int> bins = Zeros;
+  double dHori = 4.0 / (mirSize.x + 1);
+  double dVert = 4.0 / (mirSize.y + 1);
 
   for (auto it = mvIterationSet.begin(); it != mvIterationSet.end(); ++it) {
     const Vector<2>& v2Point = (*it)->v2Image;
-    size_t row = v2Point[1] * dVert;
-    size_t col = v2Point[0] * dHori;
+
+    int row = v2Point[1] * dVert;
+    row = max(0, min(3, row));
+
+    int col = v2Point[0] * dHori;
+    col = max(0, min(3, row));
+
     ++bins[row][col];
   }
 
@@ -210,7 +215,7 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame)
 
   } else { // Tracking is lost
 
-    cout << "Lost tracking..." << endl;
+    //cout << "Lost tracking..." << endl;
     mMessageForUser << "** Attempting recovery **.";
 
     if (AttemptRecovery()) {
@@ -244,7 +249,7 @@ void Tracker::GetDrawData(TrackerDrawData &drawData)
  */
 bool Tracker::AttemptRecovery()
 {
-  cout << "AttemptRecovery..." << endl;
+  //cout << "AttemptRecovery..." << endl;
 
   bool bRelocGood = mpRelocaliser->AttemptRecovery(*mpMap, *mpCurrentKF);
   if(!bRelocGood) {
