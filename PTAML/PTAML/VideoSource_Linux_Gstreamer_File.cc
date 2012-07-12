@@ -62,16 +62,34 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
 {
   gchar *pipelineString = NULL;
 
+  static bool bInitialized = false;
+  static int id = 0;
+
   /*!
    * Initialize the gstreamer library, without the command-line parms.
    */
-  gst_init(NULL, NULL);
+
+  ++id;
+
+  if (!bInitialized) {
+    gst_init(NULL, NULL);
+    bInitialized = true;
+  }
 
   int videoWidth = GV3::get<int>("VideoSource.Width", 640, HIDDEN);
   int videoHeight = GV3::get<int>("VideoSource.Height", 480, HIDDEN);
   double contrast = GV3::get<double>("VideoSource.Contrast", 1.0, HIDDEN);
 
   mirSize = ImageRef(videoWidth, videoHeight);
+
+  std::stringstream ss; ss << "rgbvideo" << id;
+  std::string rgbSinkName = ss.str();
+  ss.str(""); ss << "grayvideo" << id;
+  std::string bwSinkName = ss.str();
+  ss.str(""); ss << "t" << id;
+  std::string teeName = ss.str();
+
+
   /*!
    * Setup the source pipeline to read from a file, automatically select the proper decoder,
    * convert each frame to two new color spaces (specified later), scale the video (specified later),
@@ -84,21 +102,25 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
         "filesrc location=\"%s\" ! "
         "decodebin ! "
 	"videobalance contrast=%.1f ! "
-        "tee ! "
+        "tee name=%s ! "
         "videoscale ! "
         "ffmpegcolorspace ! "
         "video/x-raw-rgb,width=%d,height=%d,bpp=24,depth=24 ! "
         "queue ! "
-        "appsink name=rgbvideo max-buffers=2 drop=false tee0. ! "
+        "appsink name=%s max-buffers=2 drop=false %s. ! "
         "ffmpegcolorspace ! "
         "videoscale ! "
         "video/x-raw-gray,width=%d,height=%d ! "
         "queue ! "
-        "appsink name=grayvideo max-buffers=2 drop=false",
+        "appsink name=%s max-buffers=2 drop=false",
         videoSourceFile.c_str(),
 	contrast,
+	teeName.c_str(),
         videoWidth, videoHeight,
-        videoWidth, videoHeight);
+        rgbSinkName.c_str(),
+        teeName.c_str(),
+        videoWidth, videoHeight,
+        bwSinkName.c_str());
 
   g_print("gstreamer pipeline:\n%s\n", pipelineString);
   mSourcePipeline = gst_parse_launch(pipelineString, NULL);
@@ -112,8 +134,8 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
   /*!
    * Obtain a reference to the appsink element in the pipeline for later use when pulling a buffer.
    */
-  mRgbVideoSink = gst_bin_get_by_name(GST_BIN(mSourcePipeline), "rgbvideo");
-  mGrayVideoSink = gst_bin_get_by_name(GST_BIN(mSourcePipeline), "grayvideo");
+  mRgbVideoSink = gst_bin_get_by_name(GST_BIN(mSourcePipeline), rgbSinkName.c_str());
+  mGrayVideoSink = gst_bin_get_by_name(GST_BIN(mSourcePipeline), bwSinkName.c_str());
 
   if (!mRgbVideoSink || !mGrayVideoSink)
   {

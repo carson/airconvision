@@ -32,6 +32,8 @@ struct FrontendDrawData {
   TrackerDrawData tracker;
 
   TooN::Vector<4> v4GroundPlane;
+
+  bool bUseStereo;
 };
 
 class FrontendMonitor {

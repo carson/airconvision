@@ -57,7 +57,7 @@ bool Relocaliser::AttemptRecovery(const Map &currentMap, KeyFrame &kCurrent)
   SE3<> se3KeyFramePos = currentMap.GetKeyFrames()[mnBest]->se3CfromW;
   mse3Best = SmallBlurryImage::SE3fromSE2(mse2, mCamera) * se3KeyFramePos;
 
-  cout << "Reloc score: " << dScore << endl;
+  //cout << "Reloc score: " << dScore << endl;
 
   return dScore < GV3::get<double>("Reloc2.MaxScore", 9e6, SILENT);
 }

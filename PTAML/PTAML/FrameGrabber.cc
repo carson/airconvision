@@ -146,11 +146,11 @@ void FrameGrabber::ProcessStereoImages()
   // Convert the Mat into a list of points (with some filtering)
   ExtractPointCloud(xyz, mPointCloud);
 
-/*
+  /*
   cv::Mat disp8;
   mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
   cv::imshow("disp", disp8);
-  cv::waitKey(10);
+  cv::waitKey(1);
   */
 }
 

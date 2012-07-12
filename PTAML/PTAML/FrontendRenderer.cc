@@ -43,12 +43,14 @@ void FrontendRenderer::DrawTrails(const std::vector<std::pair<CVD::ImageRef, CVD
   }
   glEnd();
 
+  /*
   glBegin(GL_POINTS);
   for (auto it = vDeadTrails.begin(); it != vDeadTrails.end(); ++it) {
     glColor3f(0.5,0.1,0.7);
     glVertex(*it);
   }
   glEnd();
+  */
 }
 
 void FrontendRenderer::DrawCorners(const std::vector<CVD::ImageRef> &vCorners)
@@ -169,19 +171,23 @@ void FrontendRenderer::Draw()
       DrawCorners(mDrawData.initialTracker.vCorners);
     }
 
-    DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
+    if (mDrawData.bUseStereo) {
+      Vector<3> v3PointOnPlane;
+      if (PickPointOnPlane(mCamera, mDrawData.v4GroundPlane,
+                               makeVector(320, 240), v3PointOnPlane))
+      {
+        //std::cout << v3PointOnPlane << std::endl;
+        v3PointOnPlane *= -0.02;
 
-    Vector<3> v3PointOnPlane;
-    if (PickPointOnPlane(mCamera, mDrawData.v4GroundPlane,
-    		             makeVector(320, 240), v3PointOnPlane))
-    {
-      v3PointOnPlane *= 0.02;
-      Vector<3> v3Normal = mDrawData.v4GroundPlane.slice<0, 3>();
-      SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
-      SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
+        Vector<3> v3Normal = mDrawData.v4GroundPlane.slice<0, 3>();
+        SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
+        SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
 
-      glColor3f(1,1,1);
-      DrawGrid(se3CamFromPlane);
+        glColor3f(1,1,1);
+        DrawGrid(se3CamFromPlane);
+      }
+    } else {
+      DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
     }
 
   } else {

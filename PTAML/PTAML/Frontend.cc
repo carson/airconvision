@@ -124,6 +124,7 @@ void Frontend::operator()()
       mpTracker->ProcessFrame(mKeyFrame);
       mpTracker->GetDrawData(mDrawData.tracker);
       mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
+      mDrawData.bInitialTracking = false;
 
       if (!mbHasDeterminedScale) {
         DetermineScaleFromMarker(bUserInvoke);
@@ -167,6 +168,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
       mbInitialTracking = false;
     }
 
+    mDrawData.bUseStereo = true;
     mDrawData.bInitialTracking = true;
     mDrawData.sStatusMessage = "Press spacebar to init";
     mDrawData.v4GroundPlane = mStereoPlaneFinder.GetPlane();
@@ -184,6 +186,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
       mpTracker->ForceRecovery();
     }
 
+    mDrawData.bUseStereo = false;
     mDrawData.bInitialTracking = true;
     mDrawData.sStatusMessage = mpInitialTracker->GetMessageForUser();
     mpInitialTracker->GetDrawData(mDrawData.initialTracker);

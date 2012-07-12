@@ -68,7 +68,7 @@ void MikroKopter::operator()()
     t = std::chrono::high_resolution_clock::now();
 
     if (fpsCounter.Update()) {
-      cout << "MK FPS: " << fpsCounter.Fps() << endl;
+//      cout << "MK FPS: " << fpsCounter.Fps() << endl;
     }
   }
 }
