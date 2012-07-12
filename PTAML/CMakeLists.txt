@@ -7,7 +7,7 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
     
 # Target platfrom
-option(FULL_OPTIMIZATION "Enable all optimization flags" ON)
+option(FULL_OPTIMIZATION "Enable all optimization flags" OFF)
     
 # The CDT Error Parser cannot handle error messages that span more than one line, which is the default gcc behavior. 
 # This forces gcc to generate single line error messages with no line wrapping.  
@@ -31,8 +31,8 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     	message(STATUS "Building with a performance profile optimized for the HexaMac")
     	add_definitions(-g -pthread -O6 -Wall -march=corei7 -mtune=corei7 -msse -msse2 -msse3 -msse4 -msse4.2)
     else()
-    	message(STATUS "Building with a general peformance profile.")
-    	add_definitions(-g -pthread -O3 -Wall -march=core2 -mtune=core2 -msse3)
+    	message(STATUS "Building with a general performance profile.")
+    	add_definitions(-g -pthread -O3 -Wall -march=native -mtune=native)
     endif()
     
     #set(CMAKE_EXE_LINKER_FLAGS -fopenmp) 
