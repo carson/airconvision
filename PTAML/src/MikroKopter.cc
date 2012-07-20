@@ -16,7 +16,8 @@ using namespace GVars3;
 namespace PTAMM {
 
 MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
-  : mpTracker(pTracker)
+  : mbDone(false)
+  , mpTracker(pTracker)
   , mpPerfMon(pPerfMon)
   , mControllerType(NO_CONTROLLER)
   , mSendDebugTimeout(1.0)
@@ -54,7 +55,7 @@ void MikroKopter::operator()()
 
   auto t = std::chrono::high_resolution_clock::now();
 
-  while (true) {
+  while (!mbDone) {
     Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
 
     if (*gvnOutputWorldCoordinates) {

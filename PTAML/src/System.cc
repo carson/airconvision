@@ -270,8 +270,7 @@ void System::Run()
   std::thread frontendThread(std::ref(*mModules.pFrontend));
   std::thread mikroKopterThread(std::ref(*mModules.pMikroKopter));
 
-  while(!mbDone)
-  {
+  while (!mbDone) {
     //Check if the map has been locked by another thread, and wait for release.
     //bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
 
@@ -297,6 +296,14 @@ void System::Run()
     mPerfMonitor.UpdateRateCounter("main");
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+
+  mModules.pMapMaker->StopThread();
+  mModules.pFrontend->StopThread();
+  mModules.pMikroKopter->StopThread();
+
+  mapMakerThread.join();
+  frontendThread.join();
+  mikroKopterThread.join();
 }
 
 /**

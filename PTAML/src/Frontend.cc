@@ -78,7 +78,8 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
                    Tracker *pTracker,
                    ScaleMarkerTracker *pScaleMarkerTracker,
                    PerformanceMonitor *pPerfMon)
-  : mbInitialTracking(true)
+  : mbDone(false)
+  , mbInitialTracking(true)
   , mbHasDeterminedScale(false)
   , mCamera(camera)
   , mpFrameGrabber(pFrameGrabber)
@@ -95,7 +96,7 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
 
 void Frontend::operator()()
 {
-  while (true) {
+  while (!mbDone) {
     bool bUserInvoke = monitor.PopUserInvoke();
     bool bUserResetInvoke = monitor.PopUserResetInvoke();
 

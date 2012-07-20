@@ -96,9 +96,10 @@ void ActionDispatcher::PushActionAndWait(const Action &a)
  * @param m current map
  */
 MapMaker::MapMaker(Map* m)
-  : mpMap(m),
-    mbAbortRequested(false),
-    mbStereoInitDone(false)
+  : mbDone(false)
+  , mpMap(m)
+  , mbAbortRequested(false)
+  , mbStereoInitDone(false)
 {
   mpMap->mapLockManager.Register( this );
   mpMap->Reset();
@@ -118,7 +119,7 @@ MapMaker::~MapMaker()
  */
 void MapMaker::operator()()
 {
-  while (true) {
+  while (!mbDone) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
     // Perform all queued actions

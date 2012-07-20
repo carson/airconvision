@@ -51,6 +51,8 @@ class MapMaker
 
     void operator()();
 
+    void StopThread() { mbDone = true; }
+
     // All the public methods here are threadsafe!
 
     // This doesn't neccessarily have to be done on this thread. Makes the interface different from the
@@ -79,6 +81,8 @@ class MapMaker
     void ScaleMapPoints(double dScale, bool async = false);
 
   private:
+    bool mbDone;
+
     // Used for thread synchronization
     ActionDispatcher mDispatcher;
 

@@ -22,6 +22,8 @@ class MikroKopter {
 
     void operator()();
 
+    void StopThread() { mbDone = true; }
+
     void Update(const TooN::SE3<> &se3Pose, bool bHasTracking);
 
     void GoToPosition(const TooN::SE3<> &se3PoseInWorld);
@@ -43,6 +45,8 @@ class MikroKopter {
       TARGET_CONTROLLER,
       PATH_CONTROLLER
     };
+
+    bool mbDone;
 
     const Tracker* mpTracker;
     PerformanceMonitor *mpPerfMon;

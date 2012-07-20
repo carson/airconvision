@@ -83,6 +83,8 @@ class Frontend {
 
     void operator()();
 
+    void StopThread() { mbDone = true; }
+
     FrontendMonitor monitor;
 
   private:
@@ -91,6 +93,8 @@ class Frontend {
     void DetermineScaleFromMarker(bool bUserInvoke);
 
   private:
+    bool mbDone;
+
     bool mbInitialTracking;
     bool mbHasDeterminedScale;
 
