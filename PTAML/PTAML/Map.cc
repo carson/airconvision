@@ -378,8 +378,14 @@ bool Map::InitFromStereo(KeyFrame &kF,
   pkFirst->RefreshSceneDepth();
   pkSecond->RefreshSceneDepth();
 
+  // Scale the world so that the ground (or at least the mean depth) is at 1.0 m
   ApplyGlobalScale(1.0 / pkFirst->dSceneDepthMean);
+  // Update the wiggle scale for the new world scale
+  Vector<3> trans = pkSecond->se3CfromW.get_translation();
+  double dNewWiggleScale = sqrt(trans * trans);
+  cout << "Fixed wiggle: " << dNewWiggleScale << endl;
 
+  mdWiggleScale = dNewWiggleScale;
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
   AddSomeMapPoints(2);
