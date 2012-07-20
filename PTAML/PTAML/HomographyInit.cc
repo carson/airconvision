@@ -183,7 +183,12 @@ void HomographyInit::BestHomographyFromMatches_MLESAC()
   if(mvMatches.size() < 10)
     {
       cout << "Less than 10 matches. This might be bad?" << endl;
-      mm3BestHomography = HomographyFromMatches(mvMatches);
+      if (mvMatches.size() < 4) {
+        mm3BestHomography = Identity;
+      } else {
+        mm3BestHomography = HomographyFromMatches(mvMatches);
+      }
+
       return;
     }
 

@@ -262,14 +262,34 @@ void MapMaker::ScaleMapPoints(double dScale, bool async)
 
 void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                               std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
-                              SE3<> &se3CameraPos)
+                              SE3<> *se3CameraPos)
 {
   mbStereoInitDone = false;
   mbAbortRequested = true;
-  mDispatcher.PushAction([kFirst, kSecond, vMatches, &se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+  mDispatcher.PushAction([kFirst, kSecond, vMatches, se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
     mbAbortRequested = false;
     mpMap->InitFromStereo(kFirst, kSecond, vMatches, se3CameraPos, &mbAbortRequested);
     mbStereoInitDone = true;
+  });
+}
+
+void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
+                              const SE3<> &se3SecondCameraPos)
+{
+  mbStereoInitDone = false;
+  mbAbortRequested = true;
+  mDispatcher.PushAction([kFirst, kSecond, se3SecondCameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+    mbAbortRequested = false;
+    mpMap->InitFromStereo(kFirst, kSecond, se3SecondCameraPos, &mbAbortRequested);
+    mbStereoInitDone = true;
+  });
+}
+
+void MapMaker::InitFromKnownPlane(KeyFrame &kKeyFrame, const TooN::Vector<4> &v4GroundPlane, SE3<> &se3TrackerPose)
+{
+  mbAbortRequested = true;
+  mDispatcher.PushActionAndWait([kKeyFrame, v4GroundPlane, mpMap, &se3TrackerPose] () {
+    mpMap->InitFromKnownPlane(kKeyFrame, v4GroundPlane, se3TrackerPose);
   });
 }
 

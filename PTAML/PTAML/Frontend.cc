@@ -4,8 +4,10 @@
 #include "Timing.h"
 #include "FPSCounter.h"
 #include "FeatureGrid.h"
+#include "FrameGrabber.h"
 
 #include <cvd/image_ref.h>
+#include <cvd/image_io.h>
 
 #include <iostream>
 
@@ -32,6 +34,7 @@ bool FrontendMonitor::PopDrawData(FrontendDrawData &drawData)
 
   using std::swap;
   swap(mDrawData, drawData);
+  mbHasFrontendData = false;
   return true;
 }
 
@@ -69,40 +72,24 @@ bool FrontendMonitor::PopUserResetInvoke()
   return false;
 }
 
-Frontend::Frontend(VideoSource *pVideoSource,
+Frontend::Frontend(FrameGrabber *pFrameGrabber,
                    const ATANCamera &camera,
+                   MapMaker *pMapMaker,
                    InitialTracker *pInitialTracker,
                    Tracker *pTracker,
                    ScaleMarkerTracker *pScaleMarkerTracker)
-  : mpVideoSource(pVideoSource)
-  , mbFreezeVideo(false)
-  , mbInitialTracking(true)
-  , mbHasDeterminedScale(true)
+  : mbInitialTracking(true)
+  , mbHasDeterminedScale(false)
   , mCamera(camera)
+  , mpFrameGrabber(pFrameGrabber)
   , mpInitialTracker(pInitialTracker)
   , mpTracker(pTracker)
   , mpScaleMarkerTracker(pScaleMarkerTracker)
-  , mCurrentKF(camera)
+  , mpMapMaker(pMapMaker)
+  , mKeyFrame(camera)
+  , mbSetScaleNextTime(false)
 {
-  GV3::Register(mgvnFeatureDetector, "FeatureDetector", (int)OAST9_16, SILENT);
-
-  ImageRef irVideoSize = mpVideoSource->Size();
-  mimFrameBW.resize(irVideoSize);
-  mimFrameRGB.resize(irVideoSize);
-}
-
-void Frontend::GrabNextFrame()
-{
-  // Grab new video frame...
-  if (!mbFreezeVideo) {
-    // We use two versions of each video frame:
-    // One black and white (for processing by the tracker etc)
-    // and one RGB, for drawing.
-
-    gVideoSourceTimer.Start();
-    mpVideoSource->GetAndFillFrameBWandRGB(mimFrameBW, mimFrameRGB);
-    gVideoSourceTimer.Stop();
-  }
+  GV3::Register(mgvnFeatureDetector, "FeatureDetector", (int)PLAIN_FAST10, SILENT);
 }
 
 void Frontend::operator()()
@@ -111,86 +98,143 @@ void Frontend::operator()()
 
   while (true) {
 
-    GrabNextFrame();
+    bool bUserInvoke = monitor.PopUserInvoke();
+    bool bUserResetInvoke = monitor.PopUserResetInvoke();
 
-    mCurrentKF.InitFromImage(mimFrameBW, (FeatureDetector)*mgvnFeatureDetector);
+    mpFrameGrabber->GrabNextFrame();
 
-    mDrawData.imFrame.copy_from(mimFrameRGB);
+    // Initialize keyframe, find features etc
+    mKeyFrame.InitFromImage(mpFrameGrabber->GetFrameBW1(),
+                            static_cast<FeatureDetector>(*mgvnFeatureDetector));
+
+    // Set some of the draw data
+    mDrawData.imFrame.copy_from(mpFrameGrabber->GetFrameRGB1());
     mDrawData.bInitialTracking = mbInitialTracking;
 
-    if (monitor.PopUserResetInvoke()) {
+    if (bUserResetInvoke) {
       // Go back to initial tracking again
-      mpInitialTracker->Reset();
-      mpTracker->Reset();
-      mCurrentKF.Reset();
-      mbInitialTracking = true;
-      mbHasDeterminedScale = false;
+      Reset();
     }
 
     gTrackFullTimer.Start();
 
     if (mbInitialTracking) {
-      // Initial tracking path
-      if (monitor.PopUserInvoke()) {
-        mpInitialTracker->UserInvoke();
-      }
+      ProcessInitialization(bUserInvoke);
+    }
 
-      mpInitialTracker->ProcessFrame(mCurrentKF);
-      if (mpInitialTracker->IsDone()) {
-        mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
-        mbInitialTracking = false;
-        mpTracker->ForceRecovery();
-      }
+    bool bRunTracker = !mbInitialTracking;
+    mpTracker->ProcessFrame(mKeyFrame, bRunTracker);
 
-      mDrawData.bInitialTracking = true;
-      mDrawData.sStatusMessage = mpInitialTracker->GetMessageForUser();
-      mpInitialTracker->GetDrawData(mDrawData.initialTracker);
-    } else {
+    if (bRunTracker) {
       // Regular map tracking path
-      mpTracker->ProcessFrame(mCurrentKF);
-      mpTracker->GetDrawData(mDrawData.tracker);
-      mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
 
       if (!mbHasDeterminedScale) {
-//        TryDetermineScale();
+        DetermineScaleFromMarker(bUserInvoke);
       }
+
+      mpTracker->GetDrawData(mDrawData.tracker);
+      mDrawData.bHasDeterminedScale = mbHasDeterminedScale;
+      mDrawData.se3MarkerPose = mse3MarkerPose;
+      mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
+      mDrawData.bInitialTracking = false;
     }
 
     monitor.PushDrawData(mDrawData);
 
-
     if (fpsCounter.Update()) {
-      //cout << fpsCounter.Fps() << endl;
+      cout << fpsCounter.Fps() << endl;
     }
 
     gTrackFullTimer.Stop();
   }
 }
 
-void Frontend::TryDetermineScale()
+void Frontend::Reset()
 {
+  mpInitialTracker->Reset();
+  mpTracker->Reset();
+  mKeyFrame.Reset();
+  mbInitialTracking = true;
+  mbHasDeterminedScale = false;
+  mbSetScaleNextTime = false;
+}
+
+void Frontend::ProcessInitialization(bool bUserInvoke)
+{
+  if (mpFrameGrabber->IsUsingStereo()) {
+
+    mbHasDeterminedScale = true;
+
+    // Calculate a dense point cloud
+    mpFrameGrabber->ProcessStereoImages();
+
+    // Find the ground plane in the point cloud
+    mStereoPlaneFinder.Update(mpFrameGrabber->GetPointCloud());
+
+    if (bUserInvoke) {
+      SE3<> se3CurrentPose;
+      mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneFinder.GetPlane(), se3CurrentPose);
+      mpTracker->SetCurrentPose(se3CurrentPose);
+      //mpTracker->ForceRecovery();
+      mbInitialTracking = false;
+    }
+
+    mDrawData.bUseStereo = true;
+    mDrawData.bInitialTracking = true;
+    mDrawData.sStatusMessage = "Press spacebar to init";
+    mDrawData.v4GroundPlane = mStereoPlaneFinder.GetPlane();
+
+  } else {
+    // Initial tracking path
+    if (bUserInvoke) {
+      mpInitialTracker->UserInvoke();
+    }
+
+    mpInitialTracker->ProcessFrame(mKeyFrame);
+    if (mpInitialTracker->IsDone()) {
+      mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
+      mbInitialTracking = false;
+
+      cout << "Inited to pose: " << mpInitialTracker->GetCurrentPose() << endl;
+    }
+
+    mDrawData.bUseStereo = false;
+    mDrawData.bInitialTracking = true;
+    mDrawData.sStatusMessage = mpInitialTracker->GetMessageForUser();
+    mpInitialTracker->GetDrawData(mDrawData.initialTracker);
+  }
+}
+
+void Frontend::DetermineScaleFromMarker(bool bUserInvoke)
+{
+  mbSetScaleNextTime = mbSetScaleNextTime || bUserInvoke;
+
   SE3<> se3WorldFromNormWorld;
   double dScale = 1.0;
-  if (mpScaleMarkerTracker->DetermineScaleFromMarker(mimFrameBW, mpTracker->GetCurrentPose(),
+  if (mpScaleMarkerTracker->DetermineScaleFromMarker(mpFrameGrabber->GetFrameBW1(),
+                                                     mpTracker->GetCurrentPose(),
                                                      se3WorldFromNormWorld, dScale))
   {
-    if (monitor.PopUserInvoke()) {
-      cout << "SCALE: " << dScale << endl;
-      //mMapMaker.RequestMapTransformation(se3WorldFromNormWorld.inverse());
-      //mMapMaker.RequestMapScaling(dScale);
+    cout << "SCALE: " << dScale << endl;
+    mse3MarkerPose = se3WorldFromNormWorld;
 
-      /*
-      mMapMaker.RequestCallback([&] () {
-        mse3CamFromWorld = se3WorldFromNormWorld * mse3CamFromWorld;
-        mse3CamFromWorld.get_translation() *= scale;
-        mbFreezeTracking = false;
-        ForceRecovery();
-      } );
-      */
+
+    if (mbSetScaleNextTime) {
+
+      mpMapMaker->TransformMapPoints(mse3MarkerPose.inverse());
+      mpMapMaker->ScaleMapPoints(dScale);
+
+      SE3<> se3CamFromWorld = mse3MarkerPose.inverse() * mpTracker->GetCurrentPose();
+      se3CamFromWorld.get_translation() *= dScale;
+      mpTracker->SetCurrentPose(se3CamFromWorld);
 
       mbHasDeterminedScale = true;
+
+      cout << "Scale is set! " <<  dScale << endl;
     }
   }
+
+
 }
 
 }

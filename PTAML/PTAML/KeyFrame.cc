@@ -153,6 +153,7 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
     // Choose number of rows and cols so that the cell size is close to 50x50
     int cols = std::round((double)width / DESIRED_CELL_SIZE);
     int rows = std::round((double)height / DESIRED_CELL_SIZE);
+    rows = cols = 1;
     aLevels[i].Init(width, height, rows, cols);
     width /= 2; height /= 2;
   }
@@ -298,7 +299,7 @@ void KeyFrame::RefreshSceneDepth()
     nMeas++;
   }
 
-  assert(nMeas > 2); // If not then something is seriously wrong with this KF!!
+  //assert(nMeas > 2); // If not then something is seriously wrong with this KF!!
 
   // Update scene depth variables
   dSceneDepthMean = dSumDepth / nMeas;
@@ -345,27 +346,5 @@ void KeyFrame::MakeKeyFrame_Rest()
   // Relocaliser also wants the jacobians..
   pSBI->MakeJacs();
 }
-
-// -------------------------------------------------------------
-// Some useful globals defined in LevelHelpers.h live here:
-Vector<3> gavLevelColors[LEVELS];
-
-// These globals are filled in here. A single static instance of this struct is run before main()
-struct LevelHelpersFiller // Code which should be initialised on init goes here; this runs before main()
-{
-  LevelHelpersFiller()
-  {
-    for(int i=0; i<LEVELS; i++)
-      {
-        if(i==0)  gavLevelColors[i] = makeVector( 1.0, 0.0, 0.0);
-        else if(i==1)  gavLevelColors[i] = makeVector( 1.0, 1.0, 0.0);
-        else if(i==2)  gavLevelColors[i] = makeVector( 0.0, 1.0, 0.0);
-        else if(i==3)  gavLevelColors[i] = makeVector( 0.0, 0.0, 0.7);
-        else gavLevelColors[i] =  makeVector( 1.0, 1.0, 0.7); // In case I ever run with LEVELS > 4
-      }
-  }
-};
-
-static LevelHelpersFiller foo;
 
 }

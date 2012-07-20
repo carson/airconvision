@@ -130,7 +130,7 @@ void InitialTracker::TrackForInitialMap()
         vMatches.push_back(pair<ImageRef, ImageRef>(i->irInitialPos, i->irCurrentPos));
       }
 
-      mpMapMaker->InitFromStereo(mFirstKF, *mpCurrentKF, vMatches, mse3CamFromWorld); // This is an async operation that will take some time
+      mpMapMaker->InitFromStereo(mFirstKF, *mpCurrentKF, vMatches, &mse3CamFromWorld); // This is an async operation that will take some time
       mStage = WAITING_FOR_STEREO_INIT;
     }
     else

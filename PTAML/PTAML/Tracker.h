@@ -54,7 +54,7 @@ class Tracker
             MapMaker *mm, Relocaliser *pRelocaliser);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
-    void ProcessFrame(KeyFrame &keyFrame);
+    void ProcessFrame(KeyFrame &keyFrame, bool bRunTracker);
 
     void GetDrawData(TrackerDrawData &drawData);
     // Gets messages to be printed on-screen for the user.
@@ -62,7 +62,9 @@ class Tracker
 
     bool IsLost() const { return mnLostFrames > NUM_LOST_FRAMES; }
     const SE3<>& GetCurrentPose() const{ return mse3CamFromWorld; }
-    void SetCurrentPose(const SE3<> &se3Pose) { mse3CamFromWorld = se3Pose; }
+    void SetCurrentPose(const SE3<> &se3Pose) {
+     mse3StartPos = mse3CamFromWorld = se3Pose;
+    }
     Vector<3> RealWorldCoordinate() const {
       return mse3CamFromWorld.inverse().get_translation();
     }

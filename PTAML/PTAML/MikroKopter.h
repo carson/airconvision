@@ -13,9 +13,13 @@
 
 namespace PTAMM {
 
+class Tracker;
+
 class MikroKopter {
   public:
-    MikroKopter();
+    MikroKopter(const Tracker* pTracker);
+
+    void operator()();
 
     void Update(const TooN::SE3<> &se3Pose, bool bHasTracking);
 
@@ -38,6 +42,8 @@ class MikroKopter {
       TARGET_CONTROLLER,
       PATH_CONTROLLER
     };
+
+    const Tracker* mpTracker;
 
     MKConnection mMkConn;
 

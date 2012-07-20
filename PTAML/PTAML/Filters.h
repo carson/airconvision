@@ -15,6 +15,10 @@ class MovingAverageFilter {
     {
     }
 
+    void Reset() {
+      mFirstUpdate = true;
+    }
+
     void Update(ValueType value)
     {
       if (mFirstUpdate) {

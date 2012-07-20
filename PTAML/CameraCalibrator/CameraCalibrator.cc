@@ -2,16 +2,35 @@
 #include "CameraCalibrator.h"
 #include "VideoSource.h"
 #include "OpenGL.h"
+
 #include <gvars3/instances.h>
 #include <TooN/SVD.h>
+#include <cvd/image_io.h>
+
 #include <fstream>
 #include <cstdlib>
 #include <memory>
+#include <vector>
+#include <string>
+
+#include <glob.h>
 
 using namespace CVD;
 using namespace std;
 using namespace GVars3;
 using namespace PTAMM;
+
+inline std::vector<std::string> glob(const std::string& pat){
+    using namespace std;
+    glob_t glob_result;
+    glob(pat.c_str(),GLOB_TILDE,NULL,&glob_result);
+    vector<string> ret;
+    for(unsigned int i=0;i<glob_result.gl_pathc;++i){
+        ret.push_back(string(glob_result.gl_pathv[i]));
+    }
+    globfree(&glob_result);
+    return ret;
+}
 
 int main(int argc,char *argv[])
 {
@@ -32,9 +51,21 @@ int main(int argc,char *argv[])
 
   try
   {
-    std::unique_ptr<VideoSource> videoSource(CreateVideoSource());
-    CameraCalibrator c(videoSource.get());
-    c.Run();
+    if (argc == 2) {
+      std::vector<std::string> calibImages = glob(argv[1]);
+      if (calibImages.empty()) {
+        cerr << "No images matched the argument." << endl;
+        return 1;
+      }
+
+      CameraCalibrator c;
+      c.CalibrateFromImages(calibImages);
+
+    } else {
+      std::unique_ptr<VideoSource> videoSource(CreateVideoSource());
+      CameraCalibrator c(videoSource.get());
+      c.Run();
+    }
   }
   catch(CVD::Exceptions::All& e)
   {
@@ -48,7 +79,7 @@ int main(int argc,char *argv[])
 
 
 CameraCalibrator::CameraCalibrator(VideoSource* videoSource)
-  : mGLWindow(videoSource->Size(), "Camera Calibrator")
+  : mGLWindow(videoSource ? videoSource->Size() : ImageRef(640,480), "Camera Calibrator")
   , mVideoSource(videoSource)
   , mCamera("Camera")
 {
@@ -76,6 +107,27 @@ CameraCalibrator::CameraCalibrator(VideoSource* videoSource)
   Reset();
 }
 
+void CameraCalibrator::CalibrateFromImages(const vector<string> & filenames)
+{
+  for (auto it = filenames.begin(); it != filenames.end(); ++it) {
+    cout << "Loading image " << *it << "..." << endl;
+    Image<Rgb<byte>> image;
+    img_load(image, *it);
+    Image<byte> imageBw = convert_image(image);
+
+    CalibImage c;
+    if (c.MakeFromImage(imageBw)) {
+      mvCalibImgs.push_back(c);
+      mvCalibImgs.back().GuessInitialPose(mCamera);
+      mvCalibImgs.back().Draw3DGrid(mCamera, false);
+    }
+  }
+
+  *mgvnOptimizing = 1;
+
+  Run();
+}
+
 void CameraCalibrator::Run()
 {
   while(!mbDone)
@@ -84,11 +136,6 @@ void CameraCalibrator::Run()
       // One black and white (for processing by the tracker etc)
       // and one RGB, for drawing.
       
-      Image<Rgb<CVD::byte> > imFrameRGB(mVideoSource->Size());
-      Image<CVD::byte>  imFrameBW(mVideoSource->Size());
-      
-      // Grab new video frame...
-      mVideoSource->GetAndFillFrameBWandRGB(imFrameBW, imFrameRGB);
       
       // Set up openGL
       mGLWindow.SetupViewport();
@@ -99,7 +146,14 @@ void CameraCalibrator::Run()
 	*mgvnOptimizing = 0;
       
       if(!*mgvnOptimizing)
-	{
+      {
+          Image<Rgb<CVD::byte> > imFrameRGB(mVideoSource->Size());
+          Image<CVD::byte>  imFrameBW(mVideoSource->Size());
+
+          // Grab new video frame...
+          mVideoSource->GetAndFillFrameBWandRGB(imFrameBW, imFrameRGB);
+
+
 	  GUI.ParseLine("CalibMenu.ShowMenu Live");
 	  glDrawPixels(imFrameBW);
 	  
@@ -164,7 +218,7 @@ void CameraCalibrator::Reset()
   *mCamera.mgvvCameraParams = ATANCamera::mvDefaultParams;
   if(*mgvnDisableDistortion) mCamera.DisableRadialDistortion();
   
-  mCamera.SetImageSize(mVideoSource->Size());
+  mCamera.SetImageSize(mVideoSource ? mVideoSource->Size() : ImageRef(640,480));
   mbGrabNextFrame =false;
   *mgvnOptimizing = false;
   mvCalibImgs.clear();

@@ -61,6 +61,17 @@ void PruneWhiteSpace(std::string & str);
 
 bool PointInsideRect(const CVD::ImageRef &pt, const CVD::ImageRef &start, const CVD::ImageRef &size);
 
+SE3<> AlignerFromPointAndUp(const TooN::Vector<3>& point,
+                            const TooN::Vector<3>& normal);
+
+TooN::Vector<4> Se3ToPlane(const SE3<>& se3);
+TooN::SE3<> PlaneToSe3(const TooN::Vector<4>& plane);
+
+bool PickPointOnPlane(ATANCamera camera,
+                      const TooN::Vector<4> &v4Plane,
+                      const TooN::Vector<2> &v2PixelCoord,
+                      TooN::Vector<3> &v3PointOnPlane);
+
 bool PickPointOnGround(ATANCamera camera,
                        const TooN::SE3<> &se3CamFromWorld,
                        const TooN::Vector<2> &pixelCoord,

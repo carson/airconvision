@@ -7,6 +7,7 @@
 #include "agast/oast9_16.h"
 
 #include <cvd/fast_corner.h>
+#include <gvars3/instances.h>
 
 #include <limits>
 #include <cmath>
@@ -22,6 +23,7 @@ namespace CVD {
 }
 
 using namespace CVD;
+using namespace GVars3;
 
 namespace PTAMM {
 
@@ -31,7 +33,7 @@ FeatureGrid::FeatureGrid(size_t nWidth, size_t nHeight, size_t nRows, size_t nCo
   , mnCols(nCols)
   , mnMinFeaturesPerCell(2000)
   , mnMaxFeaturesPerCell(3000)
-  , mFeatureDetector(OAST9_16)
+  , mFeatureDetector(PLAIN_FAST10)
 {
   int nBorder = 0;
 
@@ -183,13 +185,15 @@ void FeatureGrid::FindFeatures(const CVD::BasicImage<CVD::byte> &im)
     if (nFoundCorners > mnMaxFeaturesPerCell) {
       cell.nBarrier = std::min(cell.nBarrier + 1, 100);
     } else if (nFoundCorners < mnMinFeaturesPerCell) {
-      cell.nBarrier = std::max(cell.nBarrier - 1, 10);
+      cell.nBarrier = std::max(cell.nBarrier - 1, 5);
     }
   }
 }
 
 void FeatureGrid::FindBestFeatures(const CVD::BasicImage<CVD::byte> &im)
 {
+  static gvar3<int> gvnShiTomasiThreshold("Tracker.ShiTomasiThreshold", 50, SILENT);
+
   for (size_t i = 0; i < mvCells.size(); ++i) {
     mvCells[i].vBestFeatures.clear();
   }
@@ -197,13 +201,16 @@ void FeatureGrid::FindBestFeatures(const CVD::BasicImage<CVD::byte> &im)
   std::vector<ImageRef> vMaxFeatures;
   GetNonMaxSuppressed(im, vMaxFeatures);
 
+  int nShiTomasiThreshold = *gvnShiTomasiThreshold;
+
   for (size_t i = 0; i < vMaxFeatures.size(); ++i) {
     if (im.in_image_with_border(vMaxFeatures[i], 5)) {
       int idx = CellIndex(vMaxFeatures[i]);
       assert(idx >= 0);
       double dScore = FindShiTomasiScoreAtPoint(im, 3, vMaxFeatures[i]);
 
-      if (dScore > 50) { // Just a small threshold to not add really bad points
+      if (dScore > nShiTomasiThreshold)
+      { // Just a small threshold to not add really bad points
         mvCells[idx].vBestFeatures.insert(ScoredPoint(vMaxFeatures[i], dScore));
       }
     }

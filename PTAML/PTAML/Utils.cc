@@ -42,28 +42,67 @@ bool PointInsideRect(const CVD::ImageRef &pt, const CVD::ImageRef &start, const 
   return pt.x >= start.x && pt.y >= start.y && pt.x < start.x + size.x && pt.y < start.y + size.y;
 }
 
+SE3<> AlignerFromPointAndUp(const TooN::Vector<3>& point,
+                            const TooN::Vector<3>& normal)
+{
+  Matrix<3> m3Rot = Identity;
+  m3Rot[2] = normal;
+  m3Rot[0] = m3Rot[0] - (normal * (m3Rot[0] * normal));
+  normalize(m3Rot[0]);
+  m3Rot[1] = m3Rot[2] ^ m3Rot[0];
+
+  SE3<> se3;
+  se3.get_rotation() = m3Rot;
+  TooN::Vector<3> v3RMean = se3 * point;
+  se3.get_translation() = -v3RMean;
+
+  return se3;
+}
+
+TooN::Vector<4> Se3ToPlane(const SE3<>& se3)
+{
+  TooN::Vector<3> normal = se3.get_rotation().get_matrix()[2];
+  double d = -normal * se3.inverse().get_translation();
+  return makeVector(normal[0], normal[1], normal[2], d);
+}
+
+TooN::SE3<> PlaneToSe3(const TooN::Vector<4>& plane)
+{
+  TooN::Vector<3> normal = plane.slice<0,3>();
+  normalize(normal);
+  TooN::Vector<3> point = -plane[3] * normal;
+  return AlignerFromPointAndUp(point, normal);
+}
+
+bool PickPointOnPlane(ATANCamera camera,
+                      const TooN::Vector<4> &v4Plane,
+                      const TooN::Vector<2> &v2PixelCoord,
+                      TooN::Vector<3> &v3PointOnPlane)
+{
+  // Work out plane coords:
+  Vector<2> v2ImPlane = camera.UnProject(v2PixelCoord);
+  Vector<3> v3C = unproject(v2ImPlane);
+  Vector<3> v3Normal = v4Plane.slice<0, 3>();
+  double dD = v4Plane[3];
+  double denom = v3Normal * v3C;
+
+  // Clicked the wrong side of the horizon?
+  if (abs(denom) > 0.0001) {
+    double k = dD/denom;
+    v3PointOnPlane = k * v3C;
+    return true;
+  }
+
+  return false;
+}
 
 bool PickPointOnGround(ATANCamera camera,
                        const TooN::SE3<> &se3CamFromWorld,
                        const TooN::Vector<2> &pixelCoord,
                        TooN::Vector<3> &pointOnPlane)
 {
-  Vector<2> v2VidCoords = pixelCoord;
-
-  Vector<2> v2UFBCoords;
-#ifdef WIN32
-  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = numeric_limits<double>::quiet_NaN();   v2PlaneCoords[1] = numeric_limits<double>::quiet_NaN();
-#else
-  Vector<2> v2PlaneCoords;   v2PlaneCoords[0] = NAN;   v2PlaneCoords[1] = NAN;
-#endif
-  Vector<3> v3RayDirn_W;
-
-  // Work out image coords 0..1:
-  v2UFBCoords[0] = (v2VidCoords[0] + 0.5) / camera.GetImageSize()[0];
-  v2UFBCoords[1] = (v2VidCoords[1] + 0.5) / camera.GetImageSize()[1];
-
   // Work out plane coords:
-  Vector<2> v2ImPlane = camera.UnProject(v2VidCoords);
+  Vector<2> v2ImPlane = camera.UnProject(pixelCoord);
   Vector<3> v3C = unproject(v2ImPlane);
   Vector<4> v4C = unproject(v3C);
   SE3<> se3CamInv = se3CamFromWorld.inverse();

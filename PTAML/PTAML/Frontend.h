@@ -5,6 +5,7 @@
 #include "InitialTracker.h"
 #include "ScaleMarkerTracker.h"
 #include "ATANCamera.h"
+#include "StereoPlaneFinder.h"
 
 #include <cvd/image.h>
 #include <cvd/rgb.h>
@@ -29,6 +30,12 @@ struct FrontendDrawData {
   bool bInitialTracking;
   InitialTrackerDrawData initialTracker;
   TrackerDrawData tracker;
+
+  bool bHasDeterminedScale;
+  SE3<> se3MarkerPose;
+  TooN::Vector<4> v4GroundPlane;
+
+  bool bUseStereo;
 };
 
 class FrontendMonitor {
@@ -59,13 +66,14 @@ class FrontendMonitor {
     bool mbUserResetInvoke;
 };
 
-class VideoSource;
+class FrameGrabber;
 class Tracker;
 
 class Frontend {
   public:
-    Frontend(VideoSource *pVideoSource,
+    Frontend(FrameGrabber *pFrameGrabber,
              const ATANCamera &camera,
+             MapMaker *pMapMaker,
              InitialTracker *pInitialTracker,
              Tracker *pTracker,
              ScaleMarkerTracker *pScaleMarkerTracker);
@@ -75,26 +83,28 @@ class Frontend {
     FrontendMonitor monitor;
 
   private:
-    void GrabNextFrame();
-    void TryDetermineScale();
+    void Reset();
+    void ProcessInitialization(bool bUserInvoke);
+    void DetermineScaleFromMarker(bool bUserInvoke);
 
   private:
-    VideoSource *mpVideoSource;
-    CVD::Image<CVD::Rgb<CVD::byte>> mimFrameRGB;   // The RGB image used for AR
-    CVD::Image<CVD::byte> mimFrameBW;               // The Black and white image for tracking/mapping
-    bool mbFreezeVideo;
-
     bool mbInitialTracking;
     bool mbHasDeterminedScale;
 
     ATANCamera mCamera;
+    FrameGrabber *mpFrameGrabber;
     InitialTracker *mpInitialTracker;
     Tracker *mpTracker;
     ScaleMarkerTracker *mpScaleMarkerTracker;
+    MapMaker *mpMapMaker;
+    StereoPlaneFinder mStereoPlaneFinder;
 
-    KeyFrame mCurrentKF;
+    KeyFrame mKeyFrame;
 
     FrontendDrawData mDrawData;
+
+    SE3<> mse3MarkerPose;
+    bool mbSetScaleNextTime;
 
     GVars3::gvar3<int> mgvnFeatureDetector;
 };

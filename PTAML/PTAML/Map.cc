@@ -6,6 +6,7 @@
 #include "HomographyInit.h"
 #include "PatchFinder.h"
 #include "SmallBlurryImage.h"
+#include "Utils.h"
 
 #include <TooN/SVD.h>
 #include <TooN/SymEigen.h>
@@ -241,7 +242,7 @@ Vector<3> Map::ReprojectPoint(const SE3<>& se3AfromB, const Vector<2> &v2A, cons
 bool Map::InitFromStereo(KeyFrame &kF,
                          KeyFrame &kS,
                          vector<pair<ImageRef, ImageRef> > &vTrailMatches,
-                         SE3<> &se3TrackerPose, bool *pbAbortSignal)
+                         SE3<> *se3TrackerPose, bool *pbAbortSignal)
 {
   bool bDummyAbortSignal = false;
   if (!pbAbortSignal) {
@@ -377,14 +378,20 @@ bool Map::InitFromStereo(KeyFrame &kF,
   pkFirst->RefreshSceneDepth();
   pkSecond->RefreshSceneDepth();
 
+  // Scale the world so that the ground (or at least the mean depth) is at 1.0 m
   ApplyGlobalScale(1.0 / pkFirst->dSceneDepthMean);
+  // Update the wiggle scale for the new world scale
+  Vector<3> trans = pkSecond->se3CfromW.get_translation();
+  double dNewWiggleScale = sqrt(trans * trans);
+  cout << "Fixed wiggle: " << dNewWiggleScale << endl;
 
+  mdWiggleScale = dNewWiggleScale;
   mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
 
-  AddSomeMapPoints(0);
-  AddSomeMapPoints(3);
-  AddSomeMapPoints(1);
   AddSomeMapPoints(2);
+  AddSomeMapPoints(0);
+  AddSomeMapPoints(1);
+  AddSomeMapPoints(3);
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
@@ -415,12 +422,193 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   bGood = true;
 
-  se3TrackerPose = pkSecond->se3CfromW;
+  *se3TrackerPose = pkSecond->se3CfromW;
 
   cout << "se3CfromW : " << pkFirst->se3CfromW.ln();
   cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;
 
   return true;
+}
+
+bool Map::InitFromStereo(KeyFrame &kF,
+                         KeyFrame &kS,
+                         const SE3<> &se3SecondCameraPos,
+                         bool *pbAbortSignal)
+{
+  assert(false);
+
+  bool bDummyAbortSignal = false;
+  if (!pbAbortSignal) {
+    pbAbortSignal = &bDummyAbortSignal;
+  }
+
+  kF.dSceneDepthMean = 100;
+  kF.dSceneDepthSigma = 200;
+  kS.dSceneDepthMean = 100;
+  kS.dSceneDepthSigma = 200;
+
+  KeyFrame *pkFirst = new KeyFrame(kF);
+  KeyFrame *pkSecond = new KeyFrame(kS);
+
+  pkFirst->bFixed = true;
+  pkFirst->se3CfromW = SE3<>();
+
+  pkSecond->bFixed = false;
+  pkSecond->se3CfromW = se3SecondCameraPos;
+
+  vpKeyFrames.push_back(pkFirst);
+  vpKeyFrames.push_back(pkSecond);
+
+  pkFirst->MakeKeyFrame_Rest();
+  pkSecond->MakeKeyFrame_Rest();
+
+  AddSomeMapPoints(3);
+  AddSomeMapPoints(2);
+  AddSomeMapPoints(1);
+  AddSomeMapPoints(0);
+
+  for (auto it = vpPoints.begin(); it != vpPoints.end(); ++it)
+    cout << (*it)->v3WorldPos << endl;
+
+  for(int i=0; i<5; i++)
+    FullBundleAdjust();
+
+  // Estimate the feature depth distribution in the first two key-frames
+  // (Needed for epipolar search)
+  pkFirst->RefreshSceneDepth();
+  pkSecond->RefreshSceneDepth();
+
+  ApplyGlobalScale(1.0 / pkFirst->dSceneDepthMean);
+
+  mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
+
+  bBundleConverged_Full = false;
+  bBundleConverged_Recent = false;
+
+  std::chrono::time_point<std::chrono::system_clock> startTime = std::chrono::system_clock::now();
+
+  while (!bBundleConverged_Full)
+  {
+    std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
+    if (now - startTime > std::chrono::seconds(5)) {
+      std::cout << "InitFromStereo timed out" << std::endl;
+      return false;
+    }
+
+    if (!FullBundleAdjust()) {
+      return false;
+    }
+
+    if(*pbAbortSignal) {
+      return false;
+    }
+  }
+
+  // Rotate and translate the map so the dominant plane is at z=0:
+  ApplyGlobalTransformation(CalcPlaneAligner(true));
+
+  RemoveNonGroundPoints();
+
+  bGood = true;
+
+  cout << "se3CfromW : " << pkFirst->se3CfromW.ln();
+  cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;
+
+  return true;
+}
+
+void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v4Plane,
+                             SE3<> &se3TrackerPose)
+{
+  KeyFrame *pkFirst = new KeyFrame(kKeyFrame);
+  pkFirst->bFixed = true;
+  pkFirst->se3CfromW = SE3<>();
+
+  cout << "Ground plane: " << v4Plane << endl;
+
+  for (int nLevel = 0; nLevel < LEVELS; ++nLevel) {
+    Level &l = pkFirst->aLevels[nLevel];
+
+    // Find some good map points to add
+    double inv = 1.0 / (1 << nLevel);
+    size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
+    std::vector<ImageRef> vBestFeatures;
+    l.GetBestFeatures(nNumFeatures, vBestFeatures);
+
+    // Remove the points in the set that overlapps points in lower pyramid levels
+   // pkFirst->ThinCandidates(nLevel, vBestFeatures);
+
+    cout << "Level " << nLevel << ": " << vBestFeatures.size() << endl;
+
+    for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
+
+      Vector<3> v3New;
+      if (!PickPointOnPlane(pkFirst->Camera, v4Plane,
+                             makeVector(it->x, it->y), v3New))
+      {
+        continue;
+      }
+
+      v3New *= -0.01;
+
+      MapPoint *pNew = new MapPoint;
+      pNew->v3WorldPos = v3New;
+      pNew->pMMData = new MapMakerData();
+
+      ImageRef irLevelPos = *it;
+      int nLevelScale = LevelScale(nLevel);
+      Vector<2> v2RootPos = LevelZeroPos(irLevelPos, nLevel);
+
+      // Patch source stuff:
+      pNew->pPatchSourceKF = pkFirst;
+      pNew->nSourceLevel = nLevel;
+      pNew->v3Normal_NC = makeVector( 0,0,-1);
+      pNew->irCenter = irLevelPos;
+      pNew->v3Center_NC = unproject(pkFirst->Camera.UnProject(v2RootPos));
+      pNew->v3OneRightFromCenter_NC = unproject(pkFirst->Camera.UnProject(v2RootPos + vec(ImageRef(nLevelScale,0))));
+      pNew->v3OneDownFromCenter_NC  = unproject(pkFirst->Camera.UnProject(v2RootPos + vec(ImageRef(0,nLevelScale))));
+
+      normalize(pNew->v3Center_NC);
+      normalize(pNew->v3OneDownFromCenter_NC);
+      normalize(pNew->v3OneRightFromCenter_NC);
+
+      pNew->RefreshPixelVectors();
+      pNew->pColor = Rgb<byte>(255, 255, 255);
+
+      vpPoints.push_back(pNew);
+      qNewQueue.push_back(pNew);
+
+      Measurement m;
+      m.Source = Measurement::SRC_ROOT;
+      m.v2RootPos = v2RootPos;
+      m.v2ImplanePos = pkFirst->Camera.UnProject(m.v2RootPos);
+      m.m2CamDerivs = pkFirst->Camera.GetProjectionDerivs();
+      m.nLevel = nLevel;
+      pkFirst->mMeasurements[pNew] = m;
+
+      pNew->pMMData->sMeasurementKFs.insert(pkFirst);
+    }
+  }
+
+  vpKeyFrames.push_back(pkFirst);
+
+  pkFirst->MakeKeyFrame_Rest();
+
+  // Estimate the feature depth distribution in the first two key-frames
+  // (Needed for epipolar search)
+  pkFirst->RefreshSceneDepth();
+
+  mdWiggleScaleDepthNormalized = mdWiggleScale / pkFirst->dSceneDepthMean;
+
+  // Rotate and translate the map so the dominant plane is at z=0:
+  ApplyGlobalTransformation(CalcPlaneAligner(true));
+
+  bGood = true;
+
+  se3TrackerPose = pkFirst->se3CfromW;
+
+  cout << "se3CfromW : " << pkFirst->se3CfromW.ln();
+  cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;
 }
 
 void Map::RemoveNonGroundPoints()
@@ -475,10 +663,17 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   // Restrict epipolar search to a relatively narrow depth range
   // to increase reliability
+
+
   double dMean = kSrc.dSceneDepthMean;
   double dSigma = kSrc.dSceneDepthSigma;
-  double dStartDepth = max(mdWiggleScale, dMean - dSigma);
-  double dEndDepth = min(40 * mdWiggleScale, dMean + dSigma);
+  double dStartDepth = max(0.0, dMean - dSigma);
+  double dEndDepth = dMean + dSigma;
+
+/*
+  double dStartDepth = 0.1;
+  double dEndDepth = 50.0;
+  */
 
   Vector<3> v3CamCenter_TC = kTarget.se3CfromW * kSrc.se3CfromW.inverse().get_translation(); // The camera end
   Vector<3> v3RayStart_TC = v3CamCenter_TC + dStartDepth * v3LineDirn_TC;                               // the far-away end
@@ -541,7 +736,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   int nBest = -1;
   int nBestZMSSD = Finder.GetMaxSSD() + 1;
   double dMaxDistDiff = kTarget.Camera.OnePixelDist() * (4.0 + 1.0 * nLevelScale);
-  double dMaxDistSq = dMaxDistDiff * dMaxDistDiff;
+  double dMaxDistSq = dMaxDistDiff * dMaxDistDiff * 5;
 
   for (size_t i = 0; i < vv2Corners.size(); ++i) {   // over all corners in target img..
     const ImageRef& irIm = vv2Corners[i].first;
@@ -597,13 +792,7 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
   normalize(pNew->v3OneRightFromCenter_NC);
 
   pNew->RefreshPixelVectors();
-
-  /**
-   *@hack by camparijet
-   * added color for painting
-   */
-  pNew->pColor = Rgb<byte>(255, 255, 255); // kSrc.im_cl[pNew->irCenter];
-  /*@hack end*/
+  pNew->pColor = Rgb<byte>(255, 255, 255);
 
   vpPoints.push_back(pNew);
   qNewQueue.push_back(pNew);
@@ -812,13 +1001,15 @@ void Map::AddKeyFrameFromTopOfQueue()
   // And maybe we missed some - this now adds to the map itself, too.
   ReFindInSingleKeyFrame(*pK);
 
-  //AddSomeMapPoints(3);       // .. and add more map points by epipolar search.
-  AddSomeMapPoints(0);
-  AddSomeMapPoints(1);
+  AddSomeMapPoints(3);       // .. and add more map points by epipolar search.
   AddSomeMapPoints(2);
+  AddSomeMapPoints(1);
+  AddSomeMapPoints(0);
 
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
+
+  cout << "New keyframe with " << pK->mMeasurements.size() << " points" << endl;
 
   RemoveNonGroundPoints();
 }
@@ -828,21 +1019,27 @@ void Map::AddKeyFrameFromTopOfQueue()
 // the ClosestKeyFrame function.
 void Map::AddSomeMapPoints(int nLevel)
 {
-  KeyFrame &kSrc = *vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
-  KeyFrame &kTarget = *ClosestKeyFrame(kSrc);
+  KeyFrame *kSrc = vpKeyFrames[vpKeyFrames.size() - 1]; // The new keyframe
+  assert(kSrc != NULL);
 
-  Level &l = kSrc.aLevels[nLevel];
+  KeyFrame *kTarget = ClosestKeyFrame(*kSrc);
+  assert(kTarget != NULL);
+
+  assert(kSrc != kTarget);
+
+  Level &l = kSrc->aLevels[nLevel];
 
   // Find some good map points to add
-  size_t nNumFeatures = 1000 / std::pow(4, nLevel); // This formula could need some work....
+  double inv = 1.0 / (1 << nLevel);
+  size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
   std::vector<ImageRef> vBestFeatures;
   l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
   // Remove the points in the set that overlapps points in lower pyramid levels
-  kSrc.ThinCandidates(nLevel, vBestFeatures);
+  kSrc->ThinCandidates(nLevel, vBestFeatures);
 
   for (auto it = vBestFeatures.begin(); it != vBestFeatures.end(); ++it) {
-    AddPointEpipolar(kSrc, kTarget, nLevel, *it);
+    AddPointEpipolar(*kSrc, *kTarget, nLevel, *it);
   }
 }
 
@@ -1156,7 +1353,7 @@ void Map::HandleBadPoints()
     MapPoint *p = vpPoints[i];
 
     // DEFAULT VALUE: 20
-    if(p->nMEstimatorOutlierCount > 1 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
+    if(p->nMEstimatorOutlierCount > 40 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
       p->bBad = true;
     }
   }
@@ -1250,7 +1447,7 @@ void Map::ApplyGlobalScale(double dScale)
     vpKeyFrames[i]->se3CfromW.get_translation() *= dScale;
     vpKeyFrames[i]->dSceneDepthMean *= dScale;
     vpKeyFrames[i]->dSceneDepthSigma *= dScale;
-    //vpKeyFrames[i]->RefreshSceneDepth();
+    vpKeyFrames[i]->RefreshSceneDepth();
   }
 
   for(size_t i=0; i < vpPoints.size(); ++i) {
@@ -1261,7 +1458,7 @@ void Map::ApplyGlobalScale(double dScale)
   }
 
   mdWiggleScale *= dScale;
-  //mdWiggleScaleDepthNormalized = mdWiggleScale / vpKeyFrames[0]->dSceneDepthMean; // Should be invariant to scale
+  mdWiggleScaleDepthNormalized = mdWiggleScale / vpKeyFrames[0]->dSceneDepthMean; // Should be invariant to scale
 }
 
 }

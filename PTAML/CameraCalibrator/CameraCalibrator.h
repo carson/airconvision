@@ -14,9 +14,11 @@ namespace PTAMM {
 class CameraCalibrator
 {
 public:
-  CameraCalibrator(VideoSource* videoSource);
+  CameraCalibrator(VideoSource* videoSource = NULL);
   void Run();
   
+  void CalibrateFromImages(const std::vector<std::string> & filenames);
+
 protected:
   void Reset();
   void HandleFrame(CVD::Image<CVD::byte> imFrame);
