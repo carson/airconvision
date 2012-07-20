@@ -73,15 +73,15 @@ set(LIBS
 )
 
 set(VIDEO_SOURCE_SRC
-	${CMAKE_CURRENT_SOURCE_DIR}/PTAML/VideoSource_Linux_Gstreamer_File.cc
-	${CMAKE_CURRENT_SOURCE_DIR}/PTAML/VideoSource_Linux_V4L.cc
+	${CMAKE_CURRENT_SOURCE_DIR}/src/VideoSource_Linux_Gstreamer_File.cc
+	${CMAKE_CURRENT_SOURCE_DIR}/src/VideoSource_Linux_V4L.cc
 )
 
 #
 # PTAML
 #
 
-add_subdirectory(PTAML)
+add_subdirectory(src)
 
 
 #

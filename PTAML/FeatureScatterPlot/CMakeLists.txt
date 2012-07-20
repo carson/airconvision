@@ -11,24 +11,24 @@ set(SCATTER_LIBS
 )
 
 set(AGAST_SRC
-    ../PTAML/agast/nonMaximumSuppression.cc
-    ../PTAML/agast/agast5_8_nms.cc
-    ../PTAML/agast/agast5_8.cc
-    ../PTAML/agast/agast7_12d_nms.cc
-    ../PTAML/agast/agast7_12d.cc
-    ../PTAML/agast/agast7_12s_nms.cc
-    ../PTAML/agast/agast7_12s.cc
-    ../PTAML/agast/oast9_16_nms.cc
-    ../PTAML/agast/oast9_16.cc
+    ../src/agast/nonMaximumSuppression.cc
+    ../src/agast/agast5_8_nms.cc
+    ../src/agast/agast5_8.cc
+    ../src/agast/agast7_12d_nms.cc
+    ../src/agast/agast7_12d.cc
+    ../src/agast/agast7_12s_nms.cc
+    ../src/agast/agast7_12s.cc
+    ../src/agast/oast9_16_nms.cc
+    ../src/agast/oast9_16.cc
 )
 
 include_directories(
-    ../PTAML
+    ../src
 )
 
 set(SCATTER_SRC
-	../PTAML/ShiTomasi.cc
-	../PTAML/Timing.cc
+	../src/ShiTomasi.cc
+	../src/Timing.cc
 	scatter.cc
 	${AGAST_SRC}
 )

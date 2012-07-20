@@ -19,10 +19,10 @@ include_directories(
 #
 
 set(CC_SRC
-	../PTAML/GLWindow2.cc
-	../PTAML/VideoSource.cc
-	../PTAML/GLWindowMenu.cc
-	../PTAML/ATANCamera.cc
+	../src/GLWindow2.cc
+	../src/VideoSource.cc
+	../src/GLWindowMenu.cc
+	../src/ATANCamera.cc
 	CalibImage.cc
 	CalibCornerPatch.cc
 	CameraCalibrator.cc
