@@ -262,11 +262,11 @@ void MapMaker::ScaleMapPoints(double dScale, bool async)
 
 void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                               std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
-                              SE3<> &se3CameraPos)
+                              SE3<> *se3CameraPos)
 {
   mbStereoInitDone = false;
   mbAbortRequested = true;
-  mDispatcher.PushAction([kFirst, kSecond, vMatches, &se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+  mDispatcher.PushAction([kFirst, kSecond, vMatches, se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
     mbAbortRequested = false;
     mpMap->InitFromStereo(kFirst, kSecond, vMatches, se3CameraPos, &mbAbortRequested);
     mbStereoInitDone = true;

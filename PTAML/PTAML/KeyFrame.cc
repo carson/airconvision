@@ -153,6 +153,7 @@ KeyFrame::KeyFrame(const ATANCamera &cam)
     // Choose number of rows and cols so that the cell size is close to 50x50
     int cols = std::round((double)width / DESIRED_CELL_SIZE);
     int rows = std::round((double)height / DESIRED_CELL_SIZE);
+    rows = cols = 1;
     aLevels[i].Init(width, height, rows, cols);
     width /= 2; height /= 2;
   }

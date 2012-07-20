@@ -50,7 +50,9 @@ bool Relocaliser::AttemptRecovery(const Map &currentMap, KeyFrame &kCurrent)
   //mnBest = currentMap.GetKeyFrames().size() - 1;
 
   // And estimate a camera rotation from a 3DOF image alignment
-  pair<SE2<>, double> result_pair = sbi.IteratePosRelToTarget(*currentMap.GetKeyFrames()[mnBest]->pSBI, 6);
+  SmallBlurryImage *pOtherSbi = currentMap.GetKeyFrames()[mnBest]->pSBI;
+  assert(pOtherSbi != NULL);
+  pair<SE2<>, double> result_pair = sbi.IteratePosRelToTarget(*pOtherSbi, 6);
   SE2<> mse2 = result_pair.first;
   double dScore = result_pair.second;
 

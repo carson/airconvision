@@ -58,7 +58,7 @@ class MapMaker
     // Make a map from scratch. Called by the tracker.
     void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
-                        SE3<> &se3CameraPos);
+                        SE3<> *se3CameraPos);
 
     void InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         const SE3<> &se3SecondCameraPos);

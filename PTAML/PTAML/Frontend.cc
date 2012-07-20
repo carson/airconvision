@@ -120,9 +120,13 @@ void Frontend::operator()()
 
     if (mbInitialTracking) {
       ProcessInitialization(bUserInvoke);
-    } else {
+    }
+
+    bool bRunTracker = !mbInitialTracking;
+    mpTracker->ProcessFrame(mKeyFrame, bRunTracker);
+
+    if (bRunTracker) {
       // Regular map tracking path
-      mpTracker->ProcessFrame(mKeyFrame);
 
       if (!mbHasDeterminedScale) {
         DetermineScaleFromMarker(bUserInvoke);
@@ -138,7 +142,7 @@ void Frontend::operator()()
     monitor.PushDrawData(mDrawData);
 
     if (fpsCounter.Update()) {
-      //cout << fpsCounter.Fps() << endl;
+      cout << fpsCounter.Fps() << endl;
     }
 
     gTrackFullTimer.Stop();
@@ -190,7 +194,8 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
     if (mpInitialTracker->IsDone()) {
       mpTracker->SetCurrentPose(mpInitialTracker->GetCurrentPose());
       mbInitialTracking = false;
-      mpTracker->ForceRecovery();
+
+      cout << "Inited to pose: " << mpInitialTracker->GetCurrentPose() << endl;
     }
 
     mDrawData.bUseStereo = false;

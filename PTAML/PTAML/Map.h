@@ -73,7 +73,7 @@ class Map
     // Make a map from scratch. Called by the tracker.
     bool InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         std::vector<std::pair<CVD::ImageRef, CVD::ImageRef> > &vMatches,
-                        TooN::SE3<> &se3CameraPos, bool *pbAbortSignal = NULL);
+                        TooN::SE3<> *se3CameraPos, bool *pbAbortSignal = NULL);
     bool InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
                         const TooN::SE3<> &se3SecondCameraPos,
                         bool *pbAbortSignal = NULL);

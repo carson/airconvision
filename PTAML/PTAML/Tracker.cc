@@ -51,6 +51,8 @@ Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m,
 
   mpSBILastFrame = NULL;
   mpSBIThisFrame = NULL;
+
+  ResetCommon();
 }
 
 /**
@@ -120,6 +122,8 @@ bool Tracker::HasGoodCoverage()
   return nEmpty < 3;
 }
 
+double gDist = 0;
+
 bool Tracker::ShouldAddNewKeyFrame()
 {
   if (mTrackingQuality != GOOD || mpMap->QueueSize() > 0 ||
@@ -129,6 +133,9 @@ bool Tracker::ShouldAddNewKeyFrame()
   }
 
   double dDist = DistanceToClosestKeyFrame();
+
+  gDist = dDist;
+
   static gvar3<int> gvdMaxKFDistWiggleMult("MapMaker.MaxKFDistWiggleMult", 2.00, SILENT);
 
   bool bFarAwayFromOldKeyFrames = dDist > *gvdMaxKFDistWiggleMult * mpMap->GetWiggleScaleDepthNormalized();
@@ -149,14 +156,14 @@ void Tracker::UpdateStatsMessage()
   }
 
   mMessageForUser << " Map " << mpMap->MapID() << ": "
-                  << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF";
+                  << mpMap->GetMapPoints().size() << "P, " << mpMap->GetKeyFrames().size() << "KF " << gDist;
 }
 
 // TrackFrame is called by System.cc with each incoming video frame.
 // It figures out what state the tracker is in, and calls appropriate internal tracking
 // functions. bDraw tells the tracker wether it should output any GL graphics
 // or not (it should not draw, for example, when AR stuff is being shown.)
-void Tracker::ProcessFrame(KeyFrame &keyFrame)
+void Tracker::ProcessFrame(KeyFrame &keyFrame, bool bRunTracker)
 {
   mMessageForUser.str("");   // Wipe the user message clean
 
@@ -183,44 +190,47 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame)
   // From now on we only use the keyframe struct!
   mnFrame++;
 
-  // Decide what to do - if there is a map, try to track the map ...
-  if (!IsLost()) { // .. but only if we're not lost!
+  if (bRunTracker) {
 
-    gSBITimer.Start();
-    if(mbUseSBIInit) {
-      CalcSBIRotation();
-    }
-    gSBITimer.Stop();
+    // Decide what to do - if there is a map, try to track the map ...
+    if (!IsLost()) { // .. but only if we're not lost!
 
-    ApplyMotionModel();       // 1.
+      gSBITimer.Start();
+      if(mbUseSBIInit) {
+        CalcSBIRotation();
+      }
+      gSBITimer.Stop();
 
-    gTrackTimer.Start();
-    TrackMap();               // 2. These three lines do the main tracking work.
-    gTrackTimer.Stop();
+      ApplyMotionModel();       // 1.
 
-    UpdateMotionModel();      // 3.
+      gTrackTimer.Start();
+      TrackMap();               // 2. These three lines do the main tracking work.
+      gTrackTimer.Stop();
 
-    gTrackingQualityTimer.Start();
-    AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
-    gTrackingQualityTimer.Stop();
+      UpdateMotionModel();      // 3.
 
-    // Provide some feedback for the user:
-    UpdateStatsMessage();
+      gTrackingQualityTimer.Start();
+      AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
+      gTrackingQualityTimer.Stop();
 
-    // Heuristics to check if a key-frame should be added to the map:
-    if (ShouldAddNewKeyFrame()) {
-      mMessageForUser << " Adding key-frame.";
-      AddNewKeyFrame();
-    }
+      // Provide some feedback for the user:
+      UpdateStatsMessage();
 
-  } else { // Tracking is lost
+      // Heuristics to check if a key-frame should be added to the map:
+      if (ShouldAddNewKeyFrame()) {
+        mMessageForUser << " Adding key-frame.";
+        AddNewKeyFrame();
+      }
 
-    //cout << "Lost tracking..." << endl;
-    mMessageForUser << "** Attempting recovery **.";
+    } else { // Tracking is lost
 
-    if (AttemptRecovery()) {
-      TrackMap();
-      AssessTrackingQuality();
+      cout << "Lost tracking..." << endl;
+      mMessageForUser << "** Attempting recovery **.";
+
+      if (AttemptRecovery()) {
+        TrackMap();
+        AssessTrackingQuality();
+      }
     }
   }
 }

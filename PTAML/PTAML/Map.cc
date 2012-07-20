@@ -242,7 +242,7 @@ Vector<3> Map::ReprojectPoint(const SE3<>& se3AfromB, const Vector<2> &v2A, cons
 bool Map::InitFromStereo(KeyFrame &kF,
                          KeyFrame &kS,
                          vector<pair<ImageRef, ImageRef> > &vTrailMatches,
-                         SE3<> &se3TrackerPose, bool *pbAbortSignal)
+                         SE3<> *se3TrackerPose, bool *pbAbortSignal)
 {
   bool bDummyAbortSignal = false;
   if (!pbAbortSignal) {
@@ -416,7 +416,7 @@ bool Map::InitFromStereo(KeyFrame &kF,
 
   bGood = true;
 
-  se3TrackerPose = pkSecond->se3CfromW;
+  *se3TrackerPose = pkSecond->se3CfromW;
 
   cout << "se3CfromW : " << pkFirst->se3CfromW.ln();
   cout << "  MapMaker: made initial map with " << vpPoints.size() << " points." << endl;
@@ -661,8 +661,8 @@ bool Map::AddPointEpipolar(KeyFrame &kSrc,
 
   double dMean = kSrc.dSceneDepthMean;
   double dSigma = kSrc.dSceneDepthSigma;
-  double dStartDepth = max(mdWiggleScale, dMean - dSigma);
-  double dEndDepth = min(40 * mdWiggleScale, dMean + dSigma);
+  double dStartDepth = max(0.0, dMean - dSigma);
+  double dEndDepth = dMean + dSigma;
 
 /*
   double dStartDepth = 0.1;
@@ -1003,6 +1003,8 @@ void Map::AddKeyFrameFromTopOfQueue()
   bBundleConverged_Full = false;
   bBundleConverged_Recent = false;
 
+  cout << "New keyframe with " << pK->mMeasurements.size() << " points" << endl;
+
   RemoveNonGroundPoints();
 }
 
@@ -1023,7 +1025,7 @@ void Map::AddSomeMapPoints(int nLevel)
 
   // Find some good map points to add
   double inv = 1.0 / (1 << nLevel);
-  size_t nNumFeatures = 1000 * inv * inv; // This formula could need some work....
+  size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
   std::vector<ImageRef> vBestFeatures;
   l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
@@ -1345,7 +1347,7 @@ void Map::HandleBadPoints()
     MapPoint *p = vpPoints[i];
 
     // DEFAULT VALUE: 20
-    if(p->nMEstimatorOutlierCount > 60 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
+    if(p->nMEstimatorOutlierCount > 40 && p->nMEstimatorOutlierCount > p->nMEstimatorInlierCount) {
       p->bBad = true;
     }
   }
