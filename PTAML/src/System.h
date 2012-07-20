@@ -16,6 +16,7 @@
 #include "ARToolkit.h"
 #include "MikroKopter.h"
 #include "Frontend.h"
+#include "PerformanceMonitor.h"
 
 #include <gvars3/instances.h>
 #include <cvd/image.h>
@@ -66,7 +67,7 @@ class System
 
     void Draw();
     void DrawDebugInfo();
-    void DrawMapInfo();                             // draw a little info box about the maps
+    void DrawPerfInfo();                             // draw a little info box about the maps
     void SaveFIFO();                                // save the video out to a FIFO (save to disk)
 
     static void GUICommandCallBack(void* ptr, std::string sCommand, std::string sParams);  //process a console command
@@ -88,6 +89,7 @@ class System
 
   private:
     GLWindow2 mGLWindow;                            // The OpenGL window
+    PerformanceMonitor mPerfMonitor;
     Modules mModules;
     ARToolkitTracker mARTracker;
     Map *mpMap;                                     // The current map

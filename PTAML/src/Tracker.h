@@ -46,12 +46,13 @@ struct TrackerDrawData {
 };
 
 class TrackerData;
+class PerformanceMonitor;
 
 class Tracker
 {
   public:
     Tracker(const CVD::ImageRef &irVideoSize, const ATANCamera &c, Map *m,
-            MapMaker *mm, Relocaliser *pRelocaliser);
+            MapMaker *mm, Relocaliser *pRelocaliser, PerformanceMonitor *pPerfMon);
 
     // TrackFrame is the main working part of the tracker: call this every frame.
     void ProcessFrame(KeyFrame &keyFrame, bool bRunTracker);
@@ -111,6 +112,7 @@ class Tracker
     MapMaker *mpMapMaker;           // The class which maintains the map
     ATANCamera mCamera;             // Projection model
     Relocaliser *mpRelocaliser;     // Relocalisation module
+    PerformanceMonitor *mpPerfMon;
 
     CVD::ImageRef mirSize;          // Image size of whole image
 

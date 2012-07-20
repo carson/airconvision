@@ -1,8 +1,7 @@
 #include "Frontend.h"
 #include "VideoSource.h"
 #include "Tracker.h"
-#include "Timing.h"
-#include "FPSCounter.h"
+#include "PerformanceMonitor.h"
 #include "FeatureGrid.h"
 #include "FrameGrabber.h"
 
@@ -77,7 +76,8 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
                    MapMaker *pMapMaker,
                    InitialTracker *pInitialTracker,
                    Tracker *pTracker,
-                   ScaleMarkerTracker *pScaleMarkerTracker)
+                   ScaleMarkerTracker *pScaleMarkerTracker,
+                   PerformanceMonitor *pPerfMon)
   : mbInitialTracking(true)
   , mbHasDeterminedScale(false)
   , mCamera(camera)
@@ -86,6 +86,7 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
   , mpTracker(pTracker)
   , mpScaleMarkerTracker(pScaleMarkerTracker)
   , mpMapMaker(pMapMaker)
+  , mpPerfMon(pPerfMon)
   , mKeyFrame(camera)
   , mbSetScaleNextTime(false)
 {
@@ -94,10 +95,7 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
 
 void Frontend::operator()()
 {
-  FPSCounter fpsCounter;
-
   while (true) {
-
     bool bUserInvoke = monitor.PopUserInvoke();
     bool bUserResetInvoke = monitor.PopUserResetInvoke();
 
@@ -116,7 +114,7 @@ void Frontend::operator()()
       Reset();
     }
 
-    gTrackFullTimer.Start();
+    mpPerfMon->StartTimer("tracking_total");
 
     if (mbInitialTracking) {
       ProcessInitialization(bUserInvoke);
@@ -141,11 +139,9 @@ void Frontend::operator()()
 
     monitor.PushDrawData(mDrawData);
 
-    if (fpsCounter.Update()) {
-      cout << fpsCounter.Fps() << endl;
-    }
+    mpPerfMon->UpdateRateCounter("frontend");
 
-    gTrackFullTimer.Stop();
+    mpPerfMon->StopTimer("tracking_total");
   }
 }
 

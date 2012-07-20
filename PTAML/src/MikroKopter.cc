@@ -1,6 +1,5 @@
 #include "MikroKopter.h"
-#include "Timing.h"
-#include "FPSCounter.h"
+#include "PerformanceMonitor.h".h"
 #include "Tracker.h"
 
 #include <gvars3/instances.h>
@@ -16,8 +15,9 @@ using namespace GVars3;
 
 namespace PTAMM {
 
-MikroKopter::MikroKopter(const Tracker* pTracker)
+MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   : mpTracker(pTracker)
+  , mpPerfMon(pPerfMon)
   , mControllerType(NO_CONTROLLER)
   , mSendDebugTimeout(1.0)
   , mbWriteControlValuesLog(false)
@@ -49,7 +49,6 @@ void MikroKopter::operator()()
     cerr << "Failed to open coordinates.txt" << endl;
   }
 
-  FPSCounter fpsCounter;
   StopWatch stopWatch;
   stopWatch.Start();
 
@@ -67,9 +66,7 @@ void MikroKopter::operator()()
     std::this_thread::sleep_for(std::chrono::milliseconds(200 - elapsed.count()));
     t = std::chrono::high_resolution_clock::now();
 
-    if (fpsCounter.Update()) {
-//      cout << "MK FPS: " << fpsCounter.Fps() << endl;
-    }
+    mpPerfMon->UpdateRateCounter("mk");
   }
 }
 

@@ -83,6 +83,7 @@ set(PTAML_SRC
 	MD5Wrapper.cc
 	MiniPatch.cc
 	PatchFinder.cc
+	PerformanceMonitor.cc
 	TargetController.cc
 	Rectangle.cc
 	Relocaliser.cc

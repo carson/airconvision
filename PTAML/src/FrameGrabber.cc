@@ -3,6 +3,7 @@
 #include "VideoSource.h"
 #include "VideoSource_Linux_V4L.h"
 #include "VideoSource_Linux_Gstreamer_File.h"
+#include "PerformanceMonitor.h"
 
 #include <gvars3/gvars3.h>
 #include <gvars3/instances.h>
@@ -21,10 +22,10 @@ using namespace TooN;
 namespace PTAMM {
 
 DisparityGenerator::DisparityGenerator()
-  : bm(cv::StereoBM::PREFILTER_NORMALIZED_RESPONSE)
-  , algorithm(STEREO_BM)
+  : algorithm(STEREO_BM)
   , numberOfDisparities(80)
   , SADWindowSize(10)
+  , bm(cv::StereoBM::PREFILTER_NORMALIZED_RESPONSE)
 {
 }
 
@@ -86,8 +87,9 @@ DisparityGenerator::Generate(const cv::Mat &img1, const cv::Mat &img2,
   }
 }
 
-FrameGrabber::FrameGrabber()
-  : mpVideoSource1(NULL)
+FrameGrabber::FrameGrabber(PerformanceMonitor *pPerfMon)
+  : mpPerfMon(pPerfMon)
+  , mpVideoSource1(NULL)
   , mpVideoSource2(NULL)
   , mbFreezeVideo(false)
 {
@@ -201,7 +203,7 @@ VideoSource* FrameGrabber::CreateVideoSource(const std::string &sName) const
 void FrameGrabber::GrabNextFrame()
 {
   if (!mbFreezeVideo) {
-    gVideoSourceTimer.Start();
+    mpPerfMon->StartTimer("grab_frame");
 
     if (mbUseStereo) {
       mpVideoSource2->GetAndFillFrameBWandRGB(mimFrameBW2, mimFrameRGB1);
@@ -209,7 +211,7 @@ void FrameGrabber::GrabNextFrame()
 
     mpVideoSource1->GetAndFillFrameBWandRGB(mimFrameBW1, mimFrameRGB1);
 
-    gVideoSourceTimer.Stop();
+    mpPerfMon->StopTimer("grab_frame");
   }
 }
 

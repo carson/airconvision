@@ -59,7 +59,7 @@ class TimingTimer {
     void Start();
     void Stop();
 
-    double Milliseconds() const;
+    double Seconds() const;
 
   private:
     TimePoint mtpStart;
@@ -69,21 +69,46 @@ class TimingTimer {
     double mdAverageMs;
 };
 
+class RateCounter {
+  public:
+    RateCounter()
+      : mLastFpsUpdate(std::chrono::high_resolution_clock::now())
+      , mNumFrames(0)
+      , mFps(0)
+    {
+    }
+
+    double GetRate() const { return mFps; }
+
+    /*
+     * Called every frame to update the FPS counter.
+     *
+     * @Returns true if the FPS was updated
+     */
+    bool Update() {
+      using namespace std::chrono;
+      ++mNumFrames;
+      auto now = high_resolution_clock::now();
+      auto elapsed = now - mLastFpsUpdate;
+      if (elapsed > seconds(1)) {
+        typedef duration<double, std::ratio<1>> fseconds;
+        double elapsedSeconds = duration_cast<fseconds>(elapsed).count();
+        mFps = (double)mNumFrames / elapsedSeconds;
+        mLastFpsUpdate = now;
+        mNumFrames = 0;
+        return true;
+      }
+      return false;
+    }
+
+  private:
+    std::chrono::time_point<std::chrono::system_clock> mLastFpsUpdate;
+    int mNumFrames;
+    double mFps;
+};
+
 void Tic();
 void Toc();
-
-extern TimingTimer gFrameTimer;
-extern TimingTimer gVideoSourceTimer;
-extern TimingTimer gFeatureTimer;
-extern TimingTimer gTrackTimer;
-extern TimingTimer gSBIInitTimer;
-extern TimingTimer gSBITimer;
-extern TimingTimer gTrackingQualityTimer;
-extern TimingTimer gDrawGridTimer;
-extern TimingTimer gTrackFullTimer;
-extern TimingTimer gPvsTimer;
-extern TimingTimer gCoarseTimer;
-extern TimingTimer gFineTimer;
 
 }
 

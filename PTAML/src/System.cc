@@ -6,13 +6,10 @@
 #include "Tracker.h"
 #include "MapViewer.h"
 #include "MapSerializer.h"
-#include "FPSCounter.h"
 #include "Timing.h"
 #include "MikroKopter.h"
 #include "Frontend.h"
 #include "InitialTracker.h"
-#include "ScaleMarkerTracker.h"
-#include "LevelHelpers.h"
 #include "FrameGrabber.h"
 #include "Utils.h"
 #include "FrontendRenderer.h"
@@ -37,21 +34,6 @@
 #endif
 
 namespace PTAMM {
-
-TimingTimer gFrameTimer;
-TimingTimer gVideoSourceTimer;
-TimingTimer gFeatureTimer;
-TimingTimer gPvsTimer;
-TimingTimer gCoarseTimer;
-TimingTimer gFineTimer;
-TimingTimer gTrackTimer;
-TimingTimer gSBIInitTimer;
-TimingTimer gSBITimer;
-TimingTimer gTrackingQualityTimer;
-TimingTimer gDrawGridTimer;
-TimingTimer gDrawUITimer;
-TimingTimer gGLSwapTimer;
-TimingTimer gTrackFullTimer;
 
 using namespace std;
 using namespace std::placeholders;
@@ -175,8 +157,10 @@ void System::CreateMenu()
   GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
   GUI.ParseLine("DrawMap=0");
-  GUI.ParseLine("DrawMKDebug=1");
-  GUI.ParseLine("Menu.AddMenuToggle Root \"Show debug\" DrawMKDebug Root");
+  GUI.ParseLine("DrawDebugInfo=0");
+  GUI.ParseLine("Menu.AddMenuToggle Root \"Debug Info\" DrawDebugInfo Root");
+  GUI.ParseLine("DrawPerfInfo=1");
+  GUI.ParseLine("Menu.AddMenuToggle Root \"Perf. Info\" DrawPerfInfo Root");
 
   GUI.ParseLine("GLWindow.AddMenu InternalMenu Internal");
   GUI.ParseLine("InternalMenu.AddMenuButton Root \"Feature Detector\" ChangeFeatureDetector Root");
@@ -192,8 +176,6 @@ void System::CreateMenu()
 #endif
   GUI.ParseLine("LockMap=0");
   GUI.ParseLine("MapsMenu.AddMenuToggle Root \"Lock Map\" LockMap Root");
-  GUI.ParseLine("MapInfo=0");
-  GUI.ParseLine("MapsMenu.AddMenuToggle Root \"Map Info\" MapInfo Root");
 
   GUI.ParseLine("GLWindow.AddMenu MapViewerMenu Viewer");
   GUI.ParseLine("MapViewerMenu.AddMenuToggle Root \"View Map\" DrawMap Root");
@@ -209,6 +191,21 @@ void System::CreateMenu()
 
 void System::CreateModules()
 {
+  mPerfMonitor.AddTimer("render");
+  mPerfMonitor.AddTimer("main_loop");
+  mPerfMonitor.AddTimer("track");
+  mPerfMonitor.AddTimer("sbi_init");
+  mPerfMonitor.AddTimer("sbi");
+  mPerfMonitor.AddTimer("pvs");
+  mPerfMonitor.AddTimer("track_fine");
+  mPerfMonitor.AddTimer("track_coarse");
+  mPerfMonitor.AddTimer("tracking_total");
+  mPerfMonitor.AddTimer("grab_frame");
+
+  mPerfMonitor.AddRateCounter("main");
+  mPerfMonitor.AddRateCounter("frontend");
+  mPerfMonitor.AddRateCounter("mk");
+
   // First, check if the camera is calibrated.
   // If not, we need to run the calibration widget.
   Vector<NUMTRACKERCAMPARAMETERS> vTest;
@@ -220,7 +217,7 @@ void System::CreateModules()
     throw std::runtime_error("Missing camera parameters");
   }
 
-  mModules.pFrameGrabber = new FrameGrabber();
+  mModules.pFrameGrabber = new FrameGrabber(&mPerfMonitor);
   ImageRef irVideoSize = mModules.pFrameGrabber->GetFrameSize();
 
   mModules.pCamera = new ATANCamera("Camera");
@@ -242,7 +239,7 @@ void System::CreateModules()
 
   // Move these into the frontend
   mModules.pRelocaliser = new Relocaliser(*mModules.pCamera);
-  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker, mModules.pRelocaliser);
+  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker, mModules.pRelocaliser, &mPerfMonitor);
   mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker);
   mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
 
@@ -251,10 +248,11 @@ void System::CreateModules()
                                     mModules.pMapMaker,
                                     mModules.pInitialTracker,
                                     mModules.pTracker,
-                                    mModules.pScaleMarkerTracker);
+                                    mModules.pScaleMarkerTracker,
+                                    &mPerfMonitor);
 
 
-  mModules.pMikroKopter = new MikroKopter(mModules.pTracker);
+  mModules.pMikroKopter = new MikroKopter(mModules.pTracker, &mPerfMonitor);
 }
 
 /**
@@ -272,14 +270,13 @@ void System::Run()
   std::thread frontendThread(std::ref(*mModules.pFrontend));
   std::thread mikroKopterThread(std::ref(*mModules.pMikroKopter));
 
-  FPSCounter fpsCounter;
-
   while(!mbDone)
   {
     //Check if the map has been locked by another thread, and wait for release.
     //bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
 
-    gFrameTimer.Start();
+    mPerfMonitor.StartTimer("main_loop");
+
 
     mpMap->bEditLocked = *gvnLockMap; //sync up the maps edit lock with the gvar bool.
 
@@ -296,14 +293,8 @@ void System::Run()
 
     mGLWindow.HandlePendingEvents();
 
-    // Update FPS counter, this should be the last thing in the main loop
-    if (fpsCounter.Update()) {
-      stringstream ss; ss << "PTAML - " << setiosflags(ios::fixed) << setprecision(2) << fpsCounter.Fps() << " fps";
-      mGLWindow.set_title(ss.str());
-    }
-
-    gFrameTimer.Stop();
-
+    mPerfMonitor.StopTimer("main_loop");
+    mPerfMonitor.UpdateRateCounter("main");
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
@@ -439,7 +430,7 @@ void System::ChangeFeatureDetector()
 
 void System::Draw()
 {
-  gDrawUITimer.Start();
+  mPerfMonitor.StartTimer("render");
 
   static gvar3<int> gvnDrawMap("DrawMap", 0, HIDDEN|SILENT);
   bool bDrawMap = mpMap->IsGood() && *gvnDrawMap;
@@ -464,81 +455,90 @@ void System::Draw()
     sCaption = mFrontendDrawData.sStatusMessage;
   }
 
-  static gvar3<int> gvnDrawMapInfo("MapInfo", 0, HIDDEN|SILENT);
-  if(*gvnDrawMapInfo) {
-    DrawMapInfo();
+  static gvar3<int> gvnDrawPerfInfo("DrawPerfInfo", 0, HIDDEN|SILENT);
+  if(*gvnDrawPerfInfo) {
+    DrawPerfInfo();
   }
 
-  static gvar3<int> gvnDrawMkDebugOutput("DrawMKDebug", 0, HIDDEN|SILENT);
-  if (*gvnDrawMkDebugOutput) {
+  static gvar3<int> gvnDrawDebugInfo("DrawDebugInfo", 0, HIDDEN|SILENT);
+  if (*gvnDrawDebugInfo) {
     DrawDebugInfo();
   }
 
   mGLWindow.DrawCaption(sCaption);
   mGLWindow.DrawMenus();
 
-  gDrawUITimer.Stop();
-
-  gGLSwapTimer.Start();
   mGLWindow.swap_buffers();
-  gGLSwapTimer.Stop();
+
+  mPerfMonitor.StopTimer("render");
+}
+
+void System::DrawPerfInfo()
+{
+  int nLines = 15;
+  int x = 5, y = 120, w = 160, nBorder = 5;
+
+  mGLWindow.DrawBox( x, y, w, nLines, 0.7f );
+
+  glColor3f(1,1,1);
+  std::ostringstream os;
+
+  std::vector<std::pair<std::string, double>> vNameVal;
+
+  os << setiosflags(ios::fixed) << setprecision(2)
+     << "Rates (Hz):\n";
+
+  mPerfMonitor.QueryAllRates(vNameVal);
+  for (auto it = vNameVal.begin(); it != vNameVal.end(); ++it) {
+    os << " " << it->first << ": " << it->second << "\n";
+  }
+
+  os << "\nTimers (ms):\n";
+
+
+  mPerfMonitor.QueryAllTimers(vNameVal);
+  for (auto it = vNameVal.begin(); it != vNameVal.end(); ++it) {
+    os << " " << it->first << ": " << it->second * 1000.0 << "\n";
+  }
+
+  /*
+       << " Rendering: "
+       << mPerfMonitor.GetRateCounterInHz("main") << "\n"
+       << " Tracking: "
+       << mPerfMonitor.GetRateCounterInHz("frontend") << "\n"
+       << " MK Com.: "
+       << mPerfMonitor.GetRateCounterInHz("mk") << "\n\n"
+     << "Timers (ms):\n"
+       << " Frame: " << mPerfMonitor.GetTimerInSeconds("main_loop") * 1000.0 << "\n"
+       << " Render: " << mPerfMonitor.GetTimerInSeconds("render") * 1000.0 << "\n"
+       << " PVS: " << mPerfMonitor.GetTimerInSeconds("pvs") * 1000.0 << "\n"
+       << " Coarse: " << mPerfMonitor.GetTimerInSeconds("track_coarse") * 1000.0 << "\n"
+       << " Fine: " << mPerfMonitor.GetTimerInSeconds("track_fine") * 1000.0 << "\n"
+       << " Track: " << mPerfMonitor.GetTimerInSeconds("track") * 1000.0 << "\n"
+       << " FullTrack: " << mPerfMonitor.GetTimerInSeconds("tracking_total") * 1000.0;
+       */
+
+
+  glColor3f(1,1,0);
+  mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + 17), os.str() );
 }
 
 void System::DrawDebugInfo()
-{
-  stringstream ss;
-
-
-  FeatureDetector featureDetector = (FeatureDetector)GV3::get<int>("FeatureDetector", 0);
-  ss << "Features: " << FeatureDetector2String(featureDetector) << endl << endl;
-
-  ss << "Frame: " << gFrameTimer.Milliseconds() << endl
-     << "Video: " << gVideoSourceTimer.Milliseconds() << endl
-     << "Feature: " << gFeatureTimer.Milliseconds() << endl
-     << "PVS: " << gPvsTimer.Milliseconds() << endl
-     << "Coarse: " << gCoarseTimer.Milliseconds() << endl
-     << "Fine: " << gFineTimer.Milliseconds() << endl
-     << "Track: " << gTrackTimer.Milliseconds() << endl
-     << "FullTrack: " << gTrackFullTimer.Milliseconds() << endl
-     //<< "SBI Init: " << gSBIInitTimer.Milliseconds() << endl
-     //<< "SBI: " << gSBITimer.Milliseconds() << endl
-     //<< "TrackQ: " << gTrackingQualityTimer.Milliseconds() << endl
-     //<< "Grid: " << gDrawGridTimer.Milliseconds() << endl
-     << "UI: " << gDrawUITimer.Milliseconds() << endl;
-     //<< "GLSwap: " << gGLSwapTimer.Milliseconds() << endl;
-
-
-  /*
-  ss << "X: " << mPositionHold.GetTargetOffsetFiltered()[0] << "\n"
-     << "Y: " << mPositionHold.GetTargetOffsetFiltered()[1] << "\n"
-     << "VX: " << mPositionHold.GetVelocityFiltered()[0] << "\n"
-     << "VY: " << mPositionHold.GetVelocityFiltered()[1];
-*/
-
-  mGLWindow.DrawDebugOutput(ss.str());
-}
-
-
-/**
- * Draw a box with information about the maps.
- */
-void System::DrawMapInfo()
 {
   int nLines = 3;
   int x = 5, y = 120, w = 160, nBorder = 5;
 
   mGLWindow.DrawBox( x, y, w, nLines, 0.7f );
 
-  y += 17;
+  stringstream os;
 
-  glColor3f(1,1,1);
-  std::ostringstream os;
-
-  os << "M: " << mpMap->MapID() << "  P: " << mpMap->GetMapPoints().size() << "  K: " << mpMap->GetKeyFrames().size();
+  FeatureDetector featureDetector = (FeatureDetector)GV3::get<int>("FeatureDetector", 0);
+  os << "Features: " << FeatureDetector2String(featureDetector) << endl << endl;
 
   glColor3f(1,1,0);
   mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + 17), os.str() );
 }
+
 
 /**
  * Save the current frame to a FIFO.

@@ -12,6 +12,7 @@
 namespace PTAMM {
 
 class VideoSource;
+class PerformanceMonitor;
 
 class DisparityGenerator {
   public:
@@ -40,7 +41,7 @@ class DisparityGenerator {
 
 class FrameGrabber {
   public:
-    FrameGrabber();
+    FrameGrabber(PerformanceMonitor *pPerfMon);
 
     void GrabNextFrame();
     void ProcessStereoImages();
@@ -62,6 +63,8 @@ class FrameGrabber {
                            std::vector<TooN::Vector<3> >& points) const;
 
   private:
+    PerformanceMonitor *mpPerfMon;
+
     bool mbUseStereo;
 
     VideoSource *mpVideoSource1;                     // Camera 1

@@ -11,7 +11,7 @@ set(CC_LIBS
 )
 
 include_directories(
-    ../PTAML
+    ../src
 )
 
 #

@@ -97,13 +97,13 @@ void TimingTimer::Stop()
   mdAccum += mdElapsed;
   ++mnNumMeas;
   if (mnNumMeas == 10) {
-    mdAverageMs = mdAccum.count() * 1000.0 / 10.0;
+    mdAverageMs = mdAccum.count() / 10.0;
     mdAccum = Duration(0);
     mnNumMeas = 0;
   }
 }
 
-double TimingTimer::Milliseconds() const
+double TimingTimer::Seconds() const
 {
   return mdAverageMs;
   //return mdElapsed.count() * 1000.0;

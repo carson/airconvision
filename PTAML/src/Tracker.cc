@@ -9,7 +9,7 @@
 #include "ARToolkit.h"
 #include "Utils.h"
 #include "GLWindow2.h"
-#include "Timing.h"
+#include "PerformanceMonitor.h"
 
 #include <cvd/utility.h>
 #include <cvd/gl_helpers.h>
@@ -40,11 +40,12 @@ namespace PTAMM {
  * @param mm map maker
  */
 Tracker::Tracker(const ImageRef &irVideoSize, const ATANCamera &c, Map *m,
-                 MapMaker *mm, Relocaliser *pRelocaliser)
+                 MapMaker *mm, Relocaliser *pRelocaliser, PerformanceMonitor *pPerfMon)
   : mpMap(m)
   , mpMapMaker(mm)
   , mCamera(c)
   , mpRelocaliser(pRelocaliser)
+  , mpPerfMon(pPerfMon)
   , mirSize(irVideoSize)
 {
   TrackerData::irImageSize = mirSize;
@@ -174,7 +175,7 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame, bool bRunTracker)
   static gvar3<int> gvnUseSBI("Tracker.UseRotationEstimator", 1, SILENT);
   mbUseSBIInit = *gvnUseSBI;
 
-  gSBIInitTimer.Start();
+  mpPerfMon->StartTimer("sbi_init");
 
   if(!mpSBIThisFrame) {
     mpSBIThisFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
@@ -185,7 +186,7 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame, bool bRunTracker)
     mpSBIThisFrame = new SmallBlurryImage(*mpCurrentKF, *gvdSBIBlur);
   }
 
-  gSBIInitTimer.Stop();
+  mpPerfMon->StopTimer("sbi_init");
 
   // From now on we only use the keyframe struct!
   mnFrame++;
@@ -195,23 +196,21 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame, bool bRunTracker)
     // Decide what to do - if there is a map, try to track the map ...
     if (!IsLost()) { // .. but only if we're not lost!
 
-      gSBITimer.Start();
+      mpPerfMon->StartTimer("sbi");
       if(mbUseSBIInit) {
         CalcSBIRotation();
       }
-      gSBITimer.Stop();
+      mpPerfMon->StopTimer("sbi");
 
       ApplyMotionModel();       // 1.
 
-      gTrackTimer.Start();
+      mpPerfMon->StartTimer("track");
       TrackMap();               // 2. These three lines do the main tracking work.
-      gTrackTimer.Stop();
+      mpPerfMon->StopTimer("track");
 
       UpdateMotionModel();      // 3.
 
-      gTrackingQualityTimer.Start();
       AssessTrackingQuality();  //  Check if we're lost or if tracking is poor.
-      gTrackingQualityTimer.Stop();
 
       // Provide some feedback for the user:
       UpdateStatsMessage();
@@ -606,20 +605,21 @@ void Tracker::TrackMap()
 
   // The Potentially-Visible-Set (PVS) is split into pyramid levels.
   vector<TrackerData*> avPVS[LEVELS];
-  gPvsTimer.Start();
+
+  mpPerfMon->StartTimer("pvs");
   FindPVS(avPVS);
-  gPvsTimer.Stop();
+  mpPerfMon->StopTimer("pvs");
 
   // Start with a coarse tracking stage using features in the higher pyramid levels
-  gCoarseTimer.Start();
+  mpPerfMon->StartTimer("track_coarse");
   TrackCoarse(avPVS);
-  gCoarseTimer.Stop();
+  mpPerfMon->StopTimer("track_coarse");
 
   // So, at this stage, we may or may not have done a coarse tracking stage.
   // Now do the fine tracking stage. This needs many more points!
-  gFineTimer.Start();
+  mpPerfMon->StartTimer("track_fine");
   TrackFine(avPVS);
-  gFineTimer.Stop();
+  mpPerfMon->StopTimer("track_fine");
 
   UpdateCurrentKeyframeWithNewTrackingData();
 }

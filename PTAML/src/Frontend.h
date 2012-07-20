@@ -17,6 +17,8 @@
 
 namespace PTAMM {
 
+class PerformanceMonitor;
+
 struct FrontendDrawData {
 
   FrontendDrawData()
@@ -76,7 +78,8 @@ class Frontend {
              MapMaker *pMapMaker,
              InitialTracker *pInitialTracker,
              Tracker *pTracker,
-             ScaleMarkerTracker *pScaleMarkerTracker);
+             ScaleMarkerTracker *pScaleMarkerTracker,
+             PerformanceMonitor *pPerfMon);
 
     void operator()();
 
@@ -98,6 +101,7 @@ class Frontend {
     ScaleMarkerTracker *mpScaleMarkerTracker;
     MapMaker *mpMapMaker;
     StereoPlaneFinder mStereoPlaneFinder;
+    PerformanceMonitor *mpPerfMon;
 
     KeyFrame mKeyFrame;
 

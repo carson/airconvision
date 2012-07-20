@@ -326,12 +326,12 @@ void KeyFrame::InitFromImage(const BasicImage<CVD::byte> &im, FeatureDetector fe
     halfSample(aLevels[i-1].im, aLevels[i].im);
   }
 
-  gFeatureTimer.Start();
+  //gFeatureTimer.Start();
   for (int i = 0; i < LEVELS; ++i) {
     aLevels[i].mpFeatureGrid->SetFeatureDetector(featureDetector);
     aLevels[i].FindFeatures();
   }
-  gFeatureTimer.Stop();
+  //gFeatureTimer.Stop();
 }
 
 /**

@@ -14,10 +14,11 @@
 namespace PTAMM {
 
 class Tracker;
+class PerformanceMonitor;
 
 class MikroKopter {
   public:
-    MikroKopter(const Tracker* pTracker);
+    MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon);
 
     void operator()();
 
@@ -44,6 +45,7 @@ class MikroKopter {
     };
 
     const Tracker* mpTracker;
+    PerformanceMonitor *mpPerfMon;
 
     MKConnection mMkConn;
 
