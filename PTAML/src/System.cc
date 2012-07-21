@@ -256,11 +256,6 @@ void System::CreateModules()
   mModules.pMikroKopter = new MikroKopter(mModules.pTracker, &mPerfMonitor);
 }
 
-void printPose(const SE3<> &pose)
-{
-  cout << pose << endl;
-}
-
 /**
  * Run the main system thread.
  * This handles the tracker and the map viewer.

@@ -203,36 +203,6 @@ void GLWindow2::DrawCaption(const string &s)
   glDisable(GL_BLEND);
 }
 
-void GLWindow2::DrawDebugOutput(const string &s)
-{
-  SetupWindowOrtho();
-
-  // Find out how many lines are in the caption:
-  size_t nLines = CountLines(s);
-
-  int nLeftOfBox = 5;
-  int nTopOfBox = 5;
-  int nBottomOfBox = nTopOfBox + nLines * 13;
-  int nRightOfBox = 120;
-
-  // Draw a grey background box for the text
-  glColor4f(0.0f,0.0f,0.0f,0.4f);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glBegin(GL_QUADS);
-  glVertex2d(nLeftOfBox, nTopOfBox);
-  glVertex2d(nRightOfBox, nTopOfBox);
-  glVertex2d(nRightOfBox, nBottomOfBox);
-  glVertex2d(nLeftOfBox, nBottomOfBox);
-  glEnd();
-
-  // Draw the caption text in yellow
-  glColor3f(1,1,0);
-  PrintString(ImageRef(10, nTopOfBox + 13), s);
-}
-
-
-
 /**
  * Draw a grey, semi transparent box
  * @param x Top left corner x
