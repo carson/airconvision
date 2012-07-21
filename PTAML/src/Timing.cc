@@ -122,7 +122,7 @@ void RateLimiter::Limit(double rate)
   auto now = Clock::now();
   auto elapsed = duration_cast<microseconds>(now - mtp);
   std::this_thread::sleep_for(microseconds((long int)std::round(1000000.0/rate) - elapsed.count()));
-  mtp = now;
+  mtp = Clock::now();
 }
 
 }

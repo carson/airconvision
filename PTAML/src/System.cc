@@ -232,6 +232,7 @@ void System::CreateModules()
   mPerfMonitor.AddTimer("grab_frame");
 
   mPerfMonitor.AddRateCounter("main");
+  mPerfMonitor.AddRateCounter("render");
   mPerfMonitor.AddRateCounter("frontend");
   mPerfMonitor.AddRateCounter("mk");
   mPerfMonitor.AddRateCounter("frame_grabber");
@@ -269,12 +270,24 @@ void System::CreateModules()
 
   // Move these into the frontend
   mModules.pRelocaliser = new Relocaliser(*mModules.pCamera);
-  mModules.pTracker = new Tracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker, mModules.pRelocaliser, &mPerfMonitor);
-  mModules.pInitialTracker = new InitialTracker(irVideoSize, *mModules.pCamera, mpMap, mModules.pMapMaker);
-  mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera, mARTracker);
+  mModules.pTracker = new Tracker(irVideoSize,
+                                  *mModules.pCamera,
+                                  mpMap,
+                                  mModules.pMapMaker,
+                                  mModules.pRelocaliser,
+                                  &mPerfMonitor);
+
+  mModules.pInitialTracker = new InitialTracker(irVideoSize,
+                                                *mModules.pCamera,
+                                                mpMap,
+                                                mModules.pMapMaker);
+
+  mModules.pScaleMarkerTracker = new ScaleMarkerTracker(*mModules.pCamera,
+                                                        mARTracker);
 
 
-  mModules.pFrontend = new Frontend(mModules.pFrameGrabber, *mModules.pCamera,
+  mModules.pFrontend = new Frontend(mModules.pFrameGrabber,
+                                    *mModules.pCamera,
                                     mModules.pMapMaker,
                                     mModules.pInitialTracker,
                                     mModules.pTracker,
@@ -516,6 +529,7 @@ void System::Draw()
 
   mGLWindow.swap_buffers();
 
+  mPerfMonitor.UpdateRateCounter("render");
   mPerfMonitor.StopTimer("render");
 }
 
