@@ -107,6 +107,15 @@ class RateCounter {
     double mFps;
 };
 
+class RateLimiter {
+  public:
+    RateLimiter();
+    void Limit(double rate);
+  private:
+    typedef std::chrono::high_resolution_clock Clock;
+    std::chrono::time_point<Clock> mtp;
+};
+
 void Tic();
 void Toc();
 

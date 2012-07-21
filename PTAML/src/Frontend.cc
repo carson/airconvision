@@ -71,6 +71,18 @@ bool FrontendMonitor::PopUserResetInvoke()
   return false;
 }
 
+void FrontendMonitor::SetCurrentPose(const SE3<> &se3CurrenPose)
+{
+  std::lock_guard<std::mutex> lock(mMutex);
+  mse3CurrentPose = se3CurrenPose;
+}
+
+SE3<> FrontendMonitor::GetCurrentPose() const
+{
+  std::lock_guard<std::mutex> lock(mMutex);
+  return mse3CurrentPose;
+}
+
 Frontend::Frontend(FrameGrabber *pFrameGrabber,
                    const ATANCamera &camera,
                    MapMaker *pMapMaker,
@@ -96,6 +108,16 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
 
 void Frontend::operator()()
 {
+  static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
+
+  std::ofstream coordinateLogFile("coordinates.txt", ios::out | ios::trunc);
+  if (!coordinateLogFile) {
+    cerr << "Failed to open coordinates.txt" << endl;
+  }
+
+  StopWatch stopWatch;
+  stopWatch.Start();
+
   while (!mbDone) {
     bool bUserInvoke = monitor.PopUserInvoke();
     bool bUserResetInvoke = monitor.PopUserResetInvoke();
@@ -125,7 +147,13 @@ void Frontend::operator()()
     mpTracker->ProcessFrame(mKeyFrame, bRunTracker);
 
     if (bRunTracker) {
-      // Regular map tracking path
+      const SE3<> &se3CurrentPose = mpTracker->GetCurrentPose();
+      monitor.SetCurrentPose(se3CurrentPose);
+      mOnTrackedPoseUpdatedSlot(se3CurrentPose, !mpTracker->IsLost());
+
+      if (*gvnOutputWorldCoordinates) {
+        coordinateLogFile << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
+      }
 
       if (!mbHasDeterminedScale) {
         DetermineScaleFromMarker(fd, bUserInvoke);

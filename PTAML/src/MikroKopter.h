@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <chrono>
+#include <mutex>
 
 namespace PTAMM {
 
@@ -24,7 +25,7 @@ class MikroKopter {
 
     void StopThread() { mbDone = true; }
 
-    void Update(const TooN::SE3<> &se3Pose, bool bHasTracking);
+    void UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking);
 
     void GoToPosition(const TooN::SE3<> &se3PoseInWorld);
     void AddWaypoint(const TooN::SE3<> &se3PoseInWorld);
@@ -51,11 +52,15 @@ class MikroKopter {
     const Tracker* mpTracker;
     PerformanceMonitor *mpPerfMon;
 
+    std::mutex mMutex;
+
     MKConnection mMkConn;
 
     ControllerType mControllerType;
     TargetController mTargetController;
     PathController mPathController;
+
+    bool mbHasTracking;
 
     DebugOut_t mMkDebugOutput;
     TimeoutTimer mSendDebugTimeout;

@@ -99,6 +99,8 @@ class System
     // Rendering
     FrontendDrawData mFrontendDrawData;
     bool mbDisableRendering;
+
+    SE3<> mse3CurrentPose;
 };
 
 }

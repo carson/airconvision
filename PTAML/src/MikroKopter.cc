@@ -1,5 +1,5 @@
 #include "MikroKopter.h"
-#include "PerformanceMonitor.h".h"
+#include "PerformanceMonitor.h"
 #include "Tracker.h"
 
 #include <gvars3/instances.h>
@@ -20,6 +20,7 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   , mpTracker(pTracker)
   , mpPerfMon(pPerfMon)
   , mControllerType(NO_CONTROLLER)
+  , mbHasTracking(false)
   , mSendDebugTimeout(1.0)
   , mbWriteControlValuesLog(false)
 {
@@ -43,70 +44,60 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
 
 void MikroKopter::operator()()
 {
-  static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
-
-  std::ofstream coordinateLogFile("coordinates.txt", ios::out | ios::trunc);
-  if (!coordinateLogFile) {
-    cerr << "Failed to open coordinates.txt" << endl;
-  }
-
-  StopWatch stopWatch;
-  stopWatch.Start();
-
-  auto t = std::chrono::high_resolution_clock::now();
+  RateLimiter rateLimiter;
 
   while (!mbDone) {
-    Update(mpTracker->GetCurrentPose(), !mpTracker->IsLost());
+    // Send world position if connect to MK NaviCtrl
+    if (mMkConn) {
+      mMkConn.ProcessIncoming();
 
-    if (*gvnOutputWorldCoordinates) {
-      coordinateLogFile << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
+      {
+        std::unique_lock<std::mutex> lock(mMutex);
+
+        if (mbHasTracking) {
+          switch (mControllerType) {
+          case TARGET_CONTROLLER:
+            mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
+                                           mTargetController.GetVelocityFiltered());
+            break;
+          default:
+            break;
+          }
+        }
+
+        // Check if the debug values from the MK and position hold code should be written to a log
+        if (mbWriteControlValuesLog) {
+          LogControlValues();
+        }
+      }
+
+      // Request debug data being sent from the MK, this has to be done every few seconds or
+      // the MK will stop sending the data
+      if (mSendDebugTimeout.HasTimedOut()) {
+        mMkConn.SendDebugOutputInterval(1);
+        mSendDebugTimeout.Reset();
+      }
     }
 
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::high_resolution_clock::now() - t);
-    std::this_thread::sleep_for(std::chrono::milliseconds(200 - elapsed.count()));
-    t = std::chrono::high_resolution_clock::now();
+    // Lock rate to 5 Hz
+    rateLimiter.Limit(5.0);
 
     mpPerfMon->UpdateRateCounter("mk");
   }
 }
 
-void MikroKopter::Update(const TooN::SE3<> &se3Pose, bool bHasTracking)
+void MikroKopter::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking)
 {
-  using namespace std::chrono;
-
-  // Send world position if connect to MK NaviCtrl
-  if (mMkConn) {
-    mMkConn.ProcessIncoming();
-
-    if (bHasTracking) {
-      switch (mControllerType) {
-      case TARGET_CONTROLLER:
-        mTargetController.Update(se3Pose, TargetController::Clock::now());
-        mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
-                                       mTargetController.GetVelocityFiltered());
-        break;
-      default:
-        break;
-      }
-    }
-
-    // Check if the debug values from the MK and position hold code should be written to a log
-    if (mbWriteControlValuesLog) {
-      LogControlValues();
-    }
-
-    // Request debug data being sent from the MK, this has to be done every few seconds or
-    // the MK will stop sending the data
-    if (mSendDebugTimeout.HasTimedOut()) {
-      mMkConn.SendDebugOutputInterval(1);
-      mSendDebugTimeout.Reset();
-    }
+  std::unique_lock<std::mutex> lock(mMutex);
+  mbHasTracking = bHasTracking;
+  if (bHasTracking) {
+    mTargetController.Update(se3Pose, TargetController::Clock::now());
   }
 }
 
 void MikroKopter::GoToPosition(const TooN::SE3<> &se3PoseInWorld)
 {
+  std::unique_lock<std::mutex> lock(mMutex);
   cout << "Go to position: " << se3PoseInWorld.get_translation() << endl;
   mTargetController.SetTarget(se3PoseInWorld);
   mMkConn.SendNewTargetNotice();
@@ -115,17 +106,20 @@ void MikroKopter::GoToPosition(const TooN::SE3<> &se3PoseInWorld)
 
 void MikroKopter::AddWaypoint(const TooN::SE3<> &se3PoseInWorld)
 {
+  std::unique_lock<std::mutex> lock(mMutex);
   cout << "Adding waypoint: " << se3PoseInWorld.get_translation() << endl;
   mPathController.AddWaypoint(se3PoseInWorld);
 }
 
 void MikroKopter::ClearWaypoints()
 {
+  std::unique_lock<std::mutex> lock(mMutex);
   mPathController.ClearWaypoints();
 }
 
 void MikroKopter::FlyPath()
 {
+  std::unique_lock<std::mutex> lock(mMutex);
   mPathController.Start();
   mControllerType = NO_CONTROLLER;
 }

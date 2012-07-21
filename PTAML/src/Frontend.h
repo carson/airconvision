@@ -12,6 +12,8 @@
 #include <cvd/byte.h>
 #include <gvars3/instances.h>
 
+#include <boost/signals2.hpp>
+
 #include <vector>
 #include <mutex>
 
@@ -58,14 +60,19 @@ class FrontendMonitor {
     void PushUserResetInvoke();
     bool PopUserResetInvoke();
 
+    void SetCurrentPose(const SE3<> &se3CurrenPose);
+    SE3<> GetCurrentPose() const;
+
   private:
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
 
     bool mbHasFrontendData;
     FrontendDrawData mDrawData;
 
     bool mbUserInvoke;
     bool mbUserResetInvoke;
+
+    SE3<> mse3CurrentPose;
 };
 
 class FrameGrabber;
@@ -73,6 +80,8 @@ class Tracker;
 class FrameData;
 
 class Frontend {
+    typedef boost::signals2::signal<void (const SE3<>&, bool)> OnTrackedPoseUpdated;
+
   public:
     Frontend(FrameGrabber *pFrameGrabber,
              const ATANCamera &camera,
@@ -87,6 +96,10 @@ class Frontend {
     void StopThread() { mbDone = true; }
 
     FrontendMonitor monitor;
+
+    boost::signals2::connection DoOnTrackedPoseUpdated(const OnTrackedPoseUpdated::slot_type &slot) {
+      return mOnTrackedPoseUpdatedSlot.connect(slot);
+    }
 
   private:
     void Reset();
@@ -116,6 +129,8 @@ class Frontend {
     bool mbSetScaleNextTime;
 
     GVars3::gvar3<int> mgvnFeatureDetector;
+
+    OnTrackedPoseUpdated mOnTrackedPoseUpdatedSlot;
 };
 
 }

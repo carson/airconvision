@@ -256,6 +256,11 @@ void System::CreateModules()
   mModules.pMikroKopter = new MikroKopter(mModules.pTracker, &mPerfMonitor);
 }
 
+void printPose(const SE3<> &pose)
+{
+  cout << pose << endl;
+}
+
 /**
  * Run the main system thread.
  * This handles the tracker and the map viewer.
@@ -265,6 +270,10 @@ void System::Run()
   static gvar3<int> gvnLockMap("LockMap", 0, HIDDEN|SILENT);
 
   CreateModules();
+
+  mModules.pFrontend->DoOnTrackedPoseUpdated(std::bind(
+      &MikroKopter::UpdatePose, mModules.pMikroKopter,
+      std::placeholders::_1, std::placeholders::_2));
 
   // Start threads
   std::thread mapMakerThread(std::ref(*mModules.pMapMaker));
@@ -278,8 +287,10 @@ void System::Run()
 
     mPerfMonitor.StartTimer("main_loop");
 
-
     mpMap->bEditLocked = *gvnLockMap; //sync up the maps edit lock with the gvar bool.
+
+    // Get the latest value of the tracked pose
+    mse3CurrentPose = mModules.pFrontend->monitor.GetCurrentPose();
 
     if (!mbDisableRendering) {
       Draw();
@@ -384,11 +395,11 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
   static gvar3<int> gvnEnableMouseControl("EnableMouseControl", 0, HIDDEN|SILENT);
   if (*gvnEnableMouseControl) {
     Vector<3> v3PointOnPlane;
-    if (PickPointOnGround(*mModules.pCamera, mModules.pTracker->GetCurrentPose(),
+    if (PickPointOnGround(*mModules.pCamera, mse3CurrentPose,
                           makeVector(irWin.x, irWin.y), v3PointOnPlane))
     {
       // Set the targets Z value same as the current positions
-      v3PointOnPlane[2] = mModules.pTracker->GetCurrentPose().inverse().get_translation()[2];
+      v3PointOnPlane[2] = mse3CurrentPose.inverse().get_translation()[2];
 
       SE3<> se3TargetPose;
       se3TargetPose.get_translation() = v3PointOnPlane;
@@ -411,12 +422,12 @@ void System::StartMapSerialization(std::string sCommand, std::string sParams)
 
 void System::PositionHold()
 {
-  mModules.pMikroKopter->GoToPosition(mModules.pTracker->GetCurrentPose().inverse());
+  mModules.pMikroKopter->GoToPosition(mse3CurrentPose.inverse());
 }
 
 void System::AddWaypoint()
 {
-  mModules.pMikroKopter->AddWaypoint(mModules.pTracker->GetCurrentPose().inverse());
+  mModules.pMikroKopter->AddWaypoint(mse3CurrentPose.inverse());
 }
 
 void System::ClearWaypoints()
@@ -458,7 +469,7 @@ void System::Draw()
 
   if(bDrawMap) {
     // TODO: This is not thread safe at all... The whole mapviewer thing is in a rather bad state...
-    mModules.pMapViewer->DrawMap(mModules.pTracker->GetCurrentPose());
+    mModules.pMapViewer->DrawMap(mse3CurrentPose);
     sCaption = mModules.pMapViewer->GetMessageForUser();
   } else {
     FrontendRenderer renderer(*mModules.pCamera, mFrontendDrawData);
@@ -511,24 +522,6 @@ void System::DrawPerfInfo()
   for (auto it = vNameVal.begin(); it != vNameVal.end(); ++it) {
     os << " " << it->first << ": " << it->second * 1000.0 << "\n";
   }
-
-  /*
-       << " Rendering: "
-       << mPerfMonitor.GetRateCounterInHz("main") << "\n"
-       << " Tracking: "
-       << mPerfMonitor.GetRateCounterInHz("frontend") << "\n"
-       << " MK Com.: "
-       << mPerfMonitor.GetRateCounterInHz("mk") << "\n\n"
-     << "Timers (ms):\n"
-       << " Frame: " << mPerfMonitor.GetTimerInSeconds("main_loop") * 1000.0 << "\n"
-       << " Render: " << mPerfMonitor.GetTimerInSeconds("render") * 1000.0 << "\n"
-       << " PVS: " << mPerfMonitor.GetTimerInSeconds("pvs") * 1000.0 << "\n"
-       << " Coarse: " << mPerfMonitor.GetTimerInSeconds("track_coarse") * 1000.0 << "\n"
-       << " Fine: " << mPerfMonitor.GetTimerInSeconds("track_fine") * 1000.0 << "\n"
-       << " Track: " << mPerfMonitor.GetTimerInSeconds("track") * 1000.0 << "\n"
-       << " FullTrack: " << mPerfMonitor.GetTimerInSeconds("tracking_total") * 1000.0;
-       */
-
 
   glColor3f(1,1,0);
   mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + 17), os.str() );
@@ -619,6 +612,4 @@ void System::SaveFIFO()
 
 }
 
-
 }
-

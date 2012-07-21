@@ -25,9 +25,14 @@ void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
   if (mLastUpdate.time_since_epoch() == Clock::duration::zero()) {
     mv3PrevPosInWorld = se3FixedPose.inverse().get_translation();
     mStartTime = mLastUpdate = t;
+
+    std::cout << "first tick!" << std::endl;
+    return;
   }
 
   double dt = duration_cast<RealSeconds>(t - mLastUpdate).count(); // delta time in seconds
+
+  assert(dt > 0.0001);
 
   if (dt < 0.0001) {
     return;
