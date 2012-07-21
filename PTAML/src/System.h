@@ -40,17 +40,21 @@ class Relocaliser;
 class FrameGrabber;
 
 struct Modules {
+  Modules();
+  ~Modules();
+
   FrameGrabber *pFrameGrabber;
   Relocaliser *pRelocaliser;
-  MapMaker *pMapMaker;                           // The map maker
-  Tracker *pTracker;                             // The tracker
+  MapMaker *pMapMaker;
+  Tracker *pTracker;
   InitialTracker *pInitialTracker;
   ScaleMarkerTracker *pScaleMarkerTracker;
-  ATANCamera *pCamera;                           // The camera model
-  MapViewer *pMapViewer;                         // The Map Viewer
-  MapSerializer *pMapSerializer;                 // The map serializer for saving and loading maps
+  ATANCamera *pCamera;
+  MapViewer *pMapViewer;
   Frontend *pFrontend;
   MikroKopter *pMikroKopter;
+
+  MapSerializer *pMapSerializer; // Currently not really used..
 };
 
 class System

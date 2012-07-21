@@ -98,6 +98,35 @@ string FeatureDetector2String(FeatureDetector featureDetector)
   return "Unknown";
 }
 
+Modules::Modules()
+  : pFrameGrabber(NULL)
+  , pRelocaliser(NULL)
+  , pMapMaker(NULL)
+  , pTracker(NULL)
+  , pInitialTracker(NULL)
+  , pScaleMarkerTracker(NULL)
+  , pCamera(NULL)
+  , pMapViewer(NULL)
+  , pFrontend(NULL)
+  , pMikroKopter(NULL)
+{
+}
+
+Modules::~Modules()
+{
+  delete pFrameGrabber;
+  delete pRelocaliser;
+  delete pMapMaker;
+  delete pTracker;
+  delete pInitialTracker;
+  delete pScaleMarkerTracker;
+  delete pCamera;
+  delete pMapViewer;
+  delete pFrontend;
+  delete pMikroKopter;
+}
+
+
 System::System()
   : mGLWindow(ImageRef(640, 480), "PTAML")
   , mbDone(false)
