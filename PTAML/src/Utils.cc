@@ -89,7 +89,7 @@ bool PickPointOnPlane(ATANCamera camera,
   // Clicked the wrong side of the horizon?
   if (abs(denom) > 0.0001) {
     double k = dD/denom;
-    v3PointOnPlane = k * v3C;
+    v3PointOnPlane = -k * v3C;
     return true;
   }
 

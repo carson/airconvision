@@ -70,6 +70,7 @@ class FrontendMonitor {
 
 class FrameGrabber;
 class Tracker;
+class FrameData;
 
 class Frontend {
   public:
@@ -90,7 +91,7 @@ class Frontend {
   private:
     void Reset();
     void ProcessInitialization(bool bUserInvoke);
-    void DetermineScaleFromMarker(bool bUserInvoke);
+    void DetermineScaleFromMarker(const FrameData& fd, bool bUserInvoke);
 
   private:
     bool mbDone;

@@ -8,6 +8,9 @@
 #include <opencv2/opencv.hpp>
 
 #include <string>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 namespace PTAMM {
 
@@ -39,19 +42,29 @@ class DisparityGenerator {
     cv::StereoVar var;
 };
 
+struct FrameData {
+  void Resize(const CVD::ImageRef &irImageSize);
+  CVD::Image<CVD::Rgb<CVD::byte>> imFrameRGB[2];    // RGB frame
+  CVD::Image<CVD::byte> imFrameBW[2];             // BW frame
+};
+
 class FrameGrabber {
   public:
     FrameGrabber(PerformanceMonitor *pPerfMon);
+    ~FrameGrabber();
 
-    void GrabNextFrame();
+    void operator()();
+
+    void StopThread() { mbDone = true; }
+
+    const FrameData& GrabFrame();
     void ProcessStereoImages();
 
     bool IsUsingStereo() const { return mbUseStereo; }
 
     const CVD::ImageRef& GetFrameSize() const;
 
-    const CVD::Image<CVD::Rgb<CVD::byte>>& GetFrameRGB1() const { return mimFrameRGB1; }
-    const CVD::Image<CVD::byte>& GetFrameBW1() const { return mimFrameBW1; }
+    const FrameData& GetFrameData() const;
 
     const std::vector<TooN::Vector<3> >& GetPointCloud() const { return mPointCloud; }
 
@@ -59,10 +72,14 @@ class FrameGrabber {
     VideoSource* CreateVideoSource(const std::string &sName) const;
     void LoadCalibration();
 
+    void FetchNextFrame(); // Fetches new frame data from camera
+
     void ExtractPointCloud(const cv::Mat &_3dImage,
                            std::vector<TooN::Vector<3> >& points) const;
 
   private:
+    bool mbDone;
+
     PerformanceMonitor *mpPerfMon;
 
     bool mbUseStereo;
@@ -70,23 +87,29 @@ class FrameGrabber {
     VideoSource *mpVideoSource1;                     // Camera 1
     VideoSource *mpVideoSource2;                     // Camera 2
 
-    CVD::Image<CVD::Rgb<CVD::byte>> mimFrameRGB1;    // RGB frame from camera 1
+    // Data members for keeping track of the video data and synchronize between threads
+    FrameData maFrameData[2];
+    FrameData mTempFrameData;
+    size_t mnFrameDataIndex;
+    bool mbHasNewFrame;
+    mutable std::mutex mMutex;
+    std::condition_variable mCond;
 
-    CVD::Image<CVD::byte> mimFrameBW1;               // BW frame from camera 1
-    CVD::Image<CVD::byte> mimFrameBW2;               // BW frame from camera 2
-
+    // Possibility to freeze the video on a frame
     bool mbFreezeVideo;
 
+    // Stereo rectification
     cv::Mat mMap11, mMap12, mMap21, mMap22;
     cv::Rect mRoi1, mRoi2;
     cv::Mat mQ;
     cv::Mat mImg1r, mImg2r;
     cv::Mat mDisp;
 
+    // 3d point cloud when using stereo vision
     std::vector<TooN::Vector<3> > mPointCloud;
 
+    // Disparity generation when using stereo vision
     DisparityGenerator mDispGenerator;
-
 };
 
 }

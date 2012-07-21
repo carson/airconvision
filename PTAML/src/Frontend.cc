@@ -100,14 +100,14 @@ void Frontend::operator()()
     bool bUserInvoke = monitor.PopUserInvoke();
     bool bUserResetInvoke = monitor.PopUserResetInvoke();
 
-    mpFrameGrabber->GrabNextFrame();
+    const FrameData& fd = mpFrameGrabber->GrabFrame();
 
     // Initialize keyframe, find features etc
-    mKeyFrame.InitFromImage(mpFrameGrabber->GetFrameBW1(),
+    mKeyFrame.InitFromImage(fd.imFrameBW[0],
                             static_cast<FeatureDetector>(*mgvnFeatureDetector));
 
     // Set some of the draw data
-    mDrawData.imFrame.copy_from(mpFrameGrabber->GetFrameRGB1());
+    mDrawData.imFrame.copy_from(fd.imFrameRGB[0]);
     mDrawData.bInitialTracking = mbInitialTracking;
 
     if (bUserResetInvoke) {
@@ -128,7 +128,7 @@ void Frontend::operator()()
       // Regular map tracking path
 
       if (!mbHasDeterminedScale) {
-        DetermineScaleFromMarker(bUserInvoke);
+        DetermineScaleFromMarker(fd, bUserInvoke);
       }
 
       mpTracker->GetDrawData(mDrawData.tracker);
@@ -202,13 +202,13 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
   }
 }
 
-void Frontend::DetermineScaleFromMarker(bool bUserInvoke)
+void Frontend::DetermineScaleFromMarker(const FrameData& fd, bool bUserInvoke)
 {
   mbSetScaleNextTime = mbSetScaleNextTime || bUserInvoke;
 
   SE3<> se3WorldFromNormWorld;
   double dScale = 1.0;
-  if (mpScaleMarkerTracker->DetermineScaleFromMarker(mpFrameGrabber->GetFrameBW1(),
+  if (mpScaleMarkerTracker->DetermineScaleFromMarker(fd.imFrameBW[0],
                                                      mpTracker->GetCurrentPose(),
                                                      se3WorldFromNormWorld, dScale))
   {

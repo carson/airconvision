@@ -205,6 +205,7 @@ void System::CreateModules()
   mPerfMonitor.AddRateCounter("main");
   mPerfMonitor.AddRateCounter("frontend");
   mPerfMonitor.AddRateCounter("mk");
+  mPerfMonitor.AddRateCounter("frame_grabber");
 
   // First, check if the camera is calibrated.
   // If not, we need to run the calibration widget.
@@ -269,6 +270,7 @@ void System::Run()
   std::thread mapMakerThread(std::ref(*mModules.pMapMaker));
   std::thread frontendThread(std::ref(*mModules.pFrontend));
   std::thread mikroKopterThread(std::ref(*mModules.pMikroKopter));
+  std::thread frameGrabberThread(std::ref(*mModules.pFrameGrabber));
 
   while (!mbDone) {
     //Check if the map has been locked by another thread, and wait for release.
@@ -300,10 +302,12 @@ void System::Run()
   mModules.pMapMaker->StopThread();
   mModules.pFrontend->StopThread();
   mModules.pMikroKopter->StopThread();
+  mModules.pFrameGrabber->StopThread();
 
   mapMakerThread.join();
   frontendThread.join();
   mikroKopterThread.join();
+  frameGrabberThread.join();
 }
 
 /**

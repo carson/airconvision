@@ -13,6 +13,7 @@
 #include <opencv2/contrib/contrib.hpp>
 
 #include <stdexcept>
+#include <chrono>
 
 using namespace std;
 using namespace CVD;
@@ -87,10 +88,21 @@ DisparityGenerator::Generate(const cv::Mat &img1, const cv::Mat &img2,
   }
 }
 
+void FrameData::Resize(const CVD::ImageRef &irImageSize)
+{
+  for (int i = 0; i < 2; ++i) {
+    imFrameBW[i].resize(irImageSize);
+    imFrameRGB[i].resize(irImageSize);
+  }
+}
+
 FrameGrabber::FrameGrabber(PerformanceMonitor *pPerfMon)
-  : mpPerfMon(pPerfMon)
+  : mbDone(false)
+  , mpPerfMon(pPerfMon)
   , mpVideoSource1(NULL)
   , mpVideoSource2(NULL)
+  , mnFrameDataIndex(0)
+  , mbHasNewFrame(false)
   , mbFreezeVideo(false)
 {
   mbUseStereo = GV3::get<int>("UseStereo", 1, SILENT);
@@ -99,17 +111,32 @@ FrameGrabber::FrameGrabber(PerformanceMonitor *pPerfMon)
   mpVideoSource1 = CreateVideoSource("VideoSource1");
   // Initialize buffers for camera 1
   ImageRef irVideoSize1 = mpVideoSource1->Size();
-  mimFrameBW1.resize(irVideoSize1);
-  mimFrameRGB1.resize(irVideoSize1);
+  maFrameData[0].Resize(irVideoSize1);
+  maFrameData[1].Resize(irVideoSize1);
+  mTempFrameData.Resize(irVideoSize1);
 
   if (mbUseStereo) {
     // Initialize camera 2
     mpVideoSource2 = CreateVideoSource("VideoSource2");
-    // Initialize buffers for camera 2
+    // Just check so that the video sizes are equal!
     ImageRef irVideoSize2 = mpVideoSource2->Size();
-    mimFrameBW2.resize(irVideoSize2);
-
+    assert(irVideoSize1 == irVideoSize2);
     LoadCalibration();
+  }
+}
+
+FrameGrabber::~FrameGrabber()
+{
+  delete mpVideoSource1;
+  delete mpVideoSource2;
+}
+
+void FrameGrabber::operator ()()
+{
+  while (!mbDone) {
+    if (!mbFreezeVideo) {
+      FetchNextFrame();
+    }
   }
 }
 
@@ -130,11 +157,13 @@ void FrameGrabber::ExtractPointCloud(const cv::Mat &_3dImage,
 
 void FrameGrabber::ProcessStereoImages()
 {
+  FrameData& fd = maFrameData[mnFrameDataIndex];
+
   ImageRef irVideoSize = mpVideoSource1->Size();
   cv::Mat img1(irVideoSize.y, irVideoSize.x, CV_8UC1,
-               mimFrameBW1.data(), mimFrameBW1.row_stride());
+               fd.imFrameBW[0].data(), fd.imFrameBW[0].row_stride());
   cv::Mat img2(irVideoSize.y, irVideoSize.x, CV_8UC1,
-               mimFrameBW2.data(), mimFrameBW2.row_stride());
+               fd.imFrameBW[1].data(), fd.imFrameBW[1].row_stride());
 
   cv::remap(img1, mImg1r, mMap11, mMap12, cv::INTER_LINEAR);
   cv::remap(img2, mImg2r, mMap21, mMap22, cv::INTER_LINEAR);
@@ -148,12 +177,11 @@ void FrameGrabber::ProcessStereoImages()
   // Convert the Mat into a list of points (with some filtering)
   ExtractPointCloud(xyz, mPointCloud);
 
-  /*
   cv::Mat disp8;
   mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
   cv::imshow("disp", disp8);
   cv::waitKey(1);
-  */
+
 }
 
 void FrameGrabber::LoadCalibration()
@@ -200,24 +228,52 @@ VideoSource* FrameGrabber::CreateVideoSource(const std::string &sName) const
   }
 }
 
-void FrameGrabber::GrabNextFrame()
+const FrameData& FrameGrabber::GrabFrame()
 {
-  if (!mbFreezeVideo) {
-    mpPerfMon->StartTimer("grab_frame");
-
-    if (mbUseStereo) {
-      mpVideoSource2->GetAndFillFrameBWandRGB(mimFrameBW2, mimFrameRGB1);
-    }
-
-    mpVideoSource1->GetAndFillFrameBWandRGB(mimFrameBW1, mimFrameRGB1);
-
-    mpPerfMon->StopTimer("grab_frame");
+  std::unique_lock<std::mutex> lock(mMutex);
+  while (!mbHasNewFrame) {
+      mCond.wait(lock);
   }
+  mnFrameDataIndex ^= 1;
+  mbHasNewFrame = false;
+  return maFrameData[mnFrameDataIndex];
+}
+
+void FrameGrabber::FetchNextFrame()
+{
+  mpPerfMon->StartTimer("grab_frame");
+
+  FrameData& fd = mTempFrameData;
+
+  mpVideoSource1->GetAndFillFrameBWandRGB(fd.imFrameBW[0], fd.imFrameRGB[0]);
+
+  if (mbUseStereo) {
+    mpVideoSource2->GetAndFillFrameBWandRGB(fd.imFrameBW[1], fd.imFrameRGB[1]);
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(mMutex);
+
+    using std::swap;
+    swap(mTempFrameData, maFrameData[mnFrameDataIndex]);
+
+    mbHasNewFrame = true;
+    mCond.notify_one();
+  }
+
+  mpPerfMon->UpdateRateCounter("frame_grabber");
+  mpPerfMon->StopTimer("grab_frame");
 }
 
 const CVD::ImageRef& FrameGrabber::GetFrameSize() const
 {
   return mpVideoSource1->Size();
+}
+
+const FrameData& FrameGrabber::GetFrameData() const
+{
+  std::unique_lock<std::mutex> lock(mMutex);
+  return maFrameData[mnFrameDataIndex];
 }
 
 }
