@@ -251,6 +251,14 @@ void System::CreateModules()
   mModules.pFrameGrabber = new FrameGrabber(&mPerfMonitor);
   ImageRef irVideoSize = mModules.pFrameGrabber->GetFrameSize();
 
+  if (mModules.pFrameGrabber->IsUsingStereo()) {
+    ImageRef irWindowSize = irVideoSize;
+    irWindowSize.x *= 2;
+    mGLWindow.set_size(irWindowSize);
+  } else {
+    mGLWindow.set_size(irVideoSize);
+  }
+
   mModules.pCamera = new ATANCamera("Camera");
   mModules.pCamera->SetImageSize(irVideoSize);
 
@@ -421,8 +429,7 @@ void System::GUICommandCallBack(const string &sCommand, const string &sParams)
       mModules.pFrontend->monitor.PushUserInvoke();
     }
     else if(sParams == "f") {
-      // TODO: Create a "VideoGrabber" class and add this as a function call
-      //mbFreezeVideo = !mbFreezeVideo;
+      mModules.pFrameGrabber->SetFreezeFrame(!mModules.pFrameGrabber->IsFrameFrozen());
     }
   }
 }

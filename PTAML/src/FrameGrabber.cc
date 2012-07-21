@@ -134,9 +134,7 @@ FrameGrabber::~FrameGrabber()
 void FrameGrabber::operator ()()
 {
   while (!mbDone) {
-    if (!mbFreezeVideo) {
-      FetchNextFrame();
-    }
+    FetchNextFrame();
   }
 }
 
@@ -181,6 +179,7 @@ void FrameGrabber::ProcessStereoImages()
   mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
   cv::imshow("disp", disp8);
   cv::waitKey(1);
+  cout << "woo" << endl;
 
 }
 
@@ -243,19 +242,29 @@ void FrameGrabber::FetchNextFrame()
 {
   mpPerfMon->StartTimer("grab_frame");
 
-  FrameData& fd = mTempFrameData;
-
-  mpVideoSource1->GetAndFillFrameBWandRGB(fd.imFrameBW[0], fd.imFrameRGB[0]);
-
-  if (mbUseStereo) {
-    mpVideoSource2->GetAndFillFrameBWandRGB(fd.imFrameBW[1], fd.imFrameRGB[1]);
+  if (!mbFreezeVideo) {
+    FrameData& fd = mTempFrameData;
+    mpVideoSource1->GetAndFillFrameBWandRGB(fd.imFrameBW[0], fd.imFrameRGB[0]);
+    if (mbUseStereo) {
+      mpVideoSource2->GetAndFillFrameBWandRGB(fd.imFrameBW[1], fd.imFrameRGB[1]);
+    }
   }
 
   {
     std::unique_lock<std::mutex> lock(mMutex);
+    FrameData& destFd = maFrameData[mnFrameDataIndex ^ 1];
 
-    using std::swap;
-    swap(mTempFrameData, maFrameData[mnFrameDataIndex]);
+    if (mbFreezeVideo) {
+      FrameData& currentFd = maFrameData[mnFrameDataIndex];
+      for (int i = 0; i < 2; ++i) {
+        destFd.imFrameBW[i].copy_from(currentFd.imFrameBW[i]);
+        destFd.imFrameRGB[i].copy_from(currentFd.imFrameRGB[i]);
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    } else {
+      using std::swap;
+      swap(mTempFrameData, destFd);
+    }
 
     mbHasNewFrame = true;
     mCond.notify_one();

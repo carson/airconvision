@@ -62,10 +62,11 @@ class FrameGrabber {
 
     bool IsUsingStereo() const { return mbUseStereo; }
 
+    void SetFreezeFrame(bool bFreeze) { mbFreezeVideo = bFreeze; }
+    bool IsFrameFrozen() const { return mbFreezeVideo; }
+
     const CVD::ImageRef& GetFrameSize() const;
-
     const FrameData& GetFrameData() const;
-
     const std::vector<TooN::Vector<3> >& GetPointCloud() const { return mPointCloud; }
 
   private:

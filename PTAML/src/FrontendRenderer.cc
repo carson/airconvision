@@ -164,7 +164,17 @@ void FrontendRenderer::DrawMarkerPose(const SE3<> &se3WorldFromNormWorld)
 void FrontendRenderer::Draw()
 {
   glColor4f(1,1,1,1);
+
+  // Draw the right stereo frame if it exists
+  if (mDrawData.imFrameStereo.data()) {
+    int nLeftOffset = mDrawData.imFrame.size().x;
+    glRasterPos2d(-0.5 + nLeftOffset,-0.5);
+    glDrawPixels(mDrawData.imFrameStereo);
+  }
+
+  glRasterPos2d(-0.5,-0.5);
   glDrawPixels(mDrawData.imFrame);
+
 
   if (mDrawData.bInitialTracking) {
     if (GV3::get<int>("Tracker.DrawFASTCorners",0, SILENT)) {

@@ -71,6 +71,8 @@ class StereoPlaneFinder {
   private:
     bool mbFirstUpdate;
     KalmanFilter<4, 4, 1> mFilter;
+
+    TooN::Vector<4> mv4Plane;
 };
 
 }

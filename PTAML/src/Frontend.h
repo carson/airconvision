@@ -29,6 +29,7 @@ struct FrontendDrawData {
   }
 
   CVD::Image<CVD::Rgb<CVD::byte>> imFrame;
+  CVD::Image<CVD::Rgb<CVD::byte>> imFrameStereo;
   std::string sStatusMessage;
 
   bool bInitialTracking;

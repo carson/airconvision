@@ -130,6 +130,11 @@ void Frontend::operator()()
 
     // Set some of the draw data
     mDrawData.imFrame.copy_from(fd.imFrameRGB[0]);
+
+    if (mpFrameGrabber->IsUsingStereo()) {
+      mDrawData.imFrameStereo.copy_from(fd.imFrameRGB[1]);
+    }
+
     mDrawData.bInitialTracking = mbInitialTracking;
 
     if (bUserResetInvoke) {

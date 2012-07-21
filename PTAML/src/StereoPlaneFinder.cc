@@ -128,6 +128,7 @@ void StereoPlaneFinder::Update(const std::vector<TooN::Vector<3> >& pointCloud)
   if (FindPlaneAligner(pointCloud, false, 1.0, plane)) {
     // Send it through the Kalman filter
     UpdateFilter(Se3ToPlane(plane));
+    mv4Plane = Se3ToPlane(plane);
   }
 }
 
@@ -142,7 +143,9 @@ void StereoPlaneFinder::UpdateFilter(const TooN::Vector<4>& v4Plane)
   }
 }
 
-const TooN::Vector<4>& StereoPlaneFinder::GetPlane() const {
+const TooN::Vector<4>& StereoPlaneFinder::GetPlane() const
+{
+  return mv4Plane;
   return mFilter.mu();
 }
 

@@ -146,15 +146,16 @@ void GLWindow2::SetupVideoOrtho()
 {
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-  glOrtho(-0.5,(double)mirVideoSize.x - 0.5, (double) mirVideoSize.y - 0.5, -0.5, -1.0, 1.0);
+
+  glOrtho(-0.5,(double)size().x - 0.5, (double) size().y - 0.5, -0.5, -1.0, 1.0);
 }
 
 void GLWindow2::SetupVideoRasterPosAndZoom()
 { 
   glRasterPos2d(-0.5,-0.5);
   double adZoom[2];
-  adZoom[0] = (double) size()[0] / (double) mirVideoSize[0];
-  adZoom[1] = (double) size()[1] / (double) mirVideoSize[1];
+  adZoom[0] = (double) size()[0] / (double) size().x;
+  adZoom[1] = (double) size()[1] / (double) size().y;
   glPixelZoom(static_cast<float>(adZoom[0]), static_cast<float>(-adZoom[1]));
 }
 
