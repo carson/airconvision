@@ -80,7 +80,7 @@ void MikroKopter::operator()()
     }
 
     // Lock rate to 5 Hz
-    rateLimiter.Limit(5.0);
+    rateLimiter.Limit(60.0);
 
     mpPerfMon->UpdateRateCounter("mk");
   }
