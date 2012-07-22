@@ -4,6 +4,7 @@
 #include <cvd/image.h>
 #include <cvd/rgb.h>
 #include <TooN/TooN.h>
+#include <TooN/se3.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -69,6 +70,8 @@ class FrameGrabber {
     const FrameData& GetFrameData() const;
     const std::vector<TooN::Vector<3> >& GetPointCloud() const { return mPointCloud; }
 
+    const TooN::SE3<>& GetRightCameraPose() const { return mse3RightCamFromLeft; }
+
   private:
     VideoSource* CreateVideoSource(const std::string &sName) const;
     void LoadCalibration();
@@ -105,6 +108,8 @@ class FrameGrabber {
     cv::Mat mQ;
     cv::Mat mImg1r, mImg2r;
     cv::Mat mDisp;
+
+    TooN::SE3<> mse3RightCamFromLeft;
 
     // 3d point cloud when using stereo vision
     std::vector<TooN::Vector<3> > mPointCloud;

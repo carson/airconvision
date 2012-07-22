@@ -289,8 +289,17 @@ void MapViewer::SetupFrustum()
 {
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
+
   double zNear = 0.03;
-  glFrustum(-zNear, zNear, 0.75*zNear,-0.75*zNear,zNear,50);
+  //glFrustum(-zNear, zNear, 0.75*zNear,-0.75*zNear,zNear,50);
+
+  double zFar = 50.0;
+  double fovY = 85.0;
+  double aspect = (double)mGLWindow.size().x / mGLWindow.size().y;
+  double fH = tan( fovY / 360 * M_PI ) * zNear;
+  double fW = fH * aspect;
+  glFrustum( -fW, fW, -fH, fH, zNear, zFar );
+
   glScalef(1,1,-1);
   return;
 }

@@ -10,9 +10,9 @@ using namespace TooN;
 
 namespace PTAMM {
 
-bool FindPlaneAligner(const std::vector<TooN::Vector<3> >& points,
+bool FindPlane(const std::vector<TooN::Vector<3> >& points,
                       bool bFlipNormal, double inlierThreshold,
-                      SE3<>& planeAligner)
+                      Vector<3> &v3MeanOfInliers, Vector<3> &v3Normal)
 {
   size_t nPoints = points.size();
   if(nPoints < 10) {
@@ -79,7 +79,7 @@ bool FindPlaneAligner(const std::vector<TooN::Vector<3> >& points,
   }
 
   // With these inliers, calculate mean and cov
-  TooN::Vector<3> v3MeanOfInliers = Zeros;
+  v3MeanOfInliers = Zeros;
   for (size_t i = 0; i < vv3Inliers.size(); ++i) {
     v3MeanOfInliers += vv3Inliers[i];
   }
@@ -94,7 +94,7 @@ bool FindPlaneAligner(const std::vector<TooN::Vector<3> >& points,
 
   // Find the principal component with the minimal variance: this is the plane normal
   SymEigen<3> sym(m3Cov);
-  TooN::Vector<3> v3Normal = sym.get_evectors()[0];
+  v3Normal = sym.get_evectors()[0];
 
   if (bFlipNormal) {
     // Use the version of the normal which points towards the cam center
@@ -108,7 +108,6 @@ bool FindPlaneAligner(const std::vector<TooN::Vector<3> >& points,
     }
   }
 
-  planeAligner = AlignerFromPointAndUp(v3MeanOfInliers, v3Normal);
   return true;
 }
 
@@ -124,11 +123,15 @@ StereoPlaneFinder::StereoPlaneFinder()
 
 void StereoPlaneFinder::Update(const std::vector<TooN::Vector<3> >& pointCloud)
 {
-  SE3<> plane;
-  if (FindPlaneAligner(pointCloud, false, 1.0, plane)) {
+  Vector<3> v3Mean, v3Normal;
+  if (FindPlane(pointCloud, false, 20.0, v3Mean, v3Normal)) {
+    normalize(v3Normal);
+    Vector<4> v4Plane;
+    v4Plane.slice<0,3>() = v3Normal;
+    v4Plane[3] = -v3Normal * v3Mean;
     // Send it through the Kalman filter
-    UpdateFilter(Se3ToPlane(plane));
-    mv4Plane = Se3ToPlane(plane);
+    //UpdateFilter(v4Plane);
+    mv4Plane = v4Plane;
   }
 }
 

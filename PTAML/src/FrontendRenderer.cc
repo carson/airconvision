@@ -56,7 +56,7 @@ void FrontendRenderer::DrawTrails(const std::vector<std::pair<CVD::ImageRef, CVD
 void FrontendRenderer::DrawCorners(const std::vector<CVD::ImageRef> &vCorners)
 {
   glColor3f(1,0,1);
-  glPointSize(1);
+  glPointSize(4);
   glBegin(GL_POINTS);
   for (auto c = vCorners.begin(); c != vCorners.end(); ++c) {
     glVertex(*c);
@@ -165,13 +165,6 @@ void FrontendRenderer::Draw()
 {
   glColor4f(1,1,1,1);
 
-  // Draw the right stereo frame if it exists
-  if (mDrawData.imFrameStereo.data()) {
-    int nLeftOffset = mDrawData.imFrame.size().x;
-    glRasterPos2d(-0.5 + nLeftOffset,-0.5);
-    glDrawPixels(mDrawData.imFrameStereo);
-  }
-
   glRasterPos2d(-0.5,-0.5);
   glDrawPixels(mDrawData.imFrame);
 
@@ -186,16 +179,32 @@ void FrontendRenderer::Draw()
       if (PickPointOnPlane(mCamera, mDrawData.v4GroundPlane,
                                makeVector(320, 240), v3PointOnPlane))
       {
-        //std::cout << v3PointOnPlane << std::endl;
-        v3PointOnPlane *= -0.02;
+        v3PointOnPlane *= 0.02; // Scale the point to make it possible to use the same DrawGrid funciton
 
         Vector<3> v3Normal = mDrawData.v4GroundPlane.slice<0, 3>();
+        normalize(v3Normal);
         SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
         SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
 
         glColor3f(1,1,1);
         DrawGrid(se3CamFromPlane);
       }
+
+      if (PickPointOnPlane(mCamera, mDrawData.v4DispGroundPlane,
+                               makeVector(320, 240), v3PointOnPlane))
+      {
+        v3PointOnPlane *= 0.02; // Scale the point to make it possible to use the same DrawGrid funciton
+
+        Vector<3> v3Normal = mDrawData.v4DispGroundPlane.slice<0, 3>();
+        normalize(v3Normal);
+        SE3<> se3AlignedPlane = AlignerFromPointAndUp(v3PointOnPlane, v3Normal);
+        SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
+
+        glColor3f(0,1,1);
+        DrawGrid(se3CamFromPlane);
+      }
+
+
     } else {
       DrawTrails(mDrawData.initialTracker.vTrails, mDrawData.initialTracker.vDeadTrails);
     }
@@ -220,6 +229,17 @@ void FrontendRenderer::Draw()
 
     if (!mDrawData.bHasDeterminedScale) {
       DrawMarkerPose(mDrawData.se3MarkerPose);
+    }
+  }
+
+  // Draw the right stereo frame if it exists
+  if (mDrawData.imFrameStereo.data()) {
+    int nLeftOffset = mDrawData.imFrame.size().x;
+    glRasterPos2d(-0.5 + nLeftOffset,-0.5);
+    glDrawPixels(mDrawData.imFrameStereo);
+
+    if (mDrawData.bInitialTracking) {
+      DrawCorners(mDrawData.vBackProjectedPts);
     }
   }
 }

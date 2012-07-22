@@ -46,6 +46,12 @@ bool HomographyInit::Compute(const vector<HomographyMatch> &vMatches, double dMa
   for(unsigned int i=0; i<mvMatches.size(); i++)
     if(IsHomographyInlier(mm3BestHomography, mvMatches[i]))
       mvHomographyInliers.push_back(mvMatches[i]);
+
+  if (mvHomographyInliers.size() < 10) {
+    cout << "Too few inliers. Homography init fails..." << endl;
+    return false;
+  }
+
   for(int iteration = 0; iteration < 5; iteration++)
     RefineHomographyWithInliers();
 

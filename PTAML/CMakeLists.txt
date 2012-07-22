@@ -75,6 +75,7 @@ set(LIBS
 set(VIDEO_SOURCE_SRC
 	${CMAKE_CURRENT_SOURCE_DIR}/src/VideoSource_Linux_Gstreamer_File.cc
 	${CMAKE_CURRENT_SOURCE_DIR}/src/VideoSource_Linux_V4L.cc
+	${CMAKE_CURRENT_SOURCE_DIR}/src/VideoSource_Image.cc
 )
 
 #

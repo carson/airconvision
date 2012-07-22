@@ -126,11 +126,6 @@ class Map
                                                      // use when need complete control of a map
 
   private:
-    // Returns point in ref frame B
-    TooN::Vector<3> ReprojectPoint(const TooN::SE3<>& se3AfromB,
-                                   const TooN::Vector<2> &v2A,
-                                   const TooN::Vector<2> &v2B) const;
-
     void RemoveNonGroundPoints();
 
     // For map generation

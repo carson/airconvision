@@ -7,6 +7,7 @@
 #include "PatchFinder.h"
 #include "SmallBlurryImage.h"
 #include "Utils.h"
+#include "MathUtils.h"
 
 #include <TooN/SVD.h>
 #include <TooN/SymEigen.h>
@@ -215,26 +216,6 @@ void Map::Reset()
   bBundleConverged_Recent = true;
 
   // mnMapNum is not reset as this is constant for a map.
-}
-
-// Finds 3d coords of point in reference frame B from two z=1 plane projections
-Vector<3> Map::ReprojectPoint(const SE3<>& se3AfromB, const Vector<2> &v2A, const Vector<2> &v2B) const
-{
-  Matrix<3,4> PDash;
-  PDash.slice<0,0,3,3>() = se3AfromB.get_rotation().get_matrix();
-  PDash.slice<0,3,3,1>() = se3AfromB.get_translation().as_col();
-
-  Matrix<4> A;
-  A[0][0] = -1.0; A[0][1] =  0.0; A[0][2] = v2B[0]; A[0][3] = 0.0;
-  A[1][0] =  0.0; A[1][1] = -1.0; A[1][2] = v2B[1]; A[1][3] = 0.0;
-  A[2] = v2A[0] * PDash[2] - PDash[0];
-  A[3] = v2A[1] * PDash[2] - PDash[1];
-
-  SVD<4,4> svd(A);
-  Vector<4> v4Smallest = svd.get_VT()[3];
-  if(v4Smallest[3] == 0.0)
-    v4Smallest[3] = 0.00001;
-  return project(v4Smallest);
 }
 
 // InitFromStereo() generates the initial match from two keyframes
@@ -549,7 +530,7 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
         continue;
       }
 
-      v3New *= -0.01;
+      v3New *= 0.01;
 
       MapPoint *pNew = new MapPoint;
       pNew->v3WorldPos = v3New;
@@ -1023,6 +1004,8 @@ void Map::AddSomeMapPoints(int nLevel)
   assert(kSrc != NULL);
 
   KeyFrame *kTarget = ClosestKeyFrame(*kSrc);
+
+  if (kTarget == NULL) return; // Ugly fix to make it stop crashing.. --dhenell
   assert(kTarget != NULL);
 
   assert(kSrc != kTarget);
@@ -1229,6 +1212,11 @@ SE3<> Map::CalcPlaneAligner(bool bFlipNormal) const
   // Find the principal component with the minimal variance: this is the plane normal
   SymEigen<3> sym(m3Cov);
   Vector<3> v3Normal = sym.get_evectors()[0];
+
+  // It won't be possible to build a rotation matrix of the normal is zero! -- dhenell
+  if (v3Normal * v3Normal < 0.0001) {
+    return SE3<>();
+  }
 
   if (bFlipNormal) {
     // Use the version of the normal which points towards the cam center

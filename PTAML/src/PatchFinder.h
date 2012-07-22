@@ -75,6 +75,11 @@ public:
   void MakeTemplateCoarseNoWarp(const MapPoint &p);  // Identity warp: just copies pixels from the source KF.
   void MakeTemplateCoarseNoWarp(const KeyFrame &k, int nLevel, const CVD::ImageRef &irLevelPos); // Identity warp if no MapPoint struct exists yet.
 
+  //
+  void MakeTemplateCoarseNoWarpFromImage(
+      const CVD::Image<CVD::byte> &imSourceImage,
+      const CVD::ImageRef &irCenter);
+
   // If the template making failed (i.e. it needed pixels outside the source image),
   // this bool will return false.
   inline bool TemplateBad() const { return mbTemplateBad;}

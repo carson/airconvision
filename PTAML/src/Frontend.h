@@ -39,8 +39,10 @@ struct FrontendDrawData {
   bool bHasDeterminedScale;
   SE3<> se3MarkerPose;
   TooN::Vector<4> v4GroundPlane;
+  TooN::Vector<4> v4DispGroundPlane;
 
   bool bUseStereo;
+  std::vector<CVD::ImageRef> vBackProjectedPts;
 };
 
 class FrontendMonitor {

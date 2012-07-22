@@ -32,6 +32,28 @@ PatchFinder::PatchFinder(int nPatchSize)
   mpLastTemplateMapPoint = NULL;
 }
 
+void PatchFinder::MakeTemplateCoarseNoWarpFromImage(
+    const Image<byte> &imSource,
+    const ImageRef &irCenter)
+{
+  mm2WarpInverse = Identity;
+  mnSearchLevel = 0;
+
+  if (!imSource.in_image_with_border(irCenter, mnPatchSize / 2 + 1)) {
+    mbTemplateBad = true;
+    return;
+  }
+
+  mbTemplateBad = false;
+  copy(imSource,
+       mimTemplate,
+       mimTemplate.size(),
+       irCenter - mirCenter);
+
+  MakeTemplateSums();
+}
+
+
 // Find the warping matrix and search level
 int PatchFinder::CalcSearchLevelAndWarpMatrix(
                           const MapPoint &p,

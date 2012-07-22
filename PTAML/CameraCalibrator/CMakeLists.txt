@@ -23,6 +23,7 @@ set(CC_SRC
 	../src/VideoSource.cc
 	../src/GLWindowMenu.cc
 	../src/ATANCamera.cc
+	../src/Timing.cc
 	CalibImage.cc
 	CalibCornerPatch.cc
 	CameraCalibrator.cc

@@ -1,9 +1,10 @@
 #include "FrameGrabber.h"
 #include "Timing.h"
+#include "PerformanceMonitor.h"
 #include "VideoSource.h"
 #include "VideoSource_Linux_V4L.h"
 #include "VideoSource_Linux_Gstreamer_File.h"
-#include "PerformanceMonitor.h"
+#include "VideoSource_Image.h"
 
 #include <gvars3/gvars3.h>
 #include <gvars3/instances.h>
@@ -147,7 +148,7 @@ void FrameGrabber::ExtractPointCloud(const cv::Mat &_3dImage,
     for (int j = 0; j < _3dImage.cols; ++j) {
       const cv::Vec3f &pt = _3dImage.at<cv::Vec3f>(i, j);
       if (fabs(pt[2]) < max_z) {
-        points.push_back(makeVector(pt[0], pt[1], pt[2]));
+        points.push_back(makeVector(pt[0], pt[1], -pt[2]));
       }
     }
   }
@@ -179,8 +180,6 @@ void FrameGrabber::ProcessStereoImages()
   mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
   cv::imshow("disp", disp8);
   cv::waitKey(1);
-  cout << "woo" << endl;
-
 }
 
 void FrameGrabber::LoadCalibration()
@@ -206,6 +205,10 @@ void FrameGrabber::LoadCalibration()
   fs["R"] >> R;
   fs["T"] >> T;
 
+  Matrix<3> rot = wrapMatrix((double*)R.data, 3, 3);
+  mse3RightCamFromLeft.get_rotation() = rot.T();
+  mse3RightCamFromLeft.get_translation() = wrapVector((double*)T.data, 3);
+
   cv::Size img_size(640, 480);
 
   cv::stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, mQ,
@@ -218,13 +221,17 @@ void FrameGrabber::LoadCalibration()
 
 VideoSource* FrameGrabber::CreateVideoSource(const std::string &sName) const
 {
-  string videoSourceFileName = GV3::get<string>(sName + ".FileInput", "");
-
-  if (videoSourceFileName.empty()) {
-    return new VideoSource_Linux_V4L(sName);
-  } else {
-    return new VideoSource_Linux_Gstreamer_File(videoSourceFileName);
+  string sVideoFilename = GV3::get<string>(sName + ".VideoFile", "");
+  if (!sVideoFilename.empty()) {
+    return new VideoSource_Linux_Gstreamer_File(sVideoFilename);
   }
+
+  string sImageFilename = GV3::get<string>(sName + ".ImageFile", "");
+  if (!sImageFilename.empty()) {
+    return new VideoSource_Image(sName);
+  }
+
+  return new VideoSource_Linux_V4L(sName);
 }
 
 const FrameData& FrameGrabber::GrabFrame()

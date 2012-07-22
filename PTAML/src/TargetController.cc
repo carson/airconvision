@@ -43,8 +43,16 @@ void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
   // Calculate the yaw-only rotation transformation
   SO3<> so3Rotation = se3FixedPose.get_rotation();
   Vector<3> v3Up = makeVector(0, 0, 1);
-  SO3<> so3StraightenUp(so3Rotation * v3Up, -v3Up);
-  so3Rotation = so3StraightenUp * so3Rotation;
+  Vector<3> v3RotatedUp = so3Rotation * v3Up;
+  Vector<3> v3Diff = v3RotatedUp + v3Up;
+  if (v3Diff * v3Diff < 0.0001) {
+    // The up vector is 180 deg rotated, which causes the SO3(a,b) constructor to fail
+    SO3<> so3StraightenUp = SO3<>::exp(makeVector(M_PI,0,0)); // Very untested...!
+    so3Rotation = so3StraightenUp * so3Rotation;
+  } else {
+    SO3<> so3StraightenUp(v3RotatedUp, -v3Up);
+    so3Rotation = so3StraightenUp * so3Rotation;
+  }
 
   // Offset calculation
   Vector<3> v3PosInWorld = se3FixedPose.inverse().get_translation();

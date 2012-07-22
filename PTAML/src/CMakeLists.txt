@@ -98,6 +98,7 @@ set(PTAML_SRC
 	tinyxmlparser.cc
 	Tracker.cc
 	Utils.cc
+	MathUtils.cc
 	MKProtocol.cc
 	MKConnection.cc
 	MikroKopter.cc

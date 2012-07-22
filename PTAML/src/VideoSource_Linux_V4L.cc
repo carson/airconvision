@@ -27,12 +27,14 @@ void VideoSource_Linux_V4L::GetAndFillFrameBWandRGB(Image<byte> &imBW, Image<Rgb
   convert_image(*pVidFrame, imRGB);
   mVideoBuffer->put_frame(pVidFrame);
 
+  /*
   while (mVideoBuffer->pendingFrame()) {
     VideoFrame<yuv422> *pVidFrame = mVideoBuffer->get_frame();
     convert_image(*pVidFrame, imBW);
     convert_image(*pVidFrame, imRGB);
     mVideoBuffer->put_frame(pVidFrame);
   }
+  */
 }
 
 }
