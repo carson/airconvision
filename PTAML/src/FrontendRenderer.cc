@@ -114,7 +114,7 @@ void FrontendRenderer::DrawMapPoints(const std::vector<std::pair<int, TooN::Vect
     else           avLevelColors[i] = makeVector( 1.0, 1.0, 0.7); // In case I ever run with LEVELS > 4
   }
 
-  glPointSize(3);
+  glPointSize(4);
   glDisable(GL_BLEND);
   glBegin(GL_POINTS);
   for(auto it = vMapPoints.begin(); it != vMapPoints.end(); ++it) {

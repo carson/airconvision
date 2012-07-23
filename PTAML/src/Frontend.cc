@@ -209,7 +209,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     vector<ImageRef> vBestFeatures;
 
-    FeatureGrid featureGrid(640, 480, 4, 4, 15);
+    FeatureGrid featureGrid(640, 480, 8, 4, 15);
     featureGrid.FindFeatures(fd.imFrameBW[0]);
     featureGrid.FindBestFeatures(fd.imFrameBW[0]);
     featureGrid.GetBestFeatures(1000, vBestFeatures);
@@ -225,7 +225,6 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
     vector<ImageRef> vBackProjectedPts;
 
     SE3<> se3RightCamFromLeft = mpFrameGrabber->GetRightCameraPose();
-    SE3<> se3LeftCamFromRight = se3RightCamFromLeft.inverse();
 
     static PatchFinder Finder;
 
@@ -290,15 +289,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
           ReprojectPoint(se3RightCamFromLeft,
                          c.UnProject(Finder.GetSubPixPos()),
                          c.UnProject(vec(*it)));
-
-/*
-        v3New[0] *= -1;
-        v3New[1] *= -1;
-        v3New[2] *= -1;
-        */
-
         vv3PlanePoints.push_back(v3New);
-
 
         cout << v2Image << "  ->  "  << v2RootPos << " : " <<v3WorldPoint << " ---> " << v3New << endl;
         //vBackProjectedPts.push_back(ImageRef(v2Image[0] + 640, v2Image[1]));
@@ -309,7 +300,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
     }
 
 
-    if (vv3PlanePoints.size() > 30) {
+    if (vv3PlanePoints.size() > 10) {
       StereoPlaneFinder spf;
       spf.Update(vv3PlanePoints);
 
@@ -343,7 +334,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
       Vector<3> v3N = v4PlaneLSE.slice<0,3>();
       double d = sqrt(v3N * v3N);
-      v4PlaneLSE *= (1.0/d);
+      v4PlaneLSE *= -(1.0/d);
 
       mDrawData.v4GroundPlane = v4PlaneLSE; //spf.GetPlane();
       mDrawData.v4DispGroundPlane = mStereoPlaneFinder.GetPlane();
@@ -356,9 +347,8 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
       mDrawData.v4DispGroundPlane = mStereoPlaneFinder.GetPlane();
     }
 
-
-
-
+    Vector<4> v4GroundPlane = mStereoPlaneFinder.GetPlane();
+    v4GroundPlane[3] *= 0.01; // Scale from cm to meters
 
 
     mDrawData.vBackProjectedPts = vBackProjectedPts;
@@ -366,8 +356,8 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     if (bUserInvoke && vMatches.size() > 10) {
       SE3<> se3CurrentPose;
-      mpMapMaker->InitFromStereo(rightKF, mKeyFrame, vMatches, &se3CurrentPose, false);
-   //   mpMapMaker->InitFromKnownPlane(mKeyFrame, mStereoPlaneFinder.GetPlane(), se3CurrentPose);
+   //   mpMapMaker->InitFromStereo(rightKF, mKeyFrame, vMatches, &se3CurrentPose, false);
+      mpMapMaker->InitFromKnownPlane(mKeyFrame, v4GroundPlane, se3CurrentPose);
       mpTracker->SetCurrentPose(se3CurrentPose);
       //mpTracker->ForceRecovery();
       mbInitialTracking = false;

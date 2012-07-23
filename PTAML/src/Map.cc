@@ -507,12 +507,12 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
 
   cout << "Ground plane: " << v4Plane << endl;
 
-  for (int nLevel = 0; nLevel < LEVELS; ++nLevel) {
+  for (int nLevel = LEVELS - 1; nLevel >= 0; --nLevel) {
     Level &l = pkFirst->aLevels[nLevel];
 
     // Find some good map points to add
     double inv = 1.0 / (1 << nLevel);
-    size_t nNumFeatures = 2000 * inv * inv; // This formula could need some work....
+    size_t nNumFeatures = 1000 * inv * inv; // This formula could need some work....
     std::vector<ImageRef> vBestFeatures;
     l.GetBestFeatures(nNumFeatures, vBestFeatures);
 
@@ -529,8 +529,6 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
       {
         continue;
       }
-
-      v3New *= 0.01;
 
       MapPoint *pNew = new MapPoint;
       pNew->v3WorldPos = v3New;
@@ -569,6 +567,8 @@ void Map::InitFromKnownPlane(const KeyFrame &kKeyFrame, const TooN::Vector<4> &v
 
       pNew->pMMData->sMeasurementKFs.insert(pkFirst);
     }
+
+    if (vpPoints.size() > 400) break;
   }
 
   vpKeyFrames.push_back(pkFirst);

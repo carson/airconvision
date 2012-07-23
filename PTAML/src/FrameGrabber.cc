@@ -148,7 +148,7 @@ void FrameGrabber::ExtractPointCloud(const cv::Mat &_3dImage,
     for (int j = 0; j < _3dImage.cols; ++j) {
       const cv::Vec3f &pt = _3dImage.at<cv::Vec3f>(i, j);
       if (fabs(pt[2]) < max_z) {
-        points.push_back(makeVector(pt[0], pt[1], -pt[2]));
+        points.push_back(makeVector(-pt[0], -pt[1], -pt[2]));
       }
     }
   }
