@@ -49,6 +49,31 @@ struct FrameData {
   CVD::Image<CVD::byte> imFrameBW[2];             // BW frame
 };
 
+class StereoProcessor {
+  public:
+    StereoProcessor();
+    void LoadCalibration(const std::string &sIntrinsicsFile,
+        const std::string &sExtrinsicsFile, const CVD::ImageRef &irImageSize);
+    void ProcessStereoImages(const FrameData& fd);
+    void GeneratePointCloud(std::vector<TooN::Vector<3> > &vv3PointCloud) const;
+    const TooN::SE3<>& GetRightCameraPose() const { return mse3RightCamFromLeft; }
+  private:
+    void ExtractPointCloudFrom3DImage(const cv::Mat &_3dImage,
+        std::vector<TooN::Vector<3> >& points) const;
+  private:
+    // Stereo rectification
+    cv::Mat mMap11, mMap12, mMap21, mMap22;
+    cv::Rect mRoi1, mRoi2;
+    cv::Mat mQ;
+    cv::Mat mImg1r, mImg2r;
+    cv::Mat mDisp;
+
+    TooN::SE3<> mse3RightCamFromLeft;
+
+    // Disparity generation when using stereo vision
+    DisparityGenerator mDispGenerator;
+};
+
 class FrameGrabber {
   public:
     FrameGrabber(PerformanceMonitor *pPerfMon);
@@ -59,7 +84,6 @@ class FrameGrabber {
     void StopThread() { mbDone = true; }
 
     const FrameData& GrabFrame();
-    void ProcessStereoImages();
 
     bool IsUsingStereo() const { return mbUseStereo; }
 
@@ -68,18 +92,10 @@ class FrameGrabber {
 
     const CVD::ImageRef& GetFrameSize() const;
     const FrameData& GetFrameData() const;
-    const std::vector<TooN::Vector<3> >& GetPointCloud() const { return mPointCloud; }
-
-    const TooN::SE3<>& GetRightCameraPose() const { return mse3RightCamFromLeft; }
 
   private:
     VideoSource* CreateVideoSource(const std::string &sName) const;
-    void LoadCalibration();
-
     void FetchNextFrame(); // Fetches new frame data from camera
-
-    void ExtractPointCloud(const cv::Mat &_3dImage,
-                           std::vector<TooN::Vector<3> >& points) const;
 
   private:
     bool mbDone;
@@ -101,21 +117,6 @@ class FrameGrabber {
 
     // Possibility to freeze the video on a frame
     bool mbFreezeVideo;
-
-    // Stereo rectification
-    cv::Mat mMap11, mMap12, mMap21, mMap22;
-    cv::Rect mRoi1, mRoi2;
-    cv::Mat mQ;
-    cv::Mat mImg1r, mImg2r;
-    cv::Mat mDisp;
-
-    TooN::SE3<> mse3RightCamFromLeft;
-
-    // 3d point cloud when using stereo vision
-    std::vector<TooN::Vector<3> > mPointCloud;
-
-    // Disparity generation when using stereo vision
-    DisparityGenerator mDispGenerator;
 };
 
 }

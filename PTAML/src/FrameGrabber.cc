@@ -89,6 +89,94 @@ DisparityGenerator::Generate(const cv::Mat &img1, const cv::Mat &img2,
   }
 }
 
+StereoProcessor::StereoProcessor()
+{
+}
+
+void StereoProcessor::LoadCalibration(const std::string &sIntrinsicsFile,
+    const std::string &sExtrinsicsFile, const CVD::ImageRef &irImageSize)
+{
+  // reading intrinsic parameters
+  cv::FileStorage fs(sIntrinsicsFile, CV_STORAGE_READ);
+  if (!fs.isOpened()) {
+    throw std::runtime_error("Failed to intrinsics calibration file");
+  }
+
+  cv::Mat M1, D1, M2, D2;
+  fs["M1"] >> M1;
+  fs["D1"] >> D1;
+  fs["M2"] >> M2;
+  fs["D2"] >> D2;
+
+  fs.open(sExtrinsicsFile, CV_STORAGE_READ);
+  if (!fs.isOpened()) {
+    throw std::runtime_error("Failed to open extrinsics calibration file");
+  }
+
+  cv::Mat R, T, R1, P1, R2, P2;
+  fs["R"] >> R;
+  fs["T"] >> T;
+
+  Matrix<3> rot = wrapMatrix((double*)R.data, 3, 3);
+  mse3RightCamFromLeft.get_rotation() = rot.T();
+  mse3RightCamFromLeft.get_translation() = wrapVector((double*)T.data, 3);
+
+  cv::Size img_size(irImageSize.x, irImageSize.y);
+
+  cv::stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, mQ,
+                    cv::CALIB_ZERO_DISPARITY, -1, img_size, &mRoi1, &mRoi2);
+
+  cv::initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, mMap11, mMap12);
+  cv::initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2, mMap21, mMap22);
+}
+
+void StereoProcessor::ExtractPointCloudFrom3DImage(const cv::Mat &_3dImage,
+    std::vector<TooN::Vector<3> >& points) const
+{
+  const double max_z = 2000.0;
+  points.clear();
+  for (int i = 0; i < _3dImage.rows; ++i) {
+    for (int j = 0; j < _3dImage.cols; ++j) {
+      const cv::Vec3f &pt = _3dImage.at<cv::Vec3f>(i, j);
+      if (fabs(pt[2]) < max_z) {
+        points.push_back(makeVector(-pt[0], -pt[1], -pt[2]));
+      }
+    }
+  }
+}
+
+void StereoProcessor::ProcessStereoImages(const FrameData& fd)
+{
+  ImageRef irVideoSize = fd.imFrameBW[0].size();
+  const cv::Mat img1(irVideoSize.y, irVideoSize.x, CV_8UC1,
+               const_cast<uint8_t*>(fd.imFrameBW[0].data()),
+               fd.imFrameBW[0].row_stride());
+  const cv::Mat img2(irVideoSize.y, irVideoSize.x, CV_8UC1,
+               const_cast<uint8_t*>(fd.imFrameBW[1].data()),
+               fd.imFrameBW[1].row_stride());
+
+  cv::remap(img1, mImg1r, mMap11, mMap12, cv::INTER_LINEAR);
+  cv::remap(img2, mImg2r, mMap21, mMap22, cv::INTER_LINEAR);
+
+  mDispGenerator.numberOfDisparities = ((irVideoSize.x/8) + 15) & -16;
+  mDispGenerator.Generate(mImg1r, mImg2r, mRoi1, mRoi2, mQ, mDisp);
+
+  cv::Mat disp8;
+  mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
+  cv::imshow("disp", disp8);
+  cv::waitKey(1);
+}
+
+void StereoProcessor::GeneratePointCloud(
+    std::vector<TooN::Vector<3> > &vv3PointCloud) const
+{
+  cv::Mat xyz;
+  cv::reprojectImageTo3D(mDisp, xyz, mQ);
+
+  // Convert the Mat into a list of points (with some filtering)
+  ExtractPointCloudFrom3DImage(xyz, vv3PointCloud);
+}
+
 void FrameData::Resize(const CVD::ImageRef &irImageSize)
 {
   for (int i = 0; i < 2; ++i) {
@@ -122,7 +210,6 @@ FrameGrabber::FrameGrabber(PerformanceMonitor *pPerfMon)
     // Just check so that the video sizes are equal!
     ImageRef irVideoSize2 = mpVideoSource2->Size();
     assert(irVideoSize1 == irVideoSize2);
-    LoadCalibration();
   }
 }
 
@@ -137,86 +224,6 @@ void FrameGrabber::operator ()()
   while (!mbDone) {
     FetchNextFrame();
   }
-}
-
-void FrameGrabber::ExtractPointCloud(const cv::Mat &_3dImage,
-                                     std::vector<TooN::Vector<3> >& points) const
-{
-  const double max_z = 2000.0;
-  points.clear();
-  for (int i = 0; i < _3dImage.rows; ++i) {
-    for (int j = 0; j < _3dImage.cols; ++j) {
-      const cv::Vec3f &pt = _3dImage.at<cv::Vec3f>(i, j);
-      if (fabs(pt[2]) < max_z) {
-        points.push_back(makeVector(-pt[0], -pt[1], -pt[2]));
-      }
-    }
-  }
-}
-
-void FrameGrabber::ProcessStereoImages()
-{
-  FrameData& fd = maFrameData[mnFrameDataIndex];
-
-  ImageRef irVideoSize = mpVideoSource1->Size();
-  cv::Mat img1(irVideoSize.y, irVideoSize.x, CV_8UC1,
-               fd.imFrameBW[0].data(), fd.imFrameBW[0].row_stride());
-  cv::Mat img2(irVideoSize.y, irVideoSize.x, CV_8UC1,
-               fd.imFrameBW[1].data(), fd.imFrameBW[1].row_stride());
-
-  cv::remap(img1, mImg1r, mMap11, mMap12, cv::INTER_LINEAR);
-  cv::remap(img2, mImg2r, mMap21, mMap22, cv::INTER_LINEAR);
-
-  mDispGenerator.numberOfDisparities = ((GetFrameSize().x/8) + 15) & -16;
-  mDispGenerator.Generate(mImg1r, mImg2r, mRoi1, mRoi2, mQ, mDisp);
-
-  cv::Mat xyz;
-  cv::reprojectImageTo3D(mDisp, xyz, mQ);
-
-  // Convert the Mat into a list of points (with some filtering)
-  ExtractPointCloud(xyz, mPointCloud);
-
-  cv::Mat disp8;
-  mDisp.convertTo(disp8, CV_8U, 255.0/mDispGenerator.numberOfDisparities);
-  cv::imshow("disp", disp8);
-  cv::waitKey(1);
-}
-
-void FrameGrabber::LoadCalibration()
-{
-  // reading intrinsic parameters
-  cv::FileStorage fs("Data/intrinsics.yml", CV_STORAGE_READ);
-  if (!fs.isOpened()) {
-    throw std::runtime_error("Failed to intrinsic.yml");
-  }
-
-  cv::Mat M1, D1, M2, D2;
-  fs["M1"] >> M1;
-  fs["D1"] >> D1;
-  fs["M2"] >> M2;
-  fs["D2"] >> D2;
-
-  fs.open("Data/extrinsics.yml", CV_STORAGE_READ);
-  if (!fs.isOpened()) {
-    throw std::runtime_error("Failed to open extrinsinc.yml");
-  }
-
-  cv::Mat R, T, R1, P1, R2, P2;
-  fs["R"] >> R;
-  fs["T"] >> T;
-
-  Matrix<3> rot = wrapMatrix((double*)R.data, 3, 3);
-  mse3RightCamFromLeft.get_rotation() = rot.T();
-  mse3RightCamFromLeft.get_translation() = wrapVector((double*)T.data, 3);
-
-  cv::Size img_size(640, 480);
-
-  cv::stereoRectify(M1, D1, M2, D2, img_size, R, T, R1, R2, P1, P2, mQ,
-                    cv::CALIB_ZERO_DISPARITY, -1, img_size, &mRoi1, &mRoi2);
-
-
-  cv::initUndistortRectifyMap(M1, D1, R1, P1, img_size, CV_16SC2, mMap11, mMap12);
-  cv::initUndistortRectifyMap(M2, D2, R2, P2, img_size, CV_16SC2, mMap21, mMap22);
 }
 
 VideoSource* FrameGrabber::CreateVideoSource(const std::string &sName) const

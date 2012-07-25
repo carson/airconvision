@@ -108,6 +108,9 @@ Frontend::Frontend(FrameGrabber *pFrameGrabber,
   , mbSetScaleNextTime(false)
 {
   GV3::Register(mgvnFeatureDetector, "FeatureDetector", (int)PLAIN_FAST10, SILENT);
+
+  mStereoProcessor.LoadCalibration("Data/intrinsics.yml", "Data/extrinsics.yml",
+                                   pFrameGrabber->GetFrameSize());
 }
 
 void Frontend::operator()()
@@ -199,13 +202,14 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     mbHasDeterminedScale = true;
 
-    // Calculate a dense point cloud
-    mpFrameGrabber->ProcessStereoImages();
+    const FrameData& fd = mpFrameGrabber->GetFrameData();
+
+    vector<Vector<3>> vv3PointCloud;
+    mStereoProcessor.ProcessStereoImages(fd);
+    mStereoProcessor.GeneratePointCloud(vv3PointCloud);
 
     // Find the ground plane in the point cloud
-    mStereoPlaneFinder.Update(mpFrameGrabber->GetPointCloud());
-
-    const FrameData& fd = mpFrameGrabber->GetFrameData();
+    mStereoPlaneFinder.Update(vv3PointCloud);
 
     vector<ImageRef> vBestFeatures;
 
@@ -213,7 +217,6 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
     featureGrid.FindFeatures(fd.imFrameBW[0]);
     featureGrid.FindBestFeatures(fd.imFrameBW[0]);
     featureGrid.GetBestFeatures(1000, vBestFeatures);
-
 
     KeyFrame rightKF(mCamera);
     rightKF.InitFromImage(fd.imFrameBW[1],
@@ -224,7 +227,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     vector<ImageRef> vBackProjectedPts;
 
-    SE3<> se3RightCamFromLeft = mpFrameGrabber->GetRightCameraPose();
+    SE3<> se3RightCamFromLeft = mStereoProcessor.GetRightCameraPose();
 
     static PatchFinder Finder;
 
