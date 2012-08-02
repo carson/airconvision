@@ -206,17 +206,22 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     vector<Vector<3>> vv3PointCloud;
     mStereoProcessor.ProcessStereoImages(fd);
-    mStereoProcessor.GeneratePointCloud(vv3PointCloud);
+//    mStereoProcessor.GeneratePointCloud(vv3PointCloud);
+
+    double f = mStereoProcessor.GetFocalLength();
+    double L = mStereoProcessor.GetBaseline();
+
+    cout << "Cam: " << f << ", " << L << endl;
 
     // Find the ground plane in the point cloud
-    mStereoPlaneFinder.Update(vv3PointCloud);
+    mStereoPlaneFinder.Update(mStereoProcessor.GetDisparityMap(), f, L);
 
     vector<ImageRef> vBestFeatures;
 
     FeatureGrid featureGrid(640, 480, 8, 4, 15);
     featureGrid.FindFeatures(fd.imFrameBW[0]);
     featureGrid.FindBestFeatures(fd.imFrameBW[0]);
-    featureGrid.GetBestFeatures(1000, vBestFeatures);
+    featureGrid.GetBestFeatures(150, vBestFeatures);
 
     KeyFrame rightKF(mCamera);
     rightKF.InitFromImage(fd.imFrameBW[1],
@@ -288,17 +293,20 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
         vMatches.emplace_back(ir(v2RootPos), *it);
 
         // Now triangulate the 3d point...
+        /*
         Vector<3> v3New =
           ReprojectPoint(se3RightCamFromLeft,
                          c.UnProject(Finder.GetSubPixPos()),
                          c.UnProject(vec(*it)));
-        vv3PlanePoints.push_back(v3New);
 
-        cout << v2Image << "  ->  "  << v2RootPos << " : " <<v3WorldPoint << " ---> " << v3New << endl;
-        //vBackProjectedPts.push_back(ImageRef(v2Image[0] + 640, v2Image[1]));
+        vv3PlanePoints.push_back(v3New);
+        */
+
+       // cout << v2Image << "  ->  "  << v2RootPos << " : " <<v3WorldPoint << " ---> " << v3New << endl;
+       //vBackProjectedPts.push_back(ImageRef(v2Image[0] + 640, v2Image[1]));
         vBackProjectedPts.push_back(ImageRef(v2RootPos[0] + 640, v2RootPos[1]));
         vBackProjectedPts.push_back(*it);
-        //vBackProjectedPts.push_back(ir(c.Project(project((v3New)))));
+//        vBackProjectedPts.push_back(ir(c.Project(project((v3New))) ));
       }
     }
 

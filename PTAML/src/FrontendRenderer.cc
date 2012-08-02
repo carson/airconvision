@@ -187,7 +187,7 @@ void FrontendRenderer::Draw()
         SE3<> se3CamFromPlane = se3AlignedPlane.inverse();
 
         glColor3f(1,1,1);
-        DrawGrid(se3CamFromPlane);
+        //DrawGrid(se3CamFromPlane);
       }
 
       if (PickPointOnPlane(mCamera, mDrawData.v4DispGroundPlane,

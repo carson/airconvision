@@ -4,6 +4,7 @@
 #include <TooN/TooN.h>
 #include <TooN/se3.h>
 #include <TooN/LU.h>
+#include <cvd/image.h>
 
 namespace PTAMM {
 
@@ -63,6 +64,7 @@ class StereoPlaneFinder {
     StereoPlaneFinder();
 
     void Update(const std::vector<TooN::Vector<3> >& pointCloud);
+    void Update(const CVD::SubImage<float> &imDisp, double f, double L);
     const TooN::Vector<4>& GetPlane() const;
 
   private:

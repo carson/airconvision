@@ -117,9 +117,9 @@ void StereoProcessor::LoadCalibration(const std::string &sIntrinsicsFile,
   fs["R"] >> R;
   fs["T"] >> T;
 
-  Matrix<3> rot = wrapMatrix((double*)R.data, 3, 3);
-  mse3RightCamFromLeft.get_rotation() = rot.T();
-  mse3RightCamFromLeft.get_translation() = wrapVector((double*)T.data, 3);
+  SO3<> so3Rotation(wrapMatrix((double*)R.data, 3, 3));
+  mse3RightCamFromLeft.get_rotation() = so3Rotation;
+  mse3RightCamFromLeft.get_translation() = so3Rotation.inverse() * wrapVector((double*)T.data, 3);
 
   cv::Size img_size(irImageSize.x, irImageSize.y);
 
@@ -176,6 +176,24 @@ void StereoProcessor::GeneratePointCloud(
   // Convert the Mat into a list of points (with some filtering)
   ExtractPointCloudFrom3DImage(xyz, vv3PointCloud);
 }
+
+const CVD::SubImage<float> StereoProcessor::GetDisparityMap() const
+{
+  return SubImage<float>(reinterpret_cast<float*>(mDisp.data),
+                         ImageRef(mDisp.cols, mDisp.rows),
+                         (size_t)mDisp.step/sizeof(float));
+}
+
+double StereoProcessor::GetFocalLength() const
+{
+  return mQ.at<double>(2, 3);
+}
+
+double StereoProcessor::GetBaseline() const
+{
+  return 1.0 / mQ.at<double>(3, 2);
+}
+
 
 void FrameData::Resize(const CVD::ImageRef &irImageSize)
 {

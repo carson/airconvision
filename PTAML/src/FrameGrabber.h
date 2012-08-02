@@ -57,6 +57,9 @@ class StereoProcessor {
     void ProcessStereoImages(const FrameData& fd);
     void GeneratePointCloud(std::vector<TooN::Vector<3> > &vv3PointCloud) const;
     const TooN::SE3<>& GetRightCameraPose() const { return mse3RightCamFromLeft; }
+    const CVD::SubImage<float> GetDisparityMap() const;
+    double GetFocalLength() const;
+    double GetBaseline() const;
   private:
     void ExtractPointCloudFrom3DImage(const cv::Mat &_3dImage,
         std::vector<TooN::Vector<3> >& points) const;
