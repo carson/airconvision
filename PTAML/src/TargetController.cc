@@ -19,7 +19,7 @@ void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
 {
   SE3<> se3PoseCorrection;
   se3PoseCorrection.get_rotation() = SO3<>(makeVector(0, 1, 0), makeVector(1, 0, 0));
-  SE3<> se3FixedPose = se3Pose * se3PoseCorrection;
+  SE3<> se3FixedPose = se3Pose; // * se3PoseCorrection;
 
   // Check if this is the first update
   if (mLastUpdate.time_since_epoch() == Clock::duration::zero()) {

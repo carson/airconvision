@@ -20,6 +20,7 @@ class StopWatch {
 
     double StoppedTime() const;
     double Elapsed() const;
+    Clock::duration ElapsedDuration() const;
 
     bool Running() const { return mbRunning; }
 

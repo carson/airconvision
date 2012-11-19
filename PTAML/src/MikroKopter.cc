@@ -143,15 +143,14 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
 void MikroKopter::LogControlValues()
 {
   mControlValuesFile
-//    << mTargetController.GetTime() << " "
+    << mTargetController.GetTime() << " "
 //    << mTargetController.GetTargetOffset() << " "
     << mTargetController.GetTargetOffsetFiltered() << " "
 //    << mTargetController.GetVelocity() << " "
-//    << mTargetController.GetVelocityFiltered();
-    ;
+    << mTargetController.GetVelocityFiltered();
 
   for (size_t i = 0; i < 32; ++i) {
-    //mControlValuesFile << " " << mMkDebugOutput.Analog[i];
+    mControlValuesFile << " " << mMkDebugOutput.Analog[i];
   }
 
   mControlValuesFile << endl;
@@ -160,10 +159,7 @@ void MikroKopter::LogControlValues()
 void MikroKopter::RecvRequestPositionHold()
 {
   cout << " >> Position hold requested." << endl;
-  /*
-  mPositionHold.Init(mpTracker->GetCurrentPose(), high_resolution_clock::now());
-  mbPositionHold = true;
-  */
+  GoToPosition(mpTracker->GetCurrentPose().inverse());
 }
 
 void MikroKopter::RecvDebugOutput(const DebugOut_t& debug)

@@ -92,6 +92,7 @@ set(PTAML_SRC
 	SmallBlurryImage.cc
 	StereoPlaneFinder.cc
 	System.cc
+	Swarm.cc
 	Timing.cc
 	tinyxml.cc
 	tinyxmlerror.cc

@@ -11,7 +11,7 @@ struct DebugOut_t
 {
     uint8_t StatusGreen;
     uint8_t StatusRed;
-    uint16_t Analog[32];
+    int16_t Analog[32];
 } __attribute__((packed));
 
 

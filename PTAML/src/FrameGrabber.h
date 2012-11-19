@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <chrono>
 
 namespace PTAMM {
 
@@ -47,6 +48,9 @@ struct FrameData {
   void Resize(const CVD::ImageRef &irImageSize);
   CVD::Image<CVD::Rgb<CVD::byte>> imFrameRGB[2];    // RGB frame
   CVD::Image<CVD::byte> imFrameBW[2];             // BW frame
+
+  std::chrono::time_point<
+    std::chrono::high_resolution_clock> tpCaptureTime;
 };
 
 class StereoProcessor {

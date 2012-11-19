@@ -32,6 +32,7 @@ void StopWatch::Start()
 {
   assert(!mbRunning);
   mtpStart = Clock::now();
+  mbRunning = true;
 }
 
 void StopWatch::Stop()
@@ -61,6 +62,14 @@ double StopWatch::Elapsed() const
   }
 }
 
+StopWatch::Clock::duration StopWatch::ElapsedDuration() const
+{
+  if (mbRunning) {
+    return mdDuration + (Clock::now() - mtpStart);
+  } else {
+    return mdDuration;
+  }
+}
 
 TimeoutTimer::TimeoutTimer()
 {

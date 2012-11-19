@@ -38,6 +38,10 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     #set(CMAKE_EXE_LINKER_FLAGS -fopenmp) 
 endif()
 
+if(UNIX)
+  add_definitions(-D_LINUX)
+endif()
+
 find_package(OpenMP)
 if(OPENMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")

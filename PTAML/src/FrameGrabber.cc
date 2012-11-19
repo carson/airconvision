@@ -280,6 +280,7 @@ void FrameGrabber::FetchNextFrame()
     if (mbUseStereo) {
       mpVideoSource2->GetAndFillFrameBWandRGB(fd.imFrameBW[1], fd.imFrameRGB[1]);
     }
+    fd.tpCaptureTime = std::chrono::high_resolution_clock::now();
   }
 
   {

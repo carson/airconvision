@@ -109,6 +109,7 @@ Modules::Modules()
   , pMapViewer(NULL)
   , pFrontend(NULL)
   , pMikroKopter(NULL)
+  , pSwarmLab(NULL)
 {
 }
 
@@ -124,6 +125,7 @@ Modules::~Modules()
   delete pMapViewer;
   delete pFrontend;
   delete pMikroKopter;
+  delete pSwarmLab;
 }
 
 
@@ -304,6 +306,7 @@ void System::CreateModules()
 
 
   mModules.pMikroKopter = new MikroKopter(mModules.pTracker, &mPerfMonitor);
+  mModules.pSwarmLab = new SwarmLab();
 }
 
 /**
@@ -319,18 +322,45 @@ void System::Run()
   mModules.pFrontend->DoOnTrackedPoseUpdated(std::bind(
       &MikroKopter::UpdatePose, mModules.pMikroKopter,
       std::placeholders::_1, std::placeholders::_2));
+  mModules.pFrontend->DoOnTrackedPoseUpdated(std::bind(
+      &SwarmLab::UpdatePose, mModules.pSwarmLab,
+      std::placeholders::_1, std::placeholders::_2,
+      std::placeholders::_3));
 
   // Start threads
   std::thread mapMakerThread(std::ref(*mModules.pMapMaker));
   std::thread frontendThread(std::ref(*mModules.pFrontend));
   std::thread mikroKopterThread(std::ref(*mModules.pMikroKopter));
   std::thread frameGrabberThread(std::ref(*mModules.pFrameGrabber));
+  std::thread swarmThread(std::ref(*mModules.pSwarmLab));
 
   while (!mbDone) {
     //Check if the map has been locked by another thread, and wait for release.
     //bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
 
     mPerfMonitor.StartTimer("main_loop");
+
+
+/*
+    SE3<> se3DummyPose;
+    se3DummyPose.get_translation() = makeVector(
+      (double)(rand()%10000)/1000.0,
+      (double)(rand()%10000)/1000.0,
+      (double)(rand()%10000)/1000.0);
+
+    auto v1 = makeVector(
+      (double)(rand()%10000)/1000.0,
+      (double)(rand()%10000)/1000.0,
+      (double)(rand()%10000)/1000.0);
+
+    auto v2 = makeVector(
+      (double)(rand()%10000)/1000.0,
+      (double)(rand()%10000)/1000.0,
+      (double)(rand()%10000)/1000.0);
+    se3DummyPose.get_rotation() = SO3<>(v1, v2);
+
+    mModules.pSwarmLab->UpdatePose(se3DummyPose, true, std::chrono::high_resolution_clock::now());
+*/
 
     mpMap->bEditLocked = *gvnLockMap; //sync up the maps edit lock with the gvar bool.
 
@@ -359,11 +389,13 @@ void System::Run()
   mModules.pFrontend->StopThread();
   mModules.pMikroKopter->StopThread();
   mModules.pFrameGrabber->StopThread();
+  mModules.pSwarmLab->StopThread();
 
   mapMakerThread.join();
   frontendThread.join();
   mikroKopterThread.join();
   frameGrabberThread.join();
+  swarmThread.join();
 }
 
 /**
@@ -616,7 +648,7 @@ void System::SaveFIFO()
         "file=\"`date '+%Y-%m-%d_%H-%M-%S'`.avi\"; " <<
         "if [ ! -e FIFO ]; then mkfifo FIFO; echo Made FIFO...; fi; " <<
         "echo Mencoding to $file....; " <<
-        "cat FIFO |nice mencoder -flip -demuxer rawvideo -rawvideo fps=30:w=" <<
+        "cat FIFO |nice mencoder -flip -demuxer rawvideo -rawvideo fps=10:w=" <<
         irWindowSize.x << ":h=" << irWindowSize.y <<
         ":format=rgb24 -o $file -ovc lavc -lavcopts vcodec=mpeg4:vbitrate=" << BITRATE <<
         ":keyint=45 -ofps 30 -ffourcc DIVX - &";
@@ -641,7 +673,7 @@ void System::SaveFIFO()
   if( irWindowSize != mGLWindow.size() )
   {
     cerr << "ERROR: Aborting FIFO as window size has changed!!" << endl;
-    *mgvnSaveFIFO = 0;
+    //*mgvnSaveFIFO = 0;
     return;
   }
 

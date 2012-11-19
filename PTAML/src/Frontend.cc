@@ -161,14 +161,27 @@ void Frontend::operator()()
     if (bRunTracker) {
       const SE3<> &se3CurrentPose = mpTracker->GetCurrentPose();
       monitor.SetCurrentPose(se3CurrentPose);
-      mOnTrackedPoseUpdatedSlot(se3CurrentPose, !mpTracker->IsLost());
 
-      if (*gvnOutputWorldCoordinates) {
-        coordinateLogFile << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
-      }
 
       if (!mbHasDeterminedScale) {
         DetermineScaleFromMarker(fd, bUserInvoke);
+      } else {
+        if (*gvnOutputWorldCoordinates) {
+
+          auto timestamp = std::chrono::duration_cast<
+              std::chrono::microseconds>(fd.tpCaptureTime.time_since_epoch()).count();
+          coordinateLogFile << timestamp << " " << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
+        }
+
+  
+        SE3<> se3PoseCorrection;
+        se3PoseCorrection.get_rotation() = SO3<>(makeVector(0, 1, 0), 
+                                                 makeVector(1, 0, 0));
+
+        SE3<> se3RotatedPose = se3CurrentPose;// * se3PoseCorrection;
+
+        mOnTrackedPoseUpdatedSlot(se3RotatedPose, 
+            !mpTracker->IsLost(), fd.tpCaptureTime);
       }
 
       mpTracker->GetDrawData(mDrawData.tracker);
@@ -229,6 +242,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
 
     ATANCamera c = mCamera;
     Vector<4> v4Plane = mStereoPlaneFinder.GetPlane();
+    v4Plane[3] *= -1;
 
     vector<ImageRef> vBackProjectedPts;
 
@@ -352,7 +366,7 @@ void Frontend::ProcessInitialization(bool bUserInvoke)
       cout << mStereoPlaneFinder.GetPlane() << endl;
       cout << spf.GetPlane() << endl;
       cout << v4PlaneLSE << endl;
-//      mDrawData.v4GroundPlane[3] *= -1;
+      //mDrawData.v4GroundPlane[3] *= -1;
     } else {
       mDrawData.v4GroundPlane = Zeros;
       mDrawData.v4DispGroundPlane = mStereoPlaneFinder.GetPlane();
@@ -418,7 +432,7 @@ void Frontend::DetermineScaleFromMarker(const FrameData& fd, bool bUserInvoke)
       mpMapMaker->TransformMapPoints(mse3MarkerPose.inverse());
       mpMapMaker->ScaleMapPoints(dScale);
 
-      SE3<> se3CamFromWorld = mse3MarkerPose.inverse() * mpTracker->GetCurrentPose();
+      SE3<> se3CamFromWorld = mpTracker->GetCurrentPose() * mse3MarkerPose;
       se3CamFromWorld.get_translation() *= dScale;
       mpTracker->SetCurrentPose(se3CamFromWorld);
 

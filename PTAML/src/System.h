@@ -17,6 +17,7 @@
 #include "MikroKopter.h"
 #include "Frontend.h"
 #include "PerformanceMonitor.h"
+#include "Swarm.h"
 
 #include <gvars3/instances.h>
 #include <cvd/image.h>
@@ -53,6 +54,7 @@ struct Modules {
   MapViewer *pMapViewer;
   Frontend *pFrontend;
   MikroKopter *pMikroKopter;
+  SwarmLab *pSwarmLab;
 
   MapSerializer *pMapSerializer; // Currently not really used..
 };
