@@ -1,12 +1,12 @@
 This is a modified variant of PTAM that implements logging and marker-based scaling.
 
-Installation instructions on Ubuntu 12.04
+Installation instructions on Ubuntu 12.10
 -----------------------------------------
 
 # Install prerequisites:
 
 sudo apt-get update
-sudo apt-get install build-essential libpng12-dev libblas-dev liblapack-dev freeglut3-dev libreadline-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libv4l-dev libxi-dev libxmu-dev cmake git cvs
+sudo apt-get install build-essential libpng12-dev libblas-dev liblapack-dev freeglut3-dev libreadline-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libv4l-dev libxi-dev libxmu-dev libopencv-dev libboost-signals-dev cmake git cvs
 
 # make project directory called airconvision
 
@@ -42,14 +42,19 @@ export CXXFLAGS=-D_REENTRANT
                         cvd_src/Linux/v4lbuffer.o                      \
 # End addition
 
+# Open the file "progs/video_play_source.cc" and insert the following addition after line 38:
+# Begin addition
+#include <unistd.h>
+# End addition
+
 make -j4
 sudo make install
 cd ..
 
 # Install GVars3:
 
-cvs -z3 -d:pserver:anoncvs@cvs.savannah.nongnu.org:/cvsroot/libcvd co gvars3
-cd gvars3
+git clone https://github.com/edrosten/gvars.git
+cd gvars
 ./configure --disable-widgets
 make -j4
 sudo make install
@@ -67,12 +72,14 @@ cd ARToolKit
 make -j4
 cd ..
 
+#Get and build PTAML
+
 git clone git@github.com:carson/airconvision.git
-# move PTAML subdirectory to airconvision
+cd airconvision/PTAML
 mkdir BUILD
 cd BUILD
 # specify the correct directory for the ARToolKit
-cmake -D ARTOOLKIT_DIR=../ARToolKit ..
+cmake -D ARTOOLKIT_DIR=../../../ARToolKit ..
 sudo ldconfig
 make -j4
 
@@ -81,6 +88,5 @@ cd ..
 # run PTAML
 ./BUILD/bin/PTAML
 
-## TOFIX ##
-# rename root directory in git to airconvision from PTAML
+## TODO ##
 # check if newest libcvd builds

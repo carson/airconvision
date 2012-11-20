@@ -195,7 +195,7 @@ void MapMaker::Reset(bool async)
 {
   mbAbortRequested = true;
 
-  auto action = [mpMap] () { mpMap->Reset(); };
+  auto action = [this] () { mpMap->Reset(); };
 
   if (async) {
     mDispatcher.PushAction(action);
@@ -210,7 +210,7 @@ void MapMaker::RealignGroundPlane(bool async)
     return;
   }
 
-  auto action = [mpMap] () {
+  auto action = [this] () {
     SE3<> se3GroundAlignment = mpMap->CalcPlaneAligner(false);
 
     // Don't align in the XY-plane!
@@ -233,7 +233,7 @@ void MapMaker::TransformMapPoints(const SE3<> &se3NewFromOld, bool async)
     return;
   }
 
-  auto action = [se3NewFromOld, mpMap] () {
+  auto action = [se3NewFromOld, this] () {
     mpMap->ApplyGlobalTransformation(se3NewFromOld);
   };
 
@@ -250,7 +250,7 @@ void MapMaker::ScaleMapPoints(double dScale, bool async)
     return;
   }
 
-  auto action = [dScale, mpMap] () {
+  auto action = [dScale, this] () {
     mpMap->ApplyGlobalScale(dScale);
   };
 
@@ -268,7 +268,7 @@ void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
   mbStereoInitDone = false;
   mbAbortRequested = true;
 
-  auto action = [kFirst, kSecond, vMatches, se3CameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+  auto action = [kFirst, kSecond, vMatches, se3CameraPos, this] () mutable {
     mbAbortRequested = false;
     mpMap->InitFromStereo(kFirst, kSecond, vMatches, se3CameraPos, &mbAbortRequested);
     mbStereoInitDone = true;
@@ -286,7 +286,7 @@ void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
 {
   mbStereoInitDone = false;
   mbAbortRequested = true;
-  mDispatcher.PushAction([kFirst, kSecond, se3SecondCameraPos, mpMap, &mbAbortRequested, &mbStereoInitDone] () mutable {
+  mDispatcher.PushAction([kFirst, kSecond, se3SecondCameraPos, this] () mutable {
     mbAbortRequested = false;
     mpMap->InitFromStereo(kFirst, kSecond, se3SecondCameraPos, &mbAbortRequested);
     mbStereoInitDone = true;
@@ -296,7 +296,7 @@ void MapMaker::InitFromStereo(KeyFrame &kFirst, KeyFrame &kSecond,
 void MapMaker::InitFromKnownPlane(KeyFrame &kKeyFrame, const TooN::Vector<4> &v4GroundPlane, SE3<> &se3TrackerPose)
 {
   mbAbortRequested = true;
-  mDispatcher.PushActionAndWait([kKeyFrame, v4GroundPlane, mpMap, &se3TrackerPose] () {
+  mDispatcher.PushActionAndWait([kKeyFrame, v4GroundPlane, this, &se3TrackerPose] () {
     mpMap->InitFromKnownPlane(kKeyFrame, v4GroundPlane, se3TrackerPose);
   });
 }
@@ -317,7 +317,7 @@ void MapMaker::AddKeyFrame(const KeyFrame &k)
   mpMap->QueueKeyFrame(k);
 
   mbAbortRequested = true;
-  mDispatcher.PushAction([mpMap] () {
+  mDispatcher.PushAction([this] () {
     if (mpMap->IsGood() && !mpMap->bEditLocked) {
       mpMap->AddKeyFrameFromTopOfQueue();
     }
