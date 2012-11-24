@@ -33,20 +33,8 @@ cd ..
 
 git clone git://git.savannah.nongnu.org/libcvd.git
 cd libcvd
-git checkout 97e21898cca391d0239eb52d2412f92d7f101c69
 export CXXFLAGS=-D_REENTRANT
 ./configure --without-ffmpeg
-
-# Open the file "Makefile" and insert the following addition after line 113:
-# Begin addition
-                        cvd_src/Linux/v4lbuffer.o                      \
-# End addition
-
-# Open the file "progs/video_play_source.cc" and insert the following addition after line 38:
-# Begin addition
-#include <unistd.h>
-# End addition
-
 make -j4
 sudo make install
 cd ..
@@ -88,5 +76,3 @@ cd ..
 # run PTAML
 ./BUILD/bin/PTAML
 
-## TODO ##
-# check if newest libcvd builds
