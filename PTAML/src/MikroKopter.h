@@ -37,7 +37,8 @@ class MikroKopter {
     void LogControlValues();
 
     // MK message handlers
-    void RecvRequestPositionHold();
+    void RecvPositionHold();
+    void RecvControlRqst(const uint8_t& debug);
     void RecvDebugOutput(const DebugOut_t& debug);
 
   private:
@@ -48,6 +49,9 @@ class MikroKopter {
     };
 
     bool mbDone;
+// CTR TEST CODE
+    double mTheta;
+// END TEST CODE
 
     const Tracker* mpTracker;
     PerformanceMonitor *mpPerfMon;

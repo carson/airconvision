@@ -9,13 +9,7 @@ using namespace std::chrono;
 
 typedef duration<double> RealSeconds;
 
-void TargetController::SetTarget(const TooN::SE3<> &se3PoseInWorld)
-{
-  mv3TargetPosInWorld = se3PoseInWorld.get_translation();
-  mOffsetFilter.Reset();
-}
-
-void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
+void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const TimePoint& t)
 {
   SE3<> se3PoseCorrection;
   se3PoseCorrection.get_rotation() = SO3<>(makeVector(0, 1, 0), makeVector(1, 0, 0));
@@ -65,6 +59,20 @@ void TargetController::Update(const SE3<> &se3Pose, const TimePoint& t)
   mv3Velocity = so3Rotation * v3DeltaPos * (1.0 / dt);
   mv3PrevPosInWorld = v3PosInWorld;
   mVelocityFilter.Update(mv3Velocity);
+
+  if((mConfigRqst & 0x3) && mControl[4] < 0) {
+    if((mControl[5] == 0.0)) {
+      mControl[5] = 127.0;
+      mControl[4] = -127.0;
+    }
+    mControl[4] += 8.0 * dt;
+  }
+}
+
+void TargetController::SetTarget(const TooN::SE3<> &se3PoseInWorld)
+{
+  mv3TargetPosInWorld = se3PoseInWorld.get_translation();
+  mOffsetFilter.Reset();
 }
 
 double TargetController::GetTime() const
