@@ -21,7 +21,7 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   , mpPerfMon(pPerfMon)
   , mControllerType(TARGET_CONTROLLER)
   , mbHasTracking(false)
-  , mSendDebugTimeout(1.0)
+  , mSendDebugTimeout(2.0)
   , mbWriteControlValuesLog(false)
 {
   // Set all debug output values to 0
@@ -45,40 +45,39 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
 void MikroKopter::operator()()
 {
   RateLimiter rateLimiter;
+  static int counter = 0;
 
   while (!mbDone) {
     if (mMkConn) {
+      //const TooN::Vector<3>& v3Offset = mTargetController.GetTargetOffsetFiltered();
+      //cout << v3Offset[2] << endl;
       mMkConn.ProcessIncoming();
 
-      {
+      // Don't try to send two commands on the same frame
+      if (counter % 2) { // 10Hz
         std::unique_lock<std::mutex> lock(mMutex);
 
-        switch (mControllerType) {
-        case TARGET_CONTROLLER:
-          mMkConn.SendExternControl(mTargetController.GetControl(), mTargetController.GetConfig());
-          break;
-        default:
-          break;
-        }
+        mMkConn.SendExternControl(mTargetController.GetControl(), mTargetController.GetConfig());
 
         // Check if the debug values from the MK and position hold code should be written to a log
-        if (mbWriteControlValuesLog) {
+        // TODO: move this to a callback or something to avoid weird timing issues
+        if (mbWriteControlValuesLog && (counter % 4)) { // 5Hz (to match the request below)
           LogControlValues();
         }
       }
-
       // Request debug data being sent from the MK, this has to be done every few seconds or
       // the MK will stop sending the data
-      if (mSendDebugTimeout.HasTimedOut()) {
-        mMkConn.SendDebugOutputInterval(1);
+      else if (mSendDebugTimeout.HasTimedOut()) {
+        mMkConn.SendDebugOutputInterval(20);  // Request data at 5 Hz
         mSendDebugTimeout.Reset();
       }
     }
 
-    // Lock rate to 5 Hz
-    rateLimiter.Limit(60.0);
+    // Lock rate to 20 Hz
+    rateLimiter.Limit(20.0);
 
     mpPerfMon->UpdateRateCounter("mk");
+    counter++;
   }
 }
 
@@ -131,7 +130,7 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
     mMkConn.SetControlRqstCallback(std::bind(&MikroKopter::RecvControlRqst, this, _1));
     mMkConn.SetDebugOutputCallback(std::bind(&MikroKopter::RecvDebugOutput, this, _1));
     // Request debug data being sent from the MK to this computer
-    mMkConn.SendDebugOutputInterval(1);
+    mMkConn.SendDebugOutputInterval(50);
   }
 }
 
@@ -151,16 +150,17 @@ void MikroKopter::LogControlValues()
   mControlValuesFile << endl;
 }
 
-void MikroKopter::RecvControlRqst(const uint8_t& controlRqst)
-{
-  cout << " >> Control requested" << (int)controlRqst << endl;
-  mTargetController.RequestConfig(controlRqst);
-}
-
 void MikroKopter::RecvPositionHold()
 {
   cout << " >> Position hold requested." << endl;
   GoToPosition(mpTracker->GetCurrentPose().inverse());
+}
+
+void MikroKopter::RecvControlRqst(const CtrlRqst_t& control)
+{
+  cout << " >> Config " << (int)control.ConfigRqst << " requested from config "
+      << (int)(mTargetController.GetConfig() & 0x3) << endl;
+  mTargetController.RequestConfig(control.ConfigRqst, control.HoverGas);
 }
 
 void MikroKopter::RecvDebugOutput(const DebugOut_t& debugData)

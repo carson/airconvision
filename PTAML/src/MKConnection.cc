@@ -24,8 +24,7 @@ enum RxCommand : uint8_t {
 };
 
 enum TxCommands : uint8_t {
-  TXCMD_POSITION_DELTA = 'p',
-  TXCMD_NEW_TARGET = 'n',
+  TXCMD_NEW_TARGET = 'x',
   TXCMD_DEBUG_OUTPUT = 'd',
   TXCMD_EXTERN_CONTROL = 'b'
 };
@@ -61,7 +60,7 @@ void MKConnection::SendNewTargetNotice()
   Buffer_t txBuffer;
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_NEW_TARGET, NC_ADDRESS, 0);
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_NEW_TARGET, FC_ADDRESS, 0);
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);
@@ -102,8 +101,7 @@ void MKConnection::SendExternControl(const double *control, const uint8_t config
   data.Free = 0;
   // TODO delivery confirmation
   data.Frame = 0;
-  // TODO decide if this should be modulated
-  data.Config = 1;
+  data.Config = config;
 
   MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_EXTERN_CONTROL, FC_ADDRESS, 1, (uint8_t*)&data, sizeof(ExternControl_t));
 
@@ -119,10 +117,8 @@ void MKConnection::SendDebugOutputInterval(uint8_t interval)
   Buffer_t txBuffer;
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
-  // Build the packet
-  uint8_t data[1] = { interval };
-
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_DEBUG_OUTPUT, NC_ADDRESS, 1, data, 1);
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_DEBUG_OUTPUT, FC_ADDRESS, 1, (uint8_t*)&interval, 1);
+  //cout << "Debug Request Sent" << endl;
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);
@@ -154,20 +150,23 @@ void MKConnection::ProcessIncoming()
           // Messages addressed from FlightCtrl
           switch (msg.CmdID) {
           case RXCMD_CONTROL_RQST:
+            cout << "Received control request" << endl;
             HandleControlRqst(msg);
             break;
           case RXCMD_POSITION_HOLD:
+            cout << "Received position hold request" << endl;
             mPositionHoldCallback();
             break;
           case RXCMD_DEBUG_OUTPUT:
+            //cout << "Received debug data" << endl;
             HandleDebugOutput(msg);
             break;
           default:
             cerr << "Unknown MK FlightCtrl command received: " << msg.CmdID << endl;
             break;
           }
-        } else {
-          // cerr << "Unknown MK command \'" << msg.CmdID << "\' addresses to: #" << (int)msg.Address << endl;
+//      } else {
+//        cerr << "Unknown MK command \'" << msg.CmdID << "\' addresses to: #" << (int)msg.Address << endl;
         }
       }
     }
@@ -195,7 +194,7 @@ void MKConnection::HandleDebugOutput(const SerialMsg_t& msg)
 
 void MKConnection::HandleControlRqst(const SerialMsg_t& msg)
 {
-  const uint8_t *pControlRqst = reinterpret_cast<const uint8_t*>(msg.pData);
+  const CtrlRqst_t *pControlRqst = reinterpret_cast<const CtrlRqst_t*>(msg.pData);
   mControlRqstCallback(*pControlRqst);
 }
 

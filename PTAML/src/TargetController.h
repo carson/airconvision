@@ -8,6 +8,11 @@
 
 namespace PTAMM {
 
+// mode specifiers
+#define ENGAGED 0x1
+#define TAKEOFF 0x2
+#define TRACKING 0x4
+
 class TargetController {
   public:
     typedef std::chrono::high_resolution_clock Clock;
@@ -17,7 +22,10 @@ class TargetController {
 
     void SetTarget(const TooN::SE3<> &se3PoseInWorld);
 
-    void RequestConfig(uint8_t ConfigRqst) { mConfigRqst = ConfigRqst; };
+    void RequestConfig(uint8_t c, int h) { mConfigRqst = c; mHoverGas = h; };
+    uint8_t GetConfig() const { return mConfig; }
+
+    const double* GetControl() const { return mControl; }
 
     double GetTime() const;
 
@@ -26,9 +34,6 @@ class TargetController {
 
     const TooN::Vector<3>& GetTargetOffsetFiltered() const { return mOffsetFilter.GetValue(); }
     const TooN::Vector<3>& GetVelocityFiltered() const { return mVelocityFilter.GetValue(); }
-
-    const double* GetControl() const { return mControl; }
-    const uint8_t GetConfig() const { return mConfig; }
 
   private:
     TimePoint mStartTime;
@@ -39,7 +44,10 @@ class TargetController {
     TooN::Vector<3> mv3Velocity;
 
     double mControl[5];
-    uint8_t mConfig, mConfigRqst;
+    uint8_t mConfig, mConfigRqst = 0;
+    int mHoverGas;
+
+    bool mReset;
 
     MovingAverageFilter<TooN::Vector<3>, 6> mOffsetFilter;
     MovingAverageFilter<TooN::Vector<3>, 6> mVelocityFilter;

@@ -38,7 +38,7 @@ class MikroKopter {
 
     // MK message handlers
     void RecvPositionHold();
-    void RecvControlRqst(const uint8_t& debug);
+    void RecvControlRqst(const CtrlRqst_t& control);
     void RecvDebugOutput(const DebugOut_t& debug);
 
   private:

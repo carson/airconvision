@@ -15,10 +15,17 @@ struct DebugOut_t
 } __attribute__((packed));
 
 
+struct CtrlRqst_t
+{
+    uint8_t ConfigRqst;
+    int16_t HoverGas;
+} __attribute__((packed));
+
+
 class MKConnection {
   public:
     typedef std::function<void()> PositionHoldCallback;
-    typedef std::function<void(const uint8_t&)> ControlRqstCallback;
+    typedef std::function<void(const CtrlRqst_t&)> ControlRqstCallback;
     typedef std::function<void(const DebugOut_t&)> DebugOutputCallback;
 
     MKConnection() : mOpen(false) {}
