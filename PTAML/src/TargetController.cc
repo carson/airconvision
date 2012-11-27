@@ -5,6 +5,7 @@
 namespace PTAMM {
 
 using namespace TooN;
+using namespace std;
 using namespace std::chrono;
 
 typedef duration<double> RealSeconds;
@@ -58,6 +59,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mv3Offset = so3Rotation * v3OffsetInWorld;
     if (mReset) mOffsetFilter.Reset();
     mOffsetFilter.Update(mv3Offset);
+    Vector<3> v3OffsetFiltered = mOffsetFilter.GetValue();
 
     // Velocity calculation
     if (mReset) {
@@ -69,17 +71,17 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mv3Velocity = so3Rotation * v3DeltaPos * (1.0 / dt);
     }
     mVelocityFilter.Update(mv3Velocity);
+    Vector<3> v3VelocityFiltered = mVelocityFilter.GetValue();
     mv3PrevPosInWorld = v3PosInWorld;
 
 
-
     // Setting thrust for mode transitions
-    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && mv3Offset[2] > 0.2) {
+    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3OffsetFiltered[2] > 0.2) {
       mConfig = ENGAGED | TRACKING;
     }
     else if ((mConfig & 0x3) != mConfigRqst) {
       if (!(mConfig & (ENGAGED | TAKEOFF)) && (mConfigRqst == ENGAGED)) {
-        mControl[4] = (double) mHoverGas / 4.;
+        mControl[4] = (double) mHoverGas;
       }
       else {
         mControl[4] = 0;
@@ -90,12 +92,21 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     // Control law
     if (mConfig & ENGAGED) {
       if (mConfig & TAKEOFF) {
+        mControl[3] = 0.;
         mControl[4] += 30. * dt;
-        if (mControl[4] > 150.) mControl[4] = 150.;
+        if (mControl[4] > 115.) mControl[4] = 115.;
       }
       else {
-        mControl[4] = 40; // Just kill it for now
+        mControl[3] = 11. * (1 - v3OffsetFiltered[2]) + 89. * v3VelocityFiltered[2];
+        mControl[3] = min(max(mControl[3], -20.), 20.);
+        mControl[4] += 0.2 * mControl[3] * dt;
       }
+    }
+    else {
+      mControl[0] = 0.;
+      mControl[1] = 0.;
+      mControl[2] = 0.;
+      mControl[3] = 0.;
     }
   } // end of if(bHasTracking)
   else {

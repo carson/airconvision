@@ -50,6 +50,7 @@ void MikroKopter::operator()()
   while (!mbDone) {
     if (mMkConn) {
       //const TooN::Vector<3>& v3Offset = mTargetController.GetTargetOffsetFiltered();
+      //const TooN::Vector<3>& v3Offset = mTargetController.GetVelocityFiltered();
       //cout << v3Offset[2] << endl;
       mMkConn.ProcessIncoming();
 
@@ -160,6 +161,9 @@ void MikroKopter::RecvControlRqst(const CtrlRqst_t& control)
 {
   cout << " >> Config " << (int)control.ConfigRqst << " requested from config "
       << (int)(mTargetController.GetConfig() & 0x3) << endl;
+  if (control.ConfigRqst > (mTargetController.GetConfig() & 0x3)) {
+    GoToPosition(mpTracker->GetCurrentPose().inverse());
+  }
   mTargetController.RequestConfig(control.ConfigRqst, control.HoverGas);
 }
 
