@@ -102,12 +102,14 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         if (mControl[4] > 140.) mControl[4] = 140.;
       }
       else {
-        mControl[0] = (7. * (1 - v3OffsetFiltered[1]) + 28. * v3VelocityFiltered[1]);
-        mControl[1] = (7. * (1 - v3OffsetFiltered[0]) + 28. * v3VelocityFiltered[0]);
-        mControl[0] = min(max(mControl[0], -20.), 20.);
-        mControl[1] = min(max(mControl[1], -20.), 20.);
-        mControl[3] = 2. * (2.5 - v3OffsetFiltered[2]) + 1500. * v3VelocityFiltered[2];
-        mControl[3] = min(max(mControl[3], -20.), 20.);
+        mControl[0] = -(13.33 * (1 - v3OffsetFiltered[1]) + 48. * v3VelocityFiltered[1]);
+        mControl[0] = min(max(mControl[0], -50.), 50.);
+
+        mControl[1] = -(13.33 * (1 - v3OffsetFiltered[0]) + 48. * v3VelocityFiltered[0]);
+        mControl[1] = min(max(mControl[1], -50.), 50.);
+
+        mControl[3] = 2. * (2.5 - v3OffsetFiltered[2]) + 150. * v3VelocityFiltered[2];
+        mControl[3] = min(max(mControl[3], -50.), 50.);
         mControl[4] += 0.2 * mControl[3] * dt;
       }
     }
