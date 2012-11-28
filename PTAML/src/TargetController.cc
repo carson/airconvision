@@ -78,12 +78,14 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     // Setting thrust for mode transitions
     if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3OffsetFiltered[2] > 0.2) {
       mConfig = ENGAGED | TRACKING;
+      mControl[4] -= 5.;
     }
     else if ((mConfig & 0x3) != mConfigRqst) {
       if (!(mConfig & (ENGAGED | TAKEOFF)) && (mConfigRqst == ENGAGED)) {
         mControl[4] = (double) mHoverGas;
+        cout << "HoverGas set to: " << mHoverGas << endl;
       }
-      else {
+      else if (!(mConfigRqst & ENGAGED) && (mConfigRqst == TAKEOFF)) {
         mControl[4] = 0;
       }
       mConfig = mConfigRqst | TRACKING;
@@ -92,12 +94,19 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     // Control law
     if (mConfig & ENGAGED) {
       if (mConfig & TAKEOFF) {
+        mControl[0] = 0.;
+        mControl[1] = 0.;
+        mControl[2] = 0.;
         mControl[3] = 0.;
-        mControl[4] += 30. * dt;
-        if (mControl[4] > 115.) mControl[4] = 115.;
+        mControl[4] += 20. * dt;
+        if (mControl[4] > 140.) mControl[4] = 140.;
       }
       else {
-        mControl[3] = 11. * (1 - v3OffsetFiltered[2]) + 89. * v3VelocityFiltered[2];
+        mControl[0] = (7. * (1 - v3OffsetFiltered[1]) + 28. * v3VelocityFiltered[1]);
+        mControl[1] = (7. * (1 - v3OffsetFiltered[0]) + 28. * v3VelocityFiltered[0]);
+        mControl[0] = min(max(mControl[0], -20.), 20.);
+        mControl[1] = min(max(mControl[1], -20.), 20.);
+        mControl[3] = 2. * (2.5 - v3OffsetFiltered[2]) + 1500. * v3VelocityFiltered[2];
         mControl[3] = min(max(mControl[3], -20.), 20.);
         mControl[4] += 0.2 * mControl[3] * dt;
       }
