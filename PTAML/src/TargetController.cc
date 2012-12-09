@@ -118,15 +118,20 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
         // Pitch conrol law
-        mControl[0] = -(13.33 * (1 - v3OffsetFiltered[1]) + 48. * v3VelocityFiltered[1]);
-        mControl[0] = min(max(mControl[0], -AUTHORITY), AUTHORITY);
+        mControl[0] = -13.33 * v3OffsetFiltered[1] + 48. * v3VelocityFiltered[1];
+        // mControl[0] = min(max(mControl[0], -AUTHORITY), AUTHORITY);
+        mControl[0] = min(max(mControl[0], -20.), 20.);
+
         // Roll control law
-        mControl[1] = -(13.33 * (1 - v3OffsetFiltered[0]) + 48. * v3VelocityFiltered[0]);
-        mControl[1] = min(max(mControl[1], -AUTHORITY), AUTHORITY);
+        mControl[1] = -13.33 * v3OffsetFiltered[0] + 48. * v3VelocityFiltered[0];
+        // mControl[1] = min(max(mControl[1], -AUTHORITY), AUTHORITY);
+        mControl[1] = min(max(mControl[1], -20.), 20.);
+
         // Throttle control law
-        // mControl[3] = 2. * (1.0 - v3PosInWorld[2]) + 150. * v3VelocityFiltered[2];
+        mControl[3] = 13.33 * (0.5 - v3PosInWorld[2]) + 48. * v3VelocityFiltered[2];
         // mControl[3] = min(max(mControl[3], -AUTHORITY), AUTHORITY);
-        // mControl[4] += 0.2 * mControl[3] * dt;
+        mControl[3] = min(max(mControl[3], -10.), 10.);
+        mControl[4] += 0.2 * mControl[3] * dt;
       }
     }
     else {
@@ -146,7 +151,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mControl[1] = 0.;
     mControl[2] = 0.;
     mControl[3] = 0.;
-    if (mConfig | TAKEOFF) mControl[4] = 0.;
+    if (mConfig & TAKEOFF) mControl[4] = 0.;
     mConfig &= ~TRACKING;
     mReset = true;
   }
