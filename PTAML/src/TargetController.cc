@@ -12,13 +12,8 @@ typedef duration<double> RealSeconds;
 
 void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const TimePoint& t)
 {
-  SE3<> se3PoseCorrection;
-  se3PoseCorrection.get_rotation() = SO3<>(makeVector(0, 1, 0), makeVector(1, 0, 0));
-  SE3<> se3FixedPose = se3Pose; // * se3PoseCorrection;
-
   // Check if this is the first update
   if (mLastUpdate.time_since_epoch() == Clock::duration::zero()) {
-    mv3PrevPosInWorld = se3FixedPose.inverse().get_translation();
     mStartTime = mLastUpdate = t;
 
     std::cout << "first tick!" << std::endl;
@@ -40,7 +35,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
   if (bHasTracking) {
     // Calculate the yaw-only rotation transformation
-    SO3<> so3Rotation = se3FixedPose.get_rotation();
+    SO3<> so3Rotation = se3Pose.get_rotation();
     Vector<3> v3Up = makeVector(0, 0, 1);
     Vector<3> v3RotatedUp = so3Rotation * v3Up;
     Vector<3> v3Diff = v3RotatedUp + v3Up;
@@ -54,7 +49,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     }
 
     // Offset calculation
-    Vector<3> v3PosInWorld = se3FixedPose.inverse().get_translation();
+    Vector<3> v3PosInWorld = se3Pose.inverse().get_translation();
     Vector<3> v3OffsetInWorld = mv3TargetPosInWorld - v3PosInWorld;
     mv3Offset = so3Rotation * v3OffsetInWorld;
     if (mReset) mOffsetFilter.Reset();
@@ -63,6 +58,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
     // Velocity calculation
     if (mReset) {
+      // TODO: Find out of this causes a memory leak
       mv3Velocity = makeVector(0, 0, 0);
       mVelocityFilter.Reset();
     }
@@ -72,59 +68,87 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     }
     mVelocityFilter.Update(mv3Velocity);
     Vector<3> v3VelocityFiltered = mVelocityFilter.GetValue();
-    mv3PrevPosInWorld = v3PosInWorld;
 
 
     // Setting thrust for mode transitions
-    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3OffsetFiltered[2] > 0.2) {
+    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3PosInWorld[2] > 0.2) {
+      cout << ", TAKEOFF!!!";
+      // The camera has exceeded an altitude of 0.2 meters in takeoff mode
       mConfig = ENGAGED | TRACKING;
-      mControl[4] -= 5.;
+      mControl[4] -= 10.;
     }
-    else if ((mConfig & 0x3) != mConfigRqst) {
+    else if (((mConfig & (ENGAGED | TAKEOFF)) != mConfigRqst)
+          && !((mConfigRqst & TAKEOFF) && ((mConfig & ~TRACKING) == ENGAGED))) {
+      // Requested config is different from current config
+      // (and the request isn't to go to takeoff mode from waypoint-acquire-and-hold mode)
       if (!(mConfig & (ENGAGED | TAKEOFF)) && (mConfigRqst == ENGAGED)) {
+        // Requested waypoint-acquire-and-hold mode (while not in takeoff mode)
         mControl[4] = (double) mHoverGas;
         cout << "HoverGas set to: " << mHoverGas << endl;
       }
-      else if (!(mConfigRqst & ENGAGED) && (mConfigRqst == TAKEOFF)) {
+      else if (!(mConfig & ENGAGED) && (mConfigRqst == TAKEOFF)) {
+        // Requsted takeoff mode
         mControl[4] = 0;
       }
       mConfig = mConfigRqst | TRACKING;
+      // cout << "****" << endl;
+      // cout << "  v3PosInWorld:     " << v3PosInWorld << endl;
+      // cout << "  v3OffsetInWorld:  " << v3OffsetInWorld << endl;
+      // cout << "  mv3Offset:        " << mv3Offset << endl;
+      // cout << "  v3OffsetFiltered: " << v3OffsetFiltered << endl;
+      // cout << "****" << endl;
+    }
+    else {
+      mConfig |= TRACKING;
     }
 
     // Control law
     if (mConfig & ENGAGED) {
+      // Control is engaged
       if (mConfig & TAKEOFF) {
+        // Control is engaged in takeoff mode
         mControl[0] = 0.;
         mControl[1] = 0.;
         mControl[2] = 0.;
         mControl[3] = 0.;
+        // Ramp up the throttle
         mControl[4] += 20. * dt;
         if (mControl[4] > 140.) mControl[4] = 140.;
       }
       else {
+        // Control is engaged in waypoint-acquire-and-hold mode
+        // Pitch conrol law
         mControl[0] = -(13.33 * (1 - v3OffsetFiltered[1]) + 48. * v3VelocityFiltered[1]);
-        mControl[0] = min(max(mControl[0], -50.), 50.);
-
+        mControl[0] = min(max(mControl[0], -AUTHORITY), AUTHORITY);
+        // Roll control law
         mControl[1] = -(13.33 * (1 - v3OffsetFiltered[0]) + 48. * v3VelocityFiltered[0]);
-        mControl[1] = min(max(mControl[1], -50.), 50.);
-
-        mControl[3] = 2. * (2.5 - v3OffsetFiltered[2]) + 150. * v3VelocityFiltered[2];
-        mControl[3] = min(max(mControl[3], -50.), 50.);
-        mControl[4] += 0.2 * mControl[3] * dt;
+        mControl[1] = min(max(mControl[1], -AUTHORITY), AUTHORITY);
+        // Throttle control law
+        // mControl[3] = 2. * (1.0 - v3PosInWorld[2]) + 150. * v3VelocityFiltered[2];
+        // mControl[3] = min(max(mControl[3], -AUTHORITY), AUTHORITY);
+        // mControl[4] += 0.2 * mControl[3] * dt;
       }
     }
     else {
+      // Control is not engaged
       mControl[0] = 0.;
       mControl[1] = 0.;
       mControl[2] = 0.;
       mControl[3] = 0.;
     }
+
+    mv3PrevPosInWorld = v3PosInWorld;
+    mReset = false;
   } // end of if(bHasTracking)
   else {
+    // Tracking was lost
     mControl[0] = 0.;
     mControl[1] = 0.;
     mControl[2] = 0.;
     mControl[3] = 0.;
+    if (mConfig | TAKEOFF) mControl[4] = 0.;
+    mConfig &= ~TRACKING;
+    mReset = true;
   }
 }
 

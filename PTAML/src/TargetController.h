@@ -9,9 +9,12 @@
 namespace PTAMM {
 
 // mode specifiers
-#define ENGAGED 0x1
-#define TAKEOFF 0x2
-#define TRACKING 0x4
+#define ENGAGED  0x01
+#define TAKEOFF  0x02
+#define TRACKING 0x04
+
+// set external control authority to half that of manual control (i.e. can be overridden)
+#define AUTHORITY 64.
 
 class TargetController {
   public:
@@ -38,16 +41,16 @@ class TargetController {
   private:
     TimePoint mStartTime;
     TimePoint mLastUpdate;
-    TooN::Vector<3> mv3TargetPosInWorld;
-    TooN::Vector<3> mv3PrevPosInWorld;
-    TooN::Vector<3> mv3Offset;
-    TooN::Vector<3> mv3Velocity;
+    TooN::Vector<3> mv3TargetPosInWorld = TooN::makeVector(0., 0., 0.);
+    TooN::Vector<3> mv3PrevPosInWorld = TooN::makeVector(0., 0., 0.);
+    TooN::Vector<3> mv3Offset = TooN::makeVector(0., 0., 0.);
+    TooN::Vector<3> mv3Velocity = TooN::makeVector(0., 0., 0.);
 
-    double mControl[5];
-    uint8_t mConfig, mConfigRqst = 0;
-    int mHoverGas;
+    double mControl[5] = {0, 0, 0, 0, 127};
+    uint8_t mConfig = 0, mConfigRqst = 0;
+    int mHoverGas = 127;
 
-    bool mReset;
+    bool mReset = true;
 
     MovingAverageFilter<TooN::Vector<3>, 6> mOffsetFilter;
     MovingAverageFilter<TooN::Vector<3>, 6> mVelocityFilter;
