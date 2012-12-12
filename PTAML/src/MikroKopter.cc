@@ -19,9 +19,9 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   : mbDone(false)
   , mpTracker(pTracker)
   , mpPerfMon(pPerfMon)
-  , mControllerType(NO_CONTROLLER)
+  , mControllerType(TARGET_CONTROLLER)
   , mbHasTracking(false)
-  , mSendDebugTimeout(1.0)
+  , mSendDebugTimeout(2.0)
   , mbWriteControlValuesLog(false)
 {
   // Set all debug output values to 0
@@ -45,44 +45,40 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
 void MikroKopter::operator()()
 {
   RateLimiter rateLimiter;
+  static int counter = 0;
 
   while (!mbDone) {
-    // Send world position if connect to MK NaviCtrl
     if (mMkConn) {
+      //const TooN::Vector<3>& v3Offset = mTargetController.GetTargetOffsetFiltered();
+      //const TooN::Vector<3>& v3Offset = mTargetController.GetVelocityFiltered();
+      //cout << v3Offset[2] << endl;
       mMkConn.ProcessIncoming();
 
-      {
+      // Don't try to send two commands on the same frame
+      if (counter % 2) { // 10Hz
         std::unique_lock<std::mutex> lock(mMutex);
 
-        if (mbHasTracking) {
-          switch (mControllerType) {
-          case TARGET_CONTROLLER:
-            mMkConn.SendPositionHoldUpdate(mTargetController.GetTargetOffsetFiltered(),
-                                           mTargetController.GetVelocityFiltered());
-            break;
-          default:
-            break;
-          }
-        }
+        mMkConn.SendExternControl(mTargetController.GetControl(), mTargetController.GetConfig());
 
         // Check if the debug values from the MK and position hold code should be written to a log
-        if (mbWriteControlValuesLog) {
+        // TODO: move this to a callback or something to avoid weird timing issues
+        if (mbWriteControlValuesLog && (counter % 4)) { // 5Hz (to match the request below)
           LogControlValues();
         }
       }
-
       // Request debug data being sent from the MK, this has to be done every few seconds or
       // the MK will stop sending the data
-      if (mSendDebugTimeout.HasTimedOut()) {
-        mMkConn.SendDebugOutputInterval(1);
+      else if (mSendDebugTimeout.HasTimedOut()) {
+        mMkConn.SendDebugOutputInterval(20);  // Request data at 5 Hz
         mSendDebugTimeout.Reset();
       }
     }
 
-    // Lock rate to 5 Hz
-    rateLimiter.Limit(60.0);
+    // Lock rate to 20 Hz
+    rateLimiter.Limit(20.0);
 
     mpPerfMon->UpdateRateCounter("mk");
+    counter++;
   }
 }
 
@@ -90,9 +86,7 @@ void MikroKopter::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking)
 {
   std::unique_lock<std::mutex> lock(mMutex);
   mbHasTracking = bHasTracking;
-  if (bHasTracking) {
-    mTargetController.Update(se3Pose, TargetController::Clock::now());
-  }
+  mTargetController.Update(se3Pose, bHasTracking, TargetController::Clock::now());
 }
 
 void MikroKopter::GoToPosition(const TooN::SE3<> &se3PoseInWorld)
@@ -133,10 +127,11 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
     cerr << "Failed to connect to MikroKopter NaviCtrl." << endl;
   } else {
     // Hook up all the callback functions
-    mMkConn.SetPositionHoldCallback(std::bind(&MikroKopter::RecvRequestPositionHold, this));
+    mMkConn.SetPositionHoldCallback(std::bind(&MikroKopter::RecvPositionHold, this));
+    mMkConn.SetControlRqstCallback(std::bind(&MikroKopter::RecvControlRqst, this, _1));
     mMkConn.SetDebugOutputCallback(std::bind(&MikroKopter::RecvDebugOutput, this, _1));
     // Request debug data being sent from the MK to this computer
-    mMkConn.SendDebugOutputInterval(1);
+    mMkConn.SendDebugOutputInterval(50);
   }
 }
 
@@ -156,15 +151,25 @@ void MikroKopter::LogControlValues()
   mControlValuesFile << endl;
 }
 
-void MikroKopter::RecvRequestPositionHold()
+void MikroKopter::RecvPositionHold()
 {
   cout << " >> Position hold requested." << endl;
   GoToPosition(mpTracker->GetCurrentPose().inverse());
 }
 
-void MikroKopter::RecvDebugOutput(const DebugOut_t& debug)
+void MikroKopter::RecvControlRqst(const CtrlRqst_t& control)
 {
-  mMkDebugOutput = debug;
+  cout << " >> Config " << (int)control.ConfigRqst << " requested from config "
+      << (int)(mTargetController.GetConfig() & 0x3) << endl;
+  if (control.ConfigRqst > (mTargetController.GetConfig() & 0x3)) {
+    GoToPosition(mpTracker->GetCurrentPose().inverse());
+  }
+  mTargetController.RequestConfig(control.ConfigRqst, control.HoverGas);
+}
+
+void MikroKopter::RecvDebugOutput(const DebugOut_t& debugData)
+{
+  mMkDebugOutput = debugData;
 }
 
 }

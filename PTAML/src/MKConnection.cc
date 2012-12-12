@@ -18,14 +18,15 @@ using namespace std;
 namespace PTAMM {
 
 enum RxCommand : uint8_t {
+  RXCMD_CONTROL_RQST = 'E',
   RXCMD_POSITION_HOLD = 'H',
   RXCMD_DEBUG_OUTPUT = 'D'
 };
 
 enum TxCommands : uint8_t {
-  TXCMD_POSITION_DELTA = 'p',
-  TXCMD_NEW_TARGET = 'n',
-  TXCMD_DEBUG_OUTPUT = 'd'
+  TXCMD_NEW_TARGET = 'x',
+  TXCMD_DEBUG_OUTPUT = 'd',
+  TXCMD_EXTERN_CONTROL = 'b'
 };
 
 MKConnection::MKConnection(int comPortId, int baudrate)
@@ -59,14 +60,13 @@ void MKConnection::SendNewTargetNotice()
   Buffer_t txBuffer;
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_NEW_TARGET, NC_ADDRESS, 0);
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_NEW_TARGET, FC_ADDRESS, 0);
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);
 }
 
-void MKConnection::SendPositionHoldUpdate(const TooN::Vector<3>& v3Offset,
-                                          const TooN::Vector<3>& v3Vel)
+void MKConnection::SendExternControl(const double *control, const uint8_t config)
 {
   assert(mOpen);
 
@@ -75,26 +75,35 @@ void MKConnection::SendPositionHoldUpdate(const TooN::Vector<3>& v3Offset,
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
   // Build the packet
-  struct PositionHoldData_t {
-    int32_t OffsetX;
-    int32_t OffsetY;
-    int32_t OffsetZ;
-    int32_t VelocityX;
-    int32_t VelocityY;
-    int32_t VelocityZ;
+  struct ExternControl_t {
+    uint8_t Digital[2];   // Unused
+    uint8_t RemoteTasten; // Unused
+    int8_t Pitch;
+    int8_t Roll;
+    int8_t Yaw;
+    int8_t Gas;
+    uint8_t HoverGas;     // "Gas" (throttle) setting required for hover
+    uint8_t Free;         // Unused
+    uint8_t Frame;        // Request delivery confirmation
+    uint8_t Config;       // 0x1 - Engaged, 0x2 - Takeoff, 0x4 - Tracking
   } __attribute__((packed));
 
-  // v3Offset
-  PositionHoldData_t data;
-  data.OffsetX = DistanceToInt32(v3Offset[0]);
-  data.OffsetY  = DistanceToInt32(v3Offset[1]);
-  data.OffsetZ  = DistanceToInt32(v3Offset[2]);
-  // v3Vel
-  data.VelocityX = DistanceToInt32(v3Vel[0]);
-  data.VelocityY = DistanceToInt32(v3Vel[1]);
-  data.VelocityZ = DistanceToInt32(v3Vel[2]);
+  ExternControl_t data;
+  data.Digital[0] = 0x55;
+  data.Digital[1] = 0;
+  data.RemoteTasten = 0;
+  // TODO investigate if adding 0.5 is necessary
+  data.Pitch = int8_t(control[0] + 0.5);
+  data.Roll = int8_t(control[1] + 0.5);
+  data.Yaw = int8_t(control[2] + 0.5);
+  data.Gas = int8_t(control[3] + 0.5);
+  data.HoverGas = uint8_t(control[4] + 0.5);
+  data.Free = 0;
+  // TODO delivery confirmation
+  data.Frame = 0;
+  data.Config = config;
 
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_POSITION_DELTA, NC_ADDRESS, 1, (uint8_t*)&data, sizeof(PositionHoldData_t));
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_EXTERN_CONTROL, FC_ADDRESS, 1, (uint8_t*)&data, sizeof(ExternControl_t));
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);
@@ -108,10 +117,8 @@ void MKConnection::SendDebugOutputInterval(uint8_t interval)
   Buffer_t txBuffer;
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
-  // Build the packet
-  uint8_t data[1] = { interval };
-
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_DEBUG_OUTPUT, NC_ADDRESS, 1, data, 1);
+  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_DEBUG_OUTPUT, FC_ADDRESS, 1, (uint8_t*)&interval, 1);
+  //cout << "Debug Request Sent" << endl;
 
   // Send txBuffer to NaviCtrl
   SendBuffer(txBuffer);
@@ -139,28 +146,27 @@ void MKConnection::ProcessIncoming()
         // Reset the buffer so it can be used for next message
         Buffer_Clear(&mRxBuffer);
 
-        if (msg.Address == NC_ADDRESS) {
-          // Messages addressed to the NaviCtrl
+        if (msg.Address == FC_ADDRESS) {
+          // Messages addressed from FlightCtrl
           switch (msg.CmdID) {
+          case RXCMD_CONTROL_RQST:
+            cout << "Received control request" << endl;
+            HandleControlRqst(msg);
+            break;
+          case RXCMD_POSITION_HOLD:
+            cout << "Received position hold request" << endl;
+            mPositionHoldCallback();
+            break;
           case RXCMD_DEBUG_OUTPUT:
+            //cout << "Received debug data" << endl;
             HandleDebugOutput(msg);
             break;
           default:
-            cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
+            cerr << "Unknown MK FlightCtrl command received: " << msg.CmdID << endl;
             break;
           }
-        } else if (msg.Address == OBC_ADDRESS) {
-          // Messages addressed to the OnBoardComputer
-          switch (msg.CmdID) {
-          case RXCMD_POSITION_HOLD:
-            mPositionHoldCallback();
-            break;
-          default:
-            cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
-            break;
-          }
-        } else {
-          cerr << "Unknown MikroKopter command received: " << msg.CmdID << endl;
+//      } else {
+//        cerr << "Unknown MK command \'" << msg.CmdID << "\' addresses to: #" << (int)msg.Address << endl;
         }
       }
     }
@@ -184,6 +190,12 @@ void MKConnection::HandleDebugOutput(const SerialMsg_t& msg)
 {
   const DebugOut_t *pDebugData = reinterpret_cast<const DebugOut_t*>(msg.pData);
   mDebugOutputCallback(*pDebugData);
+}
+
+void MKConnection::HandleControlRqst(const SerialMsg_t& msg)
+{
+  const CtrlRqst_t *pControlRqst = reinterpret_cast<const CtrlRqst_t*>(msg.pData);
+  mControlRqstCallback(*pControlRqst);
 }
 
 }

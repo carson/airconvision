@@ -15,9 +15,17 @@ struct DebugOut_t
 } __attribute__((packed));
 
 
+struct CtrlRqst_t
+{
+    uint8_t ConfigRqst;
+    int16_t HoverGas;
+} __attribute__((packed));
+
+
 class MKConnection {
   public:
     typedef std::function<void()> PositionHoldCallback;
+    typedef std::function<void(const CtrlRqst_t&)> ControlRqstCallback;
     typedef std::function<void(const DebugOut_t&)> DebugOutputCallback;
 
     MKConnection() : mOpen(false) {}
@@ -30,13 +38,16 @@ class MKConnection {
 
     void SendNewTargetNotice();
 
-    void SendPositionHoldUpdate(const TooN::Vector<3> &v3OffsetToTargetInCam,
-                                const TooN::Vector<3> &v3VelocityInCam);
+    void SendExternControl(const double* control, const uint8_t config);
 
     void SendDebugOutputInterval(uint8_t interval);
 
     void SetPositionHoldCallback(const PositionHoldCallback &callback) {
       mPositionHoldCallback = callback;
+    }
+
+    void SetControlRqstCallback(const ControlRqstCallback &callback) {
+      mControlRqstCallback = callback;
     }
 
     void SetDebugOutputCallback(const DebugOutputCallback &callback) {
@@ -46,6 +57,7 @@ class MKConnection {
   private:
     void SendBuffer(const Buffer_t& txBuffer);
     void HandleDebugOutput(const SerialMsg_t& msg);
+    void HandleControlRqst(const SerialMsg_t& msg);
 
     bool mOpen;
     int mComPortId;
@@ -59,6 +71,7 @@ class MKConnection {
 
     // Callbacks
     PositionHoldCallback mPositionHoldCallback;
+    ControlRqstCallback mControlRqstCallback;
     DebugOutputCallback mDebugOutputCallback;
 };
 
