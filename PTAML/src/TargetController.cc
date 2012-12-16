@@ -15,6 +15,18 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
   // Check if this is the first update
   if (mLastUpdate.time_since_epoch() == Clock::duration::zero()) {
     mStartTime = mLastUpdate = t;
+    // TODO: Put this in the constructor?
+    // Initialize private members
+    mv3TargetPosInWorld = Zeros;
+    mv3PrevPosInWorld = Zeros;
+    mv3Offset = Zeros;
+    mv3Velocity = Zeros;
+    memset(mControlInt, 0, sizeof(double)*3);
+    memset(mControl, 0, sizeof(double)*4);
+    mControl[4] = 127.;
+    mConfig = 0; mConfigRqst = 0;
+    mHoverGas = 127;
+    mReset = true;
 
     std::cout << "first tick!" << std::endl;
     return;
@@ -27,10 +39,6 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
   if (dt < 0.0001) {
     return;
   }
-
-
-
-
 
 
   if (bHasTracking) {
@@ -71,24 +79,26 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
 
     // Setting thrust for mode transitions
-    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3PosInWorld[2] > 0.2) {
+    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3PosInWorld[2] > HTAKEOFF) {
       cout << ", TAKEOFF!!!";
-      // The camera has exceeded an altitude of 0.2 meters in takeoff mode
+      // The camera has exceeded an altitude of HTAKEOFF meters in takeoff mode
       mConfig = ENGAGED | TRACKING;
       mControl[4] -= 10.;
     }
     else if (((mConfig & (ENGAGED | TAKEOFF)) != mConfigRqst)
-          && !((mConfigRqst & TAKEOFF) && ((mConfig & ~TRACKING) == ENGAGED))) {
+          && !((mConfigRqst & TAKEOFF) && ~(mConfig & TAKEOFF)
+              && ((mConfig & ENGAGED) || (v3PosInWorld[2] > HTAKEOFF)))) {
       // Requested config is different from current config
-      // (and the request isn't to go to takeoff mode from waypoint-acquire-and-hold mode)
+      // (and the request isn't to go to takeoff mode from waypoint-acquire-and-hold mode or
+      // altitude greater than HTAKEOFF meters)
       if (!(mConfig & (ENGAGED | TAKEOFF)) && (mConfigRqst == ENGAGED)) {
         // Requested waypoint-acquire-and-hold mode (while not in takeoff mode)
         mControl[4] = (double) mHoverGas;
-        cout << "HoverGas set to: " << mHoverGas << endl;
+        cout << "HoverGas set to: " << mControl[4] << endl;
       }
       else if (!(mConfig & ENGAGED) && (mConfigRqst == TAKEOFF)) {
         // Requsted takeoff mode
-        mControl[4] = 0;
+        mControl[4] = 30.;
       }
       mConfig = mConfigRqst | TRACKING;
       // cout << "****" << endl;
@@ -117,21 +127,34 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       }
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
+
         // Pitch conrol law
-        mControl[0] = -13.33 * v3OffsetFiltered[1] + 48. * v3VelocityFiltered[1];
-        // mControl[0] = min(max(mControl[0], -AUTHORITY), AUTHORITY);
-        mControl[0] = min(max(mControl[0], -20.), 20.);
+        mControl[0] = min(max(
+            -20. * v3OffsetFiltered[1] + 150. * v3VelocityFiltered[1],
+            -30.), 30.);
+            // -AUTHORITY), AUTHORITY);
+        mControlInt[0] += 0.05 * mControl[0] * dt;
+        mControlInt[0] = min(max(mControlInt[0], -20.), 20.); // anti-wind-up
+        mControl[0] = min(max(mControl[0] + mControlInt[0], -AUTHORITY), AUTHORITY);
 
         // Roll control law
-        mControl[1] = -13.33 * v3OffsetFiltered[0] + 48. * v3VelocityFiltered[0];
-        // mControl[1] = min(max(mControl[1], -AUTHORITY), AUTHORITY);
-        mControl[1] = min(max(mControl[1], -20.), 20.);
+        mControl[1] = min(max(
+            -20. * v3OffsetFiltered[0] + 150. * v3VelocityFiltered[0],
+            -30.), 30.);
+            // -AUTHORITY), AUTHORITY);
+        mControlInt[1] += 0.05 * mControl[1] * dt;
+        mControlInt[1] = min(max(mControlInt[1], -20.), 20.); // anti-wind-up
+        mControl[1] = min(max(mControl[1] + mControlInt[1], -AUTHORITY), AUTHORITY);
+
+        // Yaw control law (TBD)
 
         // Throttle control law
-        mControl[3] = 13.33 * (0.5 - v3PosInWorld[2]) + 48. * v3VelocityFiltered[2];
-        // mControl[3] = min(max(mControl[3], -AUTHORITY), AUTHORITY);
-        mControl[3] = min(max(mControl[3], -10.), 10.);
+        mControl[3] = min(max(
+            13.33 * (2.05 - v3PosInWorld[2]) + 48. * v3VelocityFiltered[2],
+            -20.), 20.);
+            // -AUTHORITY), AUTHORITY);
         mControl[4] += 0.2 * mControl[3] * dt;
+        mControl[4] = min(max(mControl[4], 30.), 192.); // anti-wind-up
       }
     }
     else {
@@ -140,6 +163,10 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mControl[1] = 0.;
       mControl[2] = 0.;
       mControl[3] = 0.;
+      // Reset the inegrators
+      mControlInt[0] = 0.;
+      mControlInt[1] = 0.;
+      mControlInt[2] = 0.;
     }
 
     mv3PrevPosInWorld = v3PosInWorld;
@@ -151,7 +178,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mControl[1] = 0.;
     mControl[2] = 0.;
     mControl[3] = 0.;
-    if (mConfig & TAKEOFF) mControl[4] = 0.;
+    if (mConfig & TAKEOFF) mControl[4] = 30.;
     mConfig &= ~TRACKING;
     mReset = true;
   }
