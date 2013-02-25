@@ -188,9 +188,9 @@ void System::CreateMenu()
   GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
   GUI.ParseLine("DrawMap=0");
-  GUI.ParseLine("DrawDebugInfo=0");
+  GUI.ParseLine("DrawDebugInfo=1");
   GUI.ParseLine("Menu.AddMenuToggle Root \"Debug Info\" DrawDebugInfo Root");
-  GUI.ParseLine("DrawPerfInfo=1");
+  GUI.ParseLine("DrawPerfInfo=0");
   GUI.ParseLine("Menu.AddMenuToggle Root \"Perf. Info\" DrawPerfInfo Root");
 
   GUI.ParseLine("GLWindow.AddMenu InternalMenu Internal");
@@ -606,15 +606,40 @@ void System::DrawPerfInfo()
 
 void System::DrawDebugInfo()
 {
-  int nLines = 3;
-  int x = 5, y = 120, w = 160, nBorder = 5;
+  int nLines = 7;
+  int x = 295, y = 340, w = 340, nBorder = 5;
 
   mGLWindow.DrawBox( x, y, w, nLines, 0.7f );
 
   stringstream os;
 
-  FeatureDetector featureDetector = (FeatureDetector)GV3::get<int>("FeatureDetector", 0);
-  os << "Features: " << FeatureDetector2String(featureDetector) << endl << endl;
+  // FeatureDetector featureDetector = (FeatureDetector)GV3::get<int>("FeatureDetector", 0);
+  // os << "Features: " << FeatureDetector2String(featureDetector) << endl << endl;
+
+  // os << "Debug: " << mModules.pTracker->GetCurrentPose().get_rotation().inverse() << endl;
+  // os << "Debug: " << mModules.pMikroKopter->GetEulerAngles() << endl << endl;
+
+  // Matrix<3> m33PEarthToPCam = mModules.pTracker->GetCurrentPose().get_rotation().get_matrix();
+  // const Matrix<3> m33EarthToPEarth = Data(0,1,0,1,0,0,0,0,-1);
+  // const Matrix<3> m33PCamToBody = Data(0,-1,0,1,0,0,0,0,1);
+  // Matrix<3> m33EarthToBody = m33PCamToBody * m33PEarthToPCam * m33EarthToPEarth;
+  // os << "Debug: " << m33EarthToBody << endl << endl;
+
+  // Vector<3> v3PosInWorld = mModules.pTracker->GetCurrentPose().inverse().get_translation();
+  // os << "Debug: " << v3PosInWorld << endl << endl;
+
+  // os << "Debug: " << v3PointOnPlane << endl << endl;
+
+  os << "Position: " << mModules.pMikroKopter->GetPosInWorld() << endl << endl;
+  os << "EulerAngles: " << mModules.pMikroKopter->GetEulerAngles() << endl;
+  os << "Velocity: " << mModules.pMikroKopter->GetVelocity() << endl;
+  os << "Target: " << mModules.pMikroKopter->GetTargetOffset() << endl << endl;
+  os << "Control: " << mModules.pMikroKopter->GetControl()[0] << " "
+    << mModules.pMikroKopter->GetControl()[1] << " "
+    << mModules.pMikroKopter->GetControl()[2] << " "
+    << mModules.pMikroKopter->GetControl()[3] << " "
+    << mModules.pMikroKopter->GetControl()[4] << endl;
+  os << "Controller Config: " << (int)mModules.pMikroKopter->GetConfig() << endl;
 
   glColor3f(1,1,0);
   mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + 17), os.str() );
