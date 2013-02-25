@@ -21,8 +21,10 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mv3PrevPosInWorld = Zeros;
     mv3Offset = Zeros;
     mv3Velocity = Zeros;
-    memset(mControlInt, 0, sizeof(double)*3);
+    mOffsetFilter.Reset(); mOffsetFilter.Update(mv3Offset);
+    mVelocityFilter.Reset(); mVelocityFilter.Update(mv3Velocity);
     memset(mControl, 0, sizeof(double)*4);
+    memset(mOffsetInt, 0, sizeof(double)*3);
     mControl[4] = 127.;
     mConfig = 0; mConfigRqst = 0;
     mHoverGas = 127;
@@ -42,52 +44,58 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
 
   if (bHasTracking) {
-    // Calculate the yaw-only rotation transformation
-    SO3<> so3Rotation = se3Pose.get_rotation();
-    Vector<3> v3Up = makeVector(0, 0, 1);
-    Vector<3> v3RotatedUp = so3Rotation * v3Up;
-    Vector<3> v3Diff = v3RotatedUp + v3Up;
-    if (v3Diff * v3Diff < 0.0001) {
-      // The up vector is 180 deg rotated, which causes the SO3(a,b) constructor to fail
-      SO3<> so3StraightenUp = SO3<>::exp(makeVector(M_PI,0,0)); // Very untested...!
-      so3Rotation = so3StraightenUp * so3Rotation;
-    } else {
-      SO3<> so3StraightenUp(v3RotatedUp, -v3Up);
-      so3Rotation = so3StraightenUp * so3Rotation;
-    }
 
-    // Offset calculation
-    Vector<3> v3PosInWorld = se3Pose.inverse().get_translation();
-    Vector<3> v3OffsetInWorld = mv3TargetPosInWorld - v3PosInWorld;
-    mv3Offset = so3Rotation * v3OffsetInWorld;
-    if (mReset) mOffsetFilter.Reset();
-    mOffsetFilter.Update(mv3Offset);
-    Vector<3> v3OffsetFiltered = mOffsetFilter.GetValue();
+    Matrix<3> m33PEarthToPCam = se3Pose.get_rotation().get_matrix();
+    const Matrix<3> m33EarthToPEarth = Data(0,1,0,1,0,0,0,0,-1);
+    const Matrix<3> m33PCamToBody = Data(0,-1,0,1,0,0,0,0,1);
+    Matrix<3> m33EarthToBody = m33PCamToBody * m33PEarthToPCam * m33EarthToPEarth;
+
+    mv3EulerAngles[0] = atan2(m33EarthToBody(1,2), m33EarthToBody(2,2));  // Phi
+    mv3EulerAngles[1] = -asin(m33EarthToBody(0,2));  // Theta
+    mv3EulerAngles[2] = atan2(m33EarthToBody(0,1), m33EarthToBody(0,0));  // Psi
+    // for (int i = 0; i < 3; i++) {
+    //   while (mv3EulerAngles[i] > M_PI) mv3EulerAngles[i] -= 2 * M_PI;
+    //   while (mv3EulerAngles[i] < -M_PI) mv3EulerAngles[i] += 2 * M_PI;
+    // }
+
+    double cPsi = cos(mv3EulerAngles[2]);
+    double sPsi = sin(mv3EulerAngles[2]);
+    Matrix<3> m33PEarthToHeading = Data(sPsi,cPsi,0,cPsi,-sPsi,0,0,0,-1);
+
+    mv3PosInWorld = se3Pose.inverse().get_translation();
 
     // Velocity calculation
     if (mReset) {
       // TODO: Find out of this causes a memory leak
-      mv3Velocity = makeVector(0, 0, 0);
+      mv3Velocity = Zeros;
       mVelocityFilter.Reset();
     }
     else {
-      Vector<3> v3DeltaPos = v3PosInWorld - mv3PrevPosInWorld;
-      mv3Velocity = so3Rotation * v3DeltaPos * (1.0 / dt);
+      Vector<3> v3DeltaPos = mv3PosInWorld - mv3PrevPosInWorld;
+      mv3Velocity = m33PEarthToHeading * v3DeltaPos * (1.0 / dt);
     }
     mVelocityFilter.Update(mv3Velocity);
     Vector<3> v3VelocityFiltered = mVelocityFilter.GetValue();
 
+    // Positional error (vector to target)
+    mv3Offset = m33PEarthToHeading * (mv3TargetPosInWorld - mv3PosInWorld);
+    if (mReset) mOffsetFilter.Reset();
+    mOffsetFilter.Update(mv3Offset);
+    Vector<3> v3OffsetFiltered = mOffsetFilter.GetValue();
+
+
+
 
     // Setting thrust for mode transitions
-    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && v3PosInWorld[2] > HTAKEOFF) {
+    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && mv3PosInWorld[2] > HTAKEOFF) {
       cout << ", TAKEOFF!!!";
       // The camera has exceeded an altitude of HTAKEOFF meters in takeoff mode
       mConfig = ENGAGED | TRACKING;
-      mControl[4] -= 10.;
+      mControl[4] -= 15.;
     }
     else if (((mConfig & (ENGAGED | TAKEOFF)) != mConfigRqst)
           && !((mConfigRqst & TAKEOFF) && ~(mConfig & TAKEOFF)
-              && ((mConfig & ENGAGED) || (v3PosInWorld[2] > HTAKEOFF)))) {
+              && ((mConfig & ENGAGED) || (mv3PosInWorld[2] > HTAKEOFF)))) {
       // Requested config is different from current config
       // (and the request isn't to go to takeoff mode from waypoint-acquire-and-hold mode or
       // altitude greater than HTAKEOFF meters)
@@ -101,12 +109,6 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         mControl[4] = 30.;
       }
       mConfig = mConfigRqst | TRACKING;
-      // cout << "****" << endl;
-      // cout << "  v3PosInWorld:     " << v3PosInWorld << endl;
-      // cout << "  v3OffsetInWorld:  " << v3OffsetInWorld << endl;
-      // cout << "  mv3Offset:        " << mv3Offset << endl;
-      // cout << "  v3OffsetFiltered: " << v3OffsetFiltered << endl;
-      // cout << "****" << endl;
     }
     else {
       mConfig |= TRACKING;
@@ -128,33 +130,35 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
-        // Pitch conrol law
-        mControl[0] = min(max(
-            -20. * v3OffsetFiltered[1] + 150. * v3VelocityFiltered[1],
-            -30.), 30.);
-            // -AUTHORITY), AUTHORITY);
-        mControlInt[0] += 0.05 * mControl[0] * dt;
-        mControlInt[0] = min(max(mControlInt[0], -20.), 20.); // anti-wind-up
-        mControl[0] = min(max(mControl[0] + mControlInt[0], -AUTHORITY), AUTHORITY);
 
         // Roll control law
-        mControl[1] = min(max(
-            -20. * v3OffsetFiltered[0] + 150. * v3VelocityFiltered[0],
-            -30.), 30.);
-            // -AUTHORITY), AUTHORITY);
-        mControlInt[1] += 0.05 * mControl[1] * dt;
-        mControlInt[1] = min(max(mControlInt[1], -20.), 20.); // anti-wind-up
-        mControl[1] = min(max(mControl[1] + mControlInt[1], -AUTHORITY), AUTHORITY);
+        double phiCmd;
+        mOffsetInt[1] += v3OffsetFiltered[1] * dt;
+        mOffsetInt[1] = min(max(mOffsetInt[1], -1.5), 1.5); // anti-wind-up
+        phiCmd = min(max(
+            0.373657 * v3OffsetFiltered[1] - 0.358356 * v3VelocityFiltered[1] + 0.024303 * mOffsetInt[1],
+            -0.75), 0.75);  // radians
+        mControl[0] = min(max(5. * (phiCmd - mv3EulerAngles[0]), -0.75), 0.75);
 
-        // Yaw control law (TBD)
+        // Pitch control law
+        double thetaCmd;
+        mOffsetInt[0] += v3OffsetFiltered[0] * dt;
+        mOffsetInt[0] = min(max(mOffsetInt[0], -1.5), 1.5); // anti-wind-up
+        thetaCmd = min(max(
+            -0.373657 * v3OffsetFiltered[0] + 0.358356 * v3VelocityFiltered[0] - 0.024303 * mOffsetInt[0],
+            -0.75), 0.75);  // radians
+        mControl[1] = min(max(5. * (thetaCmd - mv3EulerAngles[1]), -0.75), 0.75);
 
-        // Throttle control law
+        // Yaw control law
+        mControl[2] = -2 * mv3EulerAngles[3];  // Hold 0 heading
+
+        // Thrust control law
+        mOffsetInt[2] += v3OffsetFiltered[2] * dt;
+        mOffsetInt[2] = min(max(mOffsetInt[2], -0.5), 0.5); // anti-wind-up
+        mControl[4] = - 0.33742 * mOffsetInt[2];
         mControl[3] = min(max(
-            13.33 * (2.05 - v3PosInWorld[2]) + 48. * v3VelocityFiltered[2],
-            -20.), 20.);
-            // -AUTHORITY), AUTHORITY);
-        mControl[4] += 0.2 * mControl[3] * dt;
-        mControl[4] = min(max(mControl[4], 30.), 192.); // anti-wind-up
+            -5.29 * v3OffsetFiltered[2] + 16.5 * v3VelocityFiltered[2] + mControl[4],
+            15.), 40.);
       }
     }
     else {
@@ -163,13 +167,13 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mControl[1] = 0.;
       mControl[2] = 0.;
       mControl[3] = 0.;
-      // Reset the inegrators
-      mControlInt[0] = 0.;
-      mControlInt[1] = 0.;
-      mControlInt[2] = 0.;
+      // Reset the integrators
+      mOffsetInt[0] = 0.;
+      mOffsetInt[1] = 0.;
+      mOffsetInt[2] = 0.;
     }
 
-    mv3PrevPosInWorld = v3PosInWorld;
+    mv3PrevPosInWorld = mv3PosInWorld;
     mReset = false;
   } // end of if(bHasTracking)
   else {
@@ -178,7 +182,9 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mControl[1] = 0.;
     mControl[2] = 0.;
     mControl[3] = 0.;
+    // Kill a takeoff attempt
     if (mConfig & TAKEOFF) mControl[4] = 30.;
+
     mConfig &= ~TRACKING;
     mReset = true;
   }

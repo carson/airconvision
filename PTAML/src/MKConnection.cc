@@ -19,6 +19,7 @@ namespace PTAMM {
 
 enum RxCommand : uint8_t {
   RXCMD_CONTROL_RQST = 'E',
+  RXCMD_CONTROL_CNFRM = 'B',
   RXCMD_POSITION_HOLD = 'H',
   RXCMD_DEBUG_OUTPUT = 'D'
 };
@@ -74,34 +75,14 @@ void MKConnection::SendExternControl(const double *control, const uint8_t config
   Buffer_t txBuffer;
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
-  // Build the packet
-  struct ExternControl_t {
-    uint8_t Digital[2];   // Unused
-    uint8_t RemoteTasten; // Unused
-    int8_t Pitch;
-    int8_t Roll;
-    int8_t Yaw;
-    int8_t Gas;
-    uint8_t HoverGas;     // "Gas" (throttle) setting required for hover
-    uint8_t Free;         // Unused
-    uint8_t Frame;        // Request delivery confirmation
-    uint8_t Config;       // 0x1 - Engaged, 0x2 - Takeoff, 0x4 - Tracking
-  } __attribute__((packed));
-
   ExternControl_t data;
-  data.Digital[0] = 0x55;
-  data.Digital[1] = 0;
-  data.RemoteTasten = 0;
-  // TODO investigate if adding 0.5 is necessary
-  data.Pitch = int8_t(control[0] + 0.5);
-  data.Roll = int8_t(control[1] + 0.5);
-  data.Yaw = int8_t(control[2] + 0.5);
-  data.Gas = int8_t(control[3] + 0.5);
-  data.HoverGas = uint8_t(control[4] + 0.5);
-  data.Free = 0;
-  // TODO delivery confirmation
-  data.Frame = 0;
+  data.Pitch = int16_t(control[1] * 256. / M_PI + 0.5);
+  data.Roll = int16_t(control[0] * 256. / M_PI + 0.5);
+  data.Yaw = int8_t(control[2] * 256. / M_PI + 0.5);
+  data.Gas = int8_t(control[3] * 4 + 0.5);
+  data.HoverGas = uint8_t(control[4] * 4 + 0.5);
   data.Config = config;
+  // TODO: Delivery confirmation
 
   MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_EXTERN_CONTROL, FC_ADDRESS, 1, (uint8_t*)&data, sizeof(ExternControl_t));
 
@@ -153,12 +134,15 @@ void MKConnection::ProcessIncoming()
             cout << "Received control request" << endl;
             HandleControlRqst(msg);
             break;
+          case RXCMD_CONTROL_CNFRM:
+            // cout << "Received control receipt confirmation" << endl;
+            break;
           case RXCMD_POSITION_HOLD:
             cout << "Received position hold request" << endl;
             mPositionHoldCallback();
             break;
           case RXCMD_DEBUG_OUTPUT:
-            //cout << "Received debug data" << endl;
+            // cout << "Received debug data" << endl;
             HandleDebugOutput(msg);
             break;
           default:

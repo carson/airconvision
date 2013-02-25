@@ -32,6 +32,15 @@ class MikroKopter {
     void ClearWaypoints();
     void FlyPath();
 
+    const TooN::Vector<3>& GetPosInWorld() const { return mTargetController.GetPosInWorld(); }
+    const TooN::Vector<3>& GetEulerAngles() const { return mTargetController.GetEulerAngles(); }
+
+    const TooN::Vector<3>& GetTargetOffset() const { return mTargetController.GetTargetOffset(); }
+    const TooN::Vector<3>& GetVelocity() const { return mTargetController.GetVelocity(); }
+
+    const double* GetControl() const { return mTargetController.GetControl(); }
+    uint8_t GetConfig() const { return mTargetController.GetConfig(); }
+
   private:
     void ConnectToMK(int nComPortId, int nComBaudrate);
     void LogControlValues();
@@ -49,9 +58,6 @@ class MikroKopter {
     };
 
     bool mbDone;
-// CTR TEST CODE
-    double mTheta;
-// END TEST CODE
 
     const Tracker* mpTracker;
     PerformanceMonitor *mpPerfMon;
@@ -71,7 +77,6 @@ class MikroKopter {
 
     bool mbWriteControlValuesLog;
     std::ofstream mControlValuesFile;
-
 };
 
 }

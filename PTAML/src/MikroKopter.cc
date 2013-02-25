@@ -49,33 +49,30 @@ void MikroKopter::operator()()
 
   while (!mbDone) {
     if (mMkConn) {
-      //const TooN::Vector<3>& v3Offset = mTargetController.GetTargetOffsetFiltered();
-      //const TooN::Vector<3>& v3Offset = mTargetController.GetVelocityFiltered();
-      //cout << v3Offset[2] << endl;
       mMkConn.ProcessIncoming();
 
       // Don't try to send two commands on the same frame
-      if (counter % 2) { // 10Hz
+      if (mSendDebugTimeout.HasTimedOut()) {
+        // Request debug data being sent from the MK, this has to be done every few seconds or
+        // the MK will stop sending the data
+        mMkConn.SendDebugOutputInterval(20);  // Request data at 5 Hz
+        mSendDebugTimeout.Reset();
+      }
+      else {
         std::unique_lock<std::mutex> lock(mMutex);
 
         mMkConn.SendExternControl(mTargetController.GetControl(), mTargetController.GetConfig());
 
         // Check if the debug values from the MK and position hold code should be written to a log
         // TODO: move this to a callback or something to avoid weird timing issues
-        if (mbWriteControlValuesLog && (counter % 4)) { // 5Hz (to match the request below)
+        if (mbWriteControlValuesLog && !(counter % 5)) { // 5Hz (to match the request above)
           LogControlValues();
         }
       }
-      // Request debug data being sent from the MK, this has to be done every few seconds or
-      // the MK will stop sending the data
-      else if (mSendDebugTimeout.HasTimedOut()) {
-        mMkConn.SendDebugOutputInterval(20);  // Request data at 5 Hz
-        mSendDebugTimeout.Reset();
-      }
     }
 
-    // Lock rate to 20 Hz
-    rateLimiter.Limit(20.0);
+    // Lock rate to 25 Hz
+    rateLimiter.Limit(25.0);
 
     mpPerfMon->UpdateRateCounter("mk");
     counter++;
@@ -137,12 +134,16 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
 
 void MikroKopter::LogControlValues()
 {
+  const double* pControl = mTargetController.GetControl();
   mControlValuesFile
     << mTargetController.GetTime() << " "
-//    << mTargetController.GetTargetOffset() << " "
-    << mTargetController.GetTargetOffsetFiltered() << " "
-//    << mTargetController.GetVelocity() << " "
-    << mTargetController.GetVelocityFiltered();
+    << mTargetController.GetTargetOffset()
+    << mTargetController.GetVelocity()
+    << pControl[0] << " "
+    << pControl[1] << " "
+    << pControl[2] << " "
+    << pControl[3] << " "
+    << pControl[4];
 
   for (size_t i = 0; i < 32; ++i) {
     mControlValuesFile << " " << mMkDebugOutput.Analog[i];

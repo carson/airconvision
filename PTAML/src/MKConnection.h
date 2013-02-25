@@ -22,6 +22,16 @@ struct CtrlRqst_t
 } __attribute__((packed));
 
 
+struct ExternControl_t {
+    int8_t Pitch;
+    int8_t Roll;
+    int8_t Yaw;
+    int8_t Gas;
+    uint8_t HoverGas;     // "Gas" (throttle) setting required for hover
+    uint8_t Config;       // 0x1 - Engaged, 0x2 - Takeoff, 0x4 - Tracking
+} __attribute__((packed));
+
+
 class MKConnection {
   public:
     typedef std::function<void()> PositionHoldCallback;
