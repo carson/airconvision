@@ -77,8 +77,11 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mVelocityFilter.Update(mv3Velocity);
     Vector<3> v3VelocityFiltered = mVelocityFilter.GetValue();
 
+<<<<<<< HEAD
     mv3TargetPosInWorld[2] = 1.;
 
+=======
+>>>>>>> bbbdde645fb5edfff8545b08df28396583d39d95
     // Positional error (vector to target)
     mv3Offset = m33PEarthToHeading * (mv3TargetPosInWorld - mv3PosInWorld);
     if (mReset) mOffsetFilter.Reset();
@@ -93,7 +96,11 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       cout << ", TAKEOFF!!!";
       // The camera has exceeded an altitude of HTAKEOFF meters in takeoff mode
       mConfig = ENGAGED | TRACKING;
+<<<<<<< HEAD
       mControl[4] -= 4.;
+=======
+      mControl[4] -= 15.;
+>>>>>>> bbbdde645fb5edfff8545b08df28396583d39d95
     }
     else if (((mConfig & (ENGAGED | TAKEOFF)) != mConfigRqst)
           && !((mConfigRqst & TAKEOFF) && ~(mConfig & TAKEOFF)
@@ -136,8 +143,12 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         // Roll control law
         double phiCmd;
         mOffsetInt[1] += v3OffsetFiltered[1] * dt;
+<<<<<<< HEAD
         // mOffsetInt[1] = min(max(mOffsetInt[1], -1.5), 1.5); // anti-wind-up
         mOffsetInt[1] = min(max(mOffsetInt[1], 0.), 0.); // anti-wind-up
+=======
+        mOffsetInt[1] = min(max(mOffsetInt[1], -1.5), 1.5); // anti-wind-up
+>>>>>>> bbbdde645fb5edfff8545b08df28396583d39d95
         phiCmd = min(max(
             0.373657 * v3OffsetFiltered[1] - 0.358356 * v3VelocityFiltered[1] + 0.024303 * mOffsetInt[1],
             -0.75), 0.75);  // radians
@@ -146,14 +157,19 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         // Pitch control law
         double thetaCmd;
         mOffsetInt[0] += v3OffsetFiltered[0] * dt;
+<<<<<<< HEAD
         // mOffsetInt[0] = min(max(mOffsetInt[0], -1.5), 1.5); // anti-wind-up
         mOffsetInt[0] = min(max(mOffsetInt[0], 0.), 0.); // anti-wind-up
+=======
+        mOffsetInt[0] = min(max(mOffsetInt[0], -1.5), 1.5); // anti-wind-up
+>>>>>>> bbbdde645fb5edfff8545b08df28396583d39d95
         thetaCmd = min(max(
             -0.373657 * v3OffsetFiltered[0] + 0.358356 * v3VelocityFiltered[0] - 0.024303 * mOffsetInt[0],
             -0.75), 0.75);  // radians
         mControl[1] = min(max(5. * (thetaCmd - mv3EulerAngles[1]), -0.75), 0.75);
 
         // Yaw control law
+<<<<<<< HEAD
         mControl[2] = -2 * mv3EulerAngles[2];  // Hold 0 heading
 
         // Thrust control law
@@ -162,6 +178,17 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         mControl[3] = min(max(
             -5.29 * v3OffsetFiltered[2] + 16.5 * v3VelocityFiltered[2],
             -15.), 15.);
+=======
+        mControl[2] = -2 * mv3EulerAngles[3];  // Hold 0 heading
+
+        // Thrust control law
+        mOffsetInt[2] += v3OffsetFiltered[2] * dt;
+        mOffsetInt[2] = min(max(mOffsetInt[2], -0.5), 0.5); // anti-wind-up
+        mControl[4] = - 0.33742 * mOffsetInt[2];
+        mControl[3] = min(max(
+            -5.29 * v3OffsetFiltered[2] + 16.5 * v3VelocityFiltered[2] + mControl[4],
+            15.), 40.);
+>>>>>>> bbbdde645fb5edfff8545b08df28396583d39d95
       }
     }
     else {
@@ -186,7 +213,11 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     mControl[2] = 0.;
     mControl[3] = 0.;
     // Kill a takeoff attempt
+<<<<<<< HEAD
     if (mConfig & TAKEOFF) mControl[4] = 7.5;
+=======
+    if (mConfig & TAKEOFF) mControl[4] = 30.;
+>>>>>>> bbbdde645fb5edfff8545b08df28396583d39d95
 
     mConfig &= ~TRACKING;
     mReset = true;
