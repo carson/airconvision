@@ -75,10 +75,12 @@ void MKConnection::SendExternControl(const double *control, const uint8_t config
   Buffer_t txBuffer;
   Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
 
+// TODO: remove conversion from state command to R/C stick and send as separate
+// high-fidelity command
   ExternControl_t data;
-  data.Pitch = int16_t(control[1] * 256. / M_PI + 0.5);
-  data.Roll = int16_t(control[0] * 256. / M_PI + 0.5);
-  data.Yaw = int8_t(control[2] * 256. / M_PI + 0.5);
+  data.Pitch = int16_t(-control[1] * 256. / M_PI + 0.5);
+  data.Roll = int16_t(-control[0] * 256. / M_PI + 0.5);
+  data.Yaw = int8_t(-control[2] * 256. / M_PI + 0.5);
   data.Gas = int8_t(control[3] * 4 + 0.5);
   data.HoverGas = uint8_t(control[4] * 4 + 0.5);
   data.Config = config;

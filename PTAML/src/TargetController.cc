@@ -154,7 +154,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         mControl[1] = min(max(5. * (thetaCmd - mv3EulerAngles[1]), -0.75), 0.75);
 
         // Yaw control law
-        mControl[2] = -2 * mv3EulerAngles[2];  // Hold 0 heading
+        mControl[2] = min(max(-2 * mv3EulerAngles[2], -0.75, 0.75);  // Hold 0 heading
 
         // Thrust control law
         mControl[4] += -0.33742 * v3OffsetFiltered[2] * dt;
