@@ -136,20 +136,20 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         // Roll control law
         double phiCmd;
         mOffsetInt[1] += v3OffsetFiltered[1] * dt;
-        // mOffsetInt[1] = min(max(mOffsetInt[1], -1.5), 1.5); // anti-wind-up
+        mOffsetInt[1] = min(max(mOffsetInt[1], -1.5), 1.5); // anti-wind-up
         mOffsetInt[1] = min(max(mOffsetInt[1], 0.), 0.); // anti-wind-up
         phiCmd = min(max(
-            0.373657 * v3OffsetFiltered[1] - 0.358356 * v3VelocityFiltered[1] + 0.024303 * mOffsetInt[1],
+            0.03025 * v3OffsetFiltered[1] - 0.15125 * v3VelocityFiltered[1] + 0.0005 * mOffsetInt[1],
             -0.75), 0.75);  // radians
         mControl[0] = min(max(5. * (phiCmd - mv3EulerAngles[0]), -0.75), 0.75);
 
         // Pitch control law
         double thetaCmd;
         mOffsetInt[0] += v3OffsetFiltered[0] * dt;
-        // mOffsetInt[0] = min(max(mOffsetInt[0], -1.5), 1.5); // anti-wind-up
+        mOffsetInt[0] = min(max(mOffsetInt[0], -1.5), 1.5); // anti-wind-up
         mOffsetInt[0] = min(max(mOffsetInt[0], 0.), 0.); // anti-wind-up
         thetaCmd = min(max(
-            -0.373657 * v3OffsetFiltered[0] + 0.358356 * v3VelocityFiltered[0] - 0.024303 * mOffsetInt[0],
+            -0.03025 * v3OffsetFiltered[0] + 0.15125 * v3VelocityFiltered[0] - 0.0005 * mOffsetInt[0],
             -0.75), 0.75);  // radians
         mControl[1] = min(max(5. * (thetaCmd - mv3EulerAngles[1]), -0.75), 0.75);
 
@@ -157,10 +157,10 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         mControl[2] = min(max(-2 * mv3EulerAngles[2], -0.75, 0.75);  // Hold 0 heading
 
         // Thrust control law
-        mControl[4] += -0.33742 * v3OffsetFiltered[2] * dt;
+        mControl[4] += -2 * v3OffsetFiltered[2] * dt;
         mControl[4] = min(max(mControl[4], 18.), 35.); // anti-wind-up
         mControl[3] = min(max(
-            -5.29 * v3OffsetFiltered[2] + 16.5 * v3VelocityFiltered[2],
+            -7 * v3OffsetFiltered[2] + 6 * v3VelocityFiltered[2],
             -15.), 15.);
       }
     }
