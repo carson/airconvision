@@ -23,9 +23,9 @@ class TargetController {
 
     void Update(const TooN::SE3<> &se3Pose, bool bHasTracking, const TimePoint& t = Clock::now());
 
-    void SetTarget(const TooN::SE3<> &se3PoseInWorld);
+    void SetTarget(TooN::Vector<3> v3PosInWorld);
 
-    void RequestConfig(uint8_t c, int h) { mConfigRqst = c; mHoverGas = h; };
+    void RequestConfig(uint8_t c) { mConfigRqst = c; };
     uint8_t GetConfig() const { return mConfig; }
 
     const double* GetControl() const { return mControl; }
@@ -38,13 +38,16 @@ class TargetController {
     const TooN::Vector<3>& GetTargetOffset() const { return mOffsetFilter.GetValue(); }
     const TooN::Vector<3>& GetVelocity() const { return mVelocityFilter.GetValue(); }
 
+    double GetTargetAltitude() { return mv3TargetPosInWorld[2]; }
+
+
   private:
     double mControl[5];
-    // mControl[0]: pitch command
-    // mControl[1]: roll command
+    // mControl[0]: roll command
+    // mControl[1]: pitch command
     // mControl[2]: yaw command
-    // mControl[3]: throttle command (delta from hover)
-    // mControl[4]: throttle for hover (integral)
+    // mControl[3]: transient thrust command (delta from hover)
+    // mControl[4]: thrust for hover (integral, delta from thrust stick)
 
     double mOffsetInt[3];
     // mOffsetInt[0]: x integral

@@ -27,7 +27,7 @@ class MikroKopter {
 
     void UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking);
 
-    void GoToPosition(const TooN::SE3<> &se3PoseInWorld);
+    void GoToPosition(TooN::Vector<3> v3PosInWorld);
     void AddWaypoint(const TooN::SE3<> &se3PoseInWorld);
     void ClearWaypoints();
     void FlyPath();
@@ -39,6 +39,7 @@ class MikroKopter {
     const TooN::Vector<3>& GetVelocity() const { return mTargetController.GetVelocity(); }
 
     const double* GetControl() const { return mTargetController.GetControl(); }
+    double GetTargetAltitude() { return mTargetController.GetTargetAltitude(); }
     uint8_t GetConfig() const { return mTargetController.GetConfig(); }
 
   private:
@@ -47,7 +48,7 @@ class MikroKopter {
 
     // MK message handlers
     void RecvPositionHold();
-    void RecvControlRqst(const CtrlRqst_t& control);
+    void RecvControlRqst(const ControlRequest_t& control);
     void RecvDebugOutput(const DebugOut_t& debug);
 
   private:

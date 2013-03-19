@@ -15,27 +15,27 @@ struct DebugOut_t
 } __attribute__((packed));
 
 
-struct CtrlRqst_t
-{
-    uint8_t ConfigRqst;
-    int16_t HoverGas;
+struct ExternControl_t {
+    int16_t roll;   // Q9 PI*rad/s^2
+    int16_t pitch;  // Q9 PI*rad/s^2
+    int16_t yaw;    // Q9 PI*rad/s^2
+    int16_t transient_thrust;  // Q9 N
+    int16_t hover_thrust;  // Q9 N
+    int16_t euler_angles[3];  // Q12 PI*rad
+    uint8_t status;  // 0x1 = Engaged, 0x2 = Takeoff Mode, 0x4 = Tracking
 } __attribute__((packed));
 
 
-struct ExternControl_t {
-    int8_t Pitch;
-    int8_t Roll;
-    int8_t Yaw;
-    int8_t Gas;
-    uint8_t HoverGas;     // "Gas" (throttle) setting required for hover
-    uint8_t Config;       // 0x1 - Engaged, 0x2 - Takeoff, 0x4 - Tracking
+struct ControlRequest_t {
+    uint8_t status;  // 0x1 = Engaged, 0x2 = Takeoff Mode
+    uint8_t altitude;  // Q6 m [0, 4]
 } __attribute__((packed));
 
 
 class MKConnection {
   public:
     typedef std::function<void()> PositionHoldCallback;
-    typedef std::function<void(const CtrlRqst_t&)> ControlRqstCallback;
+    typedef std::function<void(const ControlRequest_t&)> ControlRqstCallback;
     typedef std::function<void(const DebugOut_t&)> DebugOutputCallback;
 
     MKConnection() : mOpen(false) {}
@@ -48,7 +48,8 @@ class MKConnection {
 
     void SendNewTargetNotice();
 
-    void SendExternControl(const double* control, const uint8_t config);
+    void SendExternControl(const double *control,
+        const TooN::Vector<3> &eulerAngles, uint8_t status);
 
     void SendDebugOutputInterval(uint8_t interval);
 

@@ -475,11 +475,8 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
                           makeVector(irWin.x, irWin.y), v3PointOnPlane))
     {
       // Set the targets Z value same as the current positions
-      v3PointOnPlane[2] = mse3CurrentPose.inverse().get_translation()[2];
-
-      SE3<> se3TargetPose;
-      se3TargetPose.get_translation() = v3PointOnPlane;
-      mModules.pMikroKopter->GoToPosition(se3TargetPose);
+      v3PointOnPlane[2] = mModules.pMikroKopter->GetTargetAltitude();
+      mModules.pMikroKopter->GoToPosition(v3PointOnPlane);
     }
   }
 }
@@ -498,7 +495,7 @@ void System::StartMapSerialization(std::string sCommand, std::string sParams)
 
 void System::PositionHold()
 {
-  mModules.pMikroKopter->GoToPosition(mse3CurrentPose.inverse());
+  mModules.pMikroKopter->GoToPosition(mse3CurrentPose.inverse().get_translation());
 }
 
 void System::AddWaypoint()

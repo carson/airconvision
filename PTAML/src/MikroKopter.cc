@@ -61,7 +61,8 @@ void MikroKopter::operator()()
       else {
         std::unique_lock<std::mutex> lock(mMutex);
 
-        mMkConn.SendExternControl(mTargetController.GetControl(), mTargetController.GetConfig());
+        mMkConn.SendExternControl(mTargetController.GetControl(),
+            mTargetController.GetEulerAngles(), mTargetController.GetConfig());
 
         // Check if the debug values from the MK and position hold code should be written to a log
         // TODO: move this to a callback or something to avoid weird timing issues
@@ -86,11 +87,11 @@ void MikroKopter::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking)
   mTargetController.Update(se3Pose, bHasTracking, TargetController::Clock::now());
 }
 
-void MikroKopter::GoToPosition(const TooN::SE3<> &se3PoseInWorld)
+void MikroKopter::GoToPosition(TooN::Vector<3> v3PosInWorld)
 {
   std::unique_lock<std::mutex> lock(mMutex);
-  cout << "Go to position: " << se3PoseInWorld.get_translation() << endl;
-  mTargetController.SetTarget(se3PoseInWorld);
+  cout << "Go to position: " << v3PosInWorld << endl;
+  mTargetController.SetTarget(v3PosInWorld);
   mMkConn.SendNewTargetNotice();
   mControllerType = TARGET_CONTROLLER;
 }
@@ -155,17 +156,21 @@ void MikroKopter::LogControlValues()
 void MikroKopter::RecvPositionHold()
 {
   cout << " >> Position hold requested." << endl;
-  GoToPosition(mpTracker->GetCurrentPose().inverse());
+  GoToPosition(mpTracker->GetCurrentPose().inverse().get_translation());
 }
 
-void MikroKopter::RecvControlRqst(const CtrlRqst_t& control)
+void MikroKopter::RecvControlRqst(const ControlRequest_t& controlRequest)
 {
-  cout << " >> Config " << (int)control.ConfigRqst << " requested from config "
+  cout << " >> Config " << (int)controlRequest.status << " requested from config "
       << (int)(mTargetController.GetConfig() & 0x3) << endl;
-  if (control.ConfigRqst > (mTargetController.GetConfig() & 0x3)) {
-    GoToPosition(mpTracker->GetCurrentPose().inverse());
+  if (controlRequest.status > (mTargetController.GetConfig() & 0x3)) {
+    TooN::Vector<3> mv3TargetPosInWorld;
+    mv3TargetPosInWorld =
+        mpTracker->GetCurrentPose().inverse().get_translation();
+    mv3TargetPosInWorld[2] = (float)controlRequest.altitude / 64.0;
+    GoToPosition(mv3TargetPosInWorld);
   }
-  mTargetController.RequestConfig(control.ConfigRqst, control.HoverGas);
+  mTargetController.RequestConfig(controlRequest.status);
 }
 
 void MikroKopter::RecvDebugOutput(const DebugOut_t& debugData)

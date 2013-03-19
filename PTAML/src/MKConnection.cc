@@ -67,7 +67,8 @@ void MKConnection::SendNewTargetNotice()
   SendBuffer(txBuffer);
 }
 
-void MKConnection::SendExternControl(const double *control, const uint8_t config)
+void MKConnection::SendExternControl(const double* control,
+    const TooN::Vector<3>& eulerAngles, uint8_t status)
 {
   assert(mOpen);
 
@@ -77,13 +78,16 @@ void MKConnection::SendExternControl(const double *control, const uint8_t config
 
 // TODO: remove conversion from state command to R/C stick and send as separate
 // high-fidelity command
+
   ExternControl_t data;
-  data.Pitch = int16_t(-control[1] * 256. / M_PI + 0.5);
-  data.Roll = int16_t(-control[0] * 256. / M_PI + 0.5);
-  data.Yaw = int8_t(-control[2] * 256. / M_PI + 0.5);
-  data.Gas = int8_t(control[3] * 4 + 0.5);
-  data.HoverGas = uint8_t(control[4] * 4 + 0.5);
-  data.Config = config;
+  data.roll = (int16_t)(control[0] * 512. / M_PI + 0.5);  // Q9 PI*rad/s^2 [-50, 50]
+  data.pitch = (int16_t)(control[1] * 512. / M_PI + 0.5);  // Q9 PI*rad/s^2 [-50, 50]
+  data.yaw = (int16_t)(control[2] * 512. / M_PI + 0.5);  // Q9 PI*rad/s^2 [0]
+  data.transient_thrust = (int16_t)(control[3] * 512. + 0.5);  // Q9 N [-10, 10]
+  data.hover_thrust = (int16_t)(control[4] * 512. + 0.5);  // Q9 N [-15, 15]
+  for (uint8_t i = 0; i < 3; i++)
+    data.euler_angles[i] = (int16_t)(eulerAngles[i] * 4096. / M_PI + 0.5);
+  data.status = status;
   // TODO: Delivery confirmation
 
   MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_EXTERN_CONTROL, FC_ADDRESS, 1, (uint8_t*)&data, sizeof(ExternControl_t));
@@ -180,7 +184,7 @@ void MKConnection::HandleDebugOutput(const SerialMsg_t& msg)
 
 void MKConnection::HandleControlRqst(const SerialMsg_t& msg)
 {
-  const CtrlRqst_t *pControlRqst = reinterpret_cast<const CtrlRqst_t*>(msg.pData);
+  const ControlRequest_t *pControlRqst = reinterpret_cast<const ControlRequest_t*>(msg.pData);
   mControlRqstCallback(*pControlRqst);
 }
 
