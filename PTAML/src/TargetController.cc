@@ -89,6 +89,8 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       cout << ", TAKEOFF!!!";
       // The camera has exceeded an altitude of HTAKEOFF meters in takeoff mode
       mConfig = ENGAGED | TRACKING;
+      mv3TargetPosInWorld[0] = mv3PosInWorld[0];
+      mv3TargetPosInWorld[1] = mv3PosInWorld[1];
     }
     else if (((mConfig & (ENGAGED | TAKEOFF)) != mConfigRqst)
           && !((mConfigRqst & TAKEOFF) && ~(mConfig & TAKEOFF)
@@ -125,13 +127,13 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
         // Roll control law
         mControl[0] = min(max(
-            -30. * min(max(v3OffsetFiltered[1], -1., 1.)
+            -30. * min(max(v3OffsetFiltered[1], -1.), 1.)
             - 24.8484 * v3VelocityFiltered[1],
             -50.), 50.);
 
         // Pitch control law
         mControl[1] = min(max(
-            -30. * min(max(v3OffsetFiltered[0], -1., 1.)
+            -30. * min(max(v3OffsetFiltered[0], -1.), 1.)
             - 24.8484 * v3VelocityFiltered[0],
             -50.), 50.);
 
@@ -142,7 +144,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
         // Thrust control law
         mControl[3] = min(max(
-            -8.616. * min(max(v3OffsetFiltered[2], -1., 1.)
+            -8.616 * min(max(v3OffsetFiltered[2], -1.), 1.)
             - 6.096 * v3VelocityFiltered[2],
             -15.), 15.);
         mControl[4] += 0.2 * mControl[3] * dt;

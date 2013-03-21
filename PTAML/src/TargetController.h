@@ -39,6 +39,7 @@ class TargetController {
     const TooN::Vector<3>& GetVelocity() const { return mVelocityFilter.GetValue(); }
 
     double GetTargetAltitude() { return mv3TargetPosInWorld[2]; }
+    void SetTargetAltitude(double altitude) { mv3TargetPosInWorld[2] = altitude; }
 
 
   private:

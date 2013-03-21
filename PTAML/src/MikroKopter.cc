@@ -96,6 +96,12 @@ void MikroKopter::GoToPosition(TooN::Vector<3> v3PosInWorld)
   mControllerType = TARGET_CONTROLLER;
 }
 
+void MikroKopter::SetTargetAltitude(double altitude)
+{
+  std::unique_lock<std::mutex> lock(mMutex);
+  mTargetController.SetTargetAltitude(altitude);
+}
+
 void MikroKopter::AddWaypoint(const TooN::SE3<> &se3PoseInWorld)
 {
   std::unique_lock<std::mutex> lock(mMutex);
@@ -167,8 +173,10 @@ void MikroKopter::RecvControlRqst(const ControlRequest_t& controlRequest)
     TooN::Vector<3> mv3TargetPosInWorld;
     mv3TargetPosInWorld =
         mpTracker->GetCurrentPose().inverse().get_translation();
-    mv3TargetPosInWorld[2] = (float)controlRequest.altitude / 64.0;
+    mv3TargetPosInWorld[2] = (float)controlRequest.altitude / 100.0;  // cm to m
     GoToPosition(mv3TargetPosInWorld);
+  } else {
+    mTargetController.SetTargetAltitude((float)controlRequest.altitude / 100.0);
   }
   mTargetController.RequestConfig(controlRequest.status);
 }

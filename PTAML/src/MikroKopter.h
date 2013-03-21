@@ -29,6 +29,7 @@ class MikroKopter {
 
     void GoToPosition(TooN::Vector<3> v3PosInWorld);
     void AddWaypoint(const TooN::SE3<> &se3PoseInWorld);
+    void SetTargetAltitude(double altitude);
     void ClearWaypoints();
     void FlyPath();
 
