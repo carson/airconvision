@@ -24,12 +24,13 @@ class TargetController {
     void Update(const TooN::SE3<> &se3Pose, bool bHasTracking, const TimePoint& t = Clock::now());
 
     void SetTarget(TooN::Vector<3> v3PosInWorld);
+    void SetTargetLocation(TooN::Vector<2> v2LocInWorld);
+    void HoldCurrentLocation(void) { mHoldCurrentLocation = true; }
+    void SetTargetAltitude(double altitude) { mv3TargetPosInWorld[2] = -altitude; }
 
-    void RequestConfig(uint8_t c) { mConfigRqst = c; };
+    void RequestConfig(uint8_t nRequest);
     uint8_t GetConfig() const { return mConfig; }
-
     const double* GetControl() const { return mControl; }
-
     double GetTime() const;
 
     const TooN::Vector<3>& GetPosInWorld() const { return mv3PosInWorld; }
@@ -39,7 +40,6 @@ class TargetController {
     const TooN::Vector<3>& GetVelocity() const { return mVelocityFilter.GetValue(); }
 
     double GetTargetAltitude() { return mv3TargetPosInWorld[2]; }
-    void SetTargetAltitude(double altitude) { mv3TargetPosInWorld[2] = altitude; }
 
 
   private:
@@ -68,6 +68,7 @@ class TargetController {
     int mHoverGas;
 
     bool mReset;
+    bool mHoldCurrentLocation;
 
     MovingAverageFilter<TooN::Vector<3>, 4> mOffsetFilter;
     MovingAverageFilter<TooN::Vector<3>, 4> mVelocityFilter;

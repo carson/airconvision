@@ -474,9 +474,10 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
     if (PickPointOnGround(*mModules.pCamera, mse3CurrentPose,
                           makeVector(irWin.x, irWin.y), v3PointOnPlane))
     {
-      // Set the targets Z value same as the current positions
-      v3PointOnPlane[2] = mModules.pMikroKopter->GetTargetAltitude();
-      mModules.pMikroKopter->GoToPosition(v3PointOnPlane);
+      Vector<2> v2TargetLocation;
+      v2TargetLocation[0] = v3PointOnPlane[0];
+      v2TargetLocation[1] = v3PointOnPlane[1];
+      mModules.pMikroKopter->GoToLocation(v2TargetLocation);
     }
   }
 }
@@ -495,22 +496,22 @@ void System::StartMapSerialization(std::string sCommand, std::string sParams)
 
 void System::PositionHold()
 {
-  mModules.pMikroKopter->GoToPosition(mse3CurrentPose.inverse().get_translation());
+  // TBD
 }
 
 void System::AddWaypoint()
 {
-  mModules.pMikroKopter->AddWaypoint(mse3CurrentPose.inverse());
+  // TBD
 }
 
 void System::ClearWaypoints()
 {
-  mModules.pMikroKopter->ClearWaypoints();
+  // TBD
 }
 
 void System::FlyPath()
 {
-  mModules.pMikroKopter->FlyPath();
+  // TBD
 }
 
 void System::ChangeFeatureDetector()

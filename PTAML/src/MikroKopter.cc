@@ -19,7 +19,6 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   : mbDone(false)
   , mpTracker(pTracker)
   , mpPerfMon(pPerfMon)
-  , mControllerType(TARGET_CONTROLLER)
   , mbHasTracking(false)
   , mSendDebugTimeout(2.0)
   , mbWriteControlValuesLog(false)
@@ -87,13 +86,12 @@ void MikroKopter::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking)
   mTargetController.Update(se3Pose, bHasTracking, TargetController::Clock::now());
 }
 
-void MikroKopter::GoToPosition(TooN::Vector<3> v3PosInWorld)
+void MikroKopter::GoToLocation(TooN::Vector<2> v2LocInWorld)
 {
   std::unique_lock<std::mutex> lock(mMutex);
-  cout << "Go to position: " << v3PosInWorld << endl;
-  mTargetController.SetTarget(v3PosInWorld);
+  cout << "Go to location: " << v2LocInWorld << endl;
+  mTargetController.SetTargetLocation(v2LocInWorld);
   mMkConn.SendNewTargetNotice();
-  mControllerType = TARGET_CONTROLLER;
 }
 
 void MikroKopter::SetTargetAltitude(double altitude)
@@ -101,27 +99,6 @@ void MikroKopter::SetTargetAltitude(double altitude)
   std::unique_lock<std::mutex> lock(mMutex);
   mTargetController.SetTargetAltitude(altitude);
 }
-
-void MikroKopter::AddWaypoint(const TooN::SE3<> &se3PoseInWorld)
-{
-  std::unique_lock<std::mutex> lock(mMutex);
-  cout << "Adding waypoint: " << se3PoseInWorld.get_translation() << endl;
-  mPathController.AddWaypoint(se3PoseInWorld);
-}
-
-void MikroKopter::ClearWaypoints()
-{
-  std::unique_lock<std::mutex> lock(mMutex);
-  mPathController.ClearWaypoints();
-}
-
-void MikroKopter::FlyPath()
-{
-  std::unique_lock<std::mutex> lock(mMutex);
-  mPathController.Start();
-  mControllerType = NO_CONTROLLER;
-}
-
 
 void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
 {
@@ -162,22 +139,12 @@ void MikroKopter::LogControlValues()
 void MikroKopter::RecvPositionHold()
 {
   cout << " >> Position hold requested." << endl;
-  GoToPosition(mpTracker->GetCurrentPose().inverse().get_translation());
+  mTargetController.HoldCurrentLocation();
 }
 
 void MikroKopter::RecvControlRqst(const ControlRequest_t& controlRequest)
 {
-  cout << " >> Config " << (int)controlRequest.status << " requested from config "
-      << (int)(mTargetController.GetConfig() & 0x3) << endl;
-  if (controlRequest.status > (mTargetController.GetConfig() & 0x3)) {
-    TooN::Vector<3> mv3TargetPosInWorld;
-    mv3TargetPosInWorld =
-        mpTracker->GetCurrentPose().inverse().get_translation();
-    mv3TargetPosInWorld[2] = (float)controlRequest.altitude / 100.0;  // cm to m
-    GoToPosition(mv3TargetPosInWorld);
-  } else {
-    mTargetController.SetTargetAltitude((float)controlRequest.altitude / 100.0);
-  }
+  mTargetController.SetTargetAltitude((float)controlRequest.altitude * 0.01);
   mTargetController.RequestConfig(controlRequest.status);
 }
 

@@ -3,7 +3,6 @@
 
 #include "MKConnection.h"
 #include "TargetController.h"
-#include "PathController.h"
 #include "Timing.h"
 
 #include <TooN/se3.h>
@@ -27,11 +26,8 @@ class MikroKopter {
 
     void UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking);
 
-    void GoToPosition(TooN::Vector<3> v3PosInWorld);
-    void AddWaypoint(const TooN::SE3<> &se3PoseInWorld);
+    void GoToLocation(TooN::Vector<2> v2LocInWorld);
     void SetTargetAltitude(double altitude);
-    void ClearWaypoints();
-    void FlyPath();
 
     const TooN::Vector<3>& GetPosInWorld() const { return mTargetController.GetPosInWorld(); }
     const TooN::Vector<3>& GetEulerAngles() const { return mTargetController.GetEulerAngles(); }
@@ -52,13 +48,6 @@ class MikroKopter {
     void RecvControlRqst(const ControlRequest_t& control);
     void RecvDebugOutput(const DebugOut_t& debug);
 
-  private:
-    enum ControllerType {
-      NO_CONTROLLER,
-      TARGET_CONTROLLER,
-      PATH_CONTROLLER
-    };
-
     bool mbDone;
 
     const Tracker* mpTracker;
@@ -68,9 +57,7 @@ class MikroKopter {
 
     MKConnection mMkConn;
 
-    ControllerType mControllerType;
     TargetController mTargetController;
-    PathController mPathController;
 
     bool mbHasTracking;
 
