@@ -45,6 +45,8 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
   if (bHasTracking) {
 
+    mConfig |= TRACKING;
+
     // Earth frame - x: "North", y: "East", z: down
     // Body frame - x: out the nose, y: out the right wing, z: out the belly
     // PEarth (PTAM Earth) frame - x: "East", y: "North", z: up
@@ -180,8 +182,8 @@ void TargetController::RequestConfig(uint8_t nRequest)
   uint8_t nEngaged = mConfig & (ENGAGED | TAKEOFF);
 
   if (nEngaged != nRequest) {
-    cout << " >> Config " << nRequest << " requested from config " << nEngaged
-        << endl;
+    cout << " >> Config " << (int)nRequest << " requested from config "
+        << (int)nEngaged << endl;
     // Requested mode is different from engaged mode
     if (!nEngaged) {
       // Currently not engaged in any mode
@@ -189,7 +191,7 @@ void TargetController::RequestConfig(uint8_t nRequest)
         // Control engagement requested
         mControl[4] = 0.;  // Clear the hover thrust
         mConfig |= ENGAGED;
-      } else if (nRequest == TAKEOFF) {
+      } else if (nRequest == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF) {
         // Takeoff mode requested
         mControl[4] = -30.;  // Set hover thrust to idle
         mConfig |= TAKEOFF;

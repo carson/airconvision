@@ -26,7 +26,7 @@ class TargetController {
     void SetTarget(TooN::Vector<3> v3PosInWorld);
     void SetTargetLocation(TooN::Vector<2> v2LocInWorld);
     void HoldCurrentLocation(void) { mHoldCurrentLocation = true; }
-    void SetTargetAltitude(double altitude) { mv3TargetPosInWorld[2] = -altitude; }
+    void SetTargetAltitude(double h) { mv3TargetPosInWorld[2] = h; }
 
     void RequestConfig(uint8_t nRequest);
     uint8_t GetConfig() const { return mConfig; }
