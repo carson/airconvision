@@ -38,6 +38,7 @@ class MikroKopter {
     const double* GetControl() const { return mTargetController.GetControl(); }
     double GetTargetAltitude() { return mTargetController.GetTargetAltitude(); }
     uint8_t GetConfig() const { return mTargetController.GetConfig(); }
+    int16_t GetDebug(uint8_t i) { return mMkDebugOutput.Analog[i]; }
 
   private:
     void ConnectToMK(int nComPortId, int nComBaudrate);

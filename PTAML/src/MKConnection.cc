@@ -80,13 +80,13 @@ void MKConnection::SendExternControl(const double* control,
 // high-fidelity command
 
   ExternControl_t data;
-  data.roll = (int16_t)(control[0] * 512. / M_PI + 0.5);  // Q9 PI*rad/s^2 [-50, 50]
-  data.pitch = (int16_t)(control[1] * 512. / M_PI + 0.5);  // Q9 PI*rad/s^2 [-50, 50]
-  data.yaw = (int16_t)(control[2] * 512. / M_PI + 0.5);  // Q9 PI*rad/s^2 [0]
+  data.roll = control[0];
+  data.pitch = control[1];
+  data.yaw = control[2];
   data.transient_thrust = (int16_t)(control[3] * 512. + 0.5);  // Q9 N [-10, 10]
-  data.hover_thrust = (int16_t)(control[4] * 512. + 0.5);  // Q9 N [-15, 15]
+  data.hover_thrust = (int16_t)(control[4] * 512. + 0.5);  // Q9 N [-30, 15]
   for (uint8_t i = 0; i < 3; i++)
-    data.euler_angles[i] = (int16_t)(eulerAngles[i] * 4096. / M_PI + 0.5);
+    data.euler_angles[i] = eulerAngles[i];
   data.status = status;
   // TODO: Delivery confirmation
 

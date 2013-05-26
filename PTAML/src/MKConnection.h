@@ -16,12 +16,12 @@ struct DebugOut_t
 
 
 struct ExternControl_t {
-    int16_t roll;   // Q9 PI*rad/s^2
-    int16_t pitch;  // Q9 PI*rad/s^2
-    int16_t yaw;    // Q9 PI*rad/s^2
+    float roll;
+    float pitch;
+    float yaw;
     int16_t transient_thrust;  // Q9 N
     int16_t hover_thrust;  // Q9 N
-    int16_t euler_angles[3];  // Q12 PI*rad
+    float euler_angles[3];
     uint8_t status;  // 0x1 = Engaged, 0x2 = Takeoff Mode, 0x4 = Tracking
 } __attribute__((packed));
 

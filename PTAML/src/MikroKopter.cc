@@ -54,14 +54,14 @@ void MikroKopter::operator()()
       if (mSendDebugTimeout.HasTimedOut()) {
         // Request debug data being sent from the MK, this has to be done every few seconds or
         // the MK will stop sending the data
-        mMkConn.SendDebugOutputInterval(20);  // Request data at 5 Hz
+        mMkConn.SendDebugOutputInterval(10);  // Request data every 100ms (10 Hz)
         mSendDebugTimeout.Reset();
       }
       else {
         std::unique_lock<std::mutex> lock(mMutex);
 
         mMkConn.SendExternControl(mTargetController.GetControl(),
-            mTargetController.GetEulerAngles(), mTargetController.GetConfig());
+        mTargetController.GetEulerAngles(), mTargetController.GetConfig());
 
         // Check if the debug values from the MK and position hold code should be written to a log
         // TODO: move this to a callback or something to avoid weird timing issues
@@ -112,7 +112,7 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
     mMkConn.SetControlRqstCallback(std::bind(&MikroKopter::RecvControlRqst, this, _1));
     mMkConn.SetDebugOutputCallback(std::bind(&MikroKopter::RecvDebugOutput, this, _1));
     // Request debug data being sent from the MK to this computer
-    mMkConn.SendDebugOutputInterval(50);
+    mMkConn.SendDebugOutputInterval(10);  // Request data every 100ms (10 Hz)
   }
 }
 
