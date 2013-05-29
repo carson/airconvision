@@ -18,16 +18,17 @@ using namespace std;
 namespace PTAMM {
 
 enum RxCommand : uint8_t {
-  RXCMD_CONTROL_RQST = 'E',
-  RXCMD_CONTROL_CNFRM = 'B',
+  RXCMD_MK_TO_PTAM    = 'E',
+  RXCMD_MK_DEBUG      = 'D',
+  RXCMD_MK_DATA       = 'I',
   RXCMD_POSITION_HOLD = 'H',
-  RXCMD_DEBUG_OUTPUT = 'D'
 };
 
 enum TxCommands : uint8_t {
-  TXCMD_NEW_TARGET = 'x',
-  TXCMD_DEBUG_OUTPUT = 'd',
-  TXCMD_EXTERN_CONTROL = 'b'
+  TXCMD_MK_DEBUG_RQST = 'd',
+  TXCMD_PTAM_TO_MK    = 'b',
+  TXCMD_MK_DATA_RQST  = 'i',
+  TXCMD_NEW_TARGET    = 'x',
 };
 
 MKConnection::MKConnection(int comPortId, int baudrate)
@@ -46,69 +47,6 @@ MKConnection::MKConnection(int comPortId, int baudrate)
 }
 
 MKConnection::~MKConnection() {
-}
-
-int32_t DistanceToInt32(double dist)
-{
-  return int32_t(dist * 1000.0 + 0.5);
-}
-
-void MKConnection::SendNewTargetNotice()
-{
-  assert(mOpen);
-
-  // Initialize a buffer for the packet
-  Buffer_t txBuffer;
-  Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
-
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_NEW_TARGET, FC_ADDRESS, 0);
-
-  // Send txBuffer to NaviCtrl
-  SendBuffer(txBuffer);
-}
-
-void MKConnection::SendExternControl(const double* control,
-    const TooN::Vector<3>& eulerAngles, uint8_t status)
-{
-  assert(mOpen);
-
-  // Initialize a buffer for the packet
-  Buffer_t txBuffer;
-  Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
-
-// TODO: remove conversion from state command to R/C stick and send as separate
-// high-fidelity command
-
-  ExternControl_t data;
-  data.roll = control[0];
-  data.pitch = control[1];
-  data.yaw = control[2];
-  data.transient_thrust = (int16_t)(control[3] * 512. + 0.5);  // Q9 N [-10, 10]
-  data.hover_thrust = (int16_t)(control[4] * 512. + 0.5);  // Q9 N [-30, 15]
-  for (uint8_t i = 0; i < 3; i++)
-    data.euler_angles[i] = eulerAngles[i];
-  data.status = status;
-  // TODO: Delivery confirmation
-
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_EXTERN_CONTROL, FC_ADDRESS, 1, (uint8_t*)&data, sizeof(ExternControl_t));
-
-  // Send txBuffer to NaviCtrl
-  SendBuffer(txBuffer);
-}
-
-void MKConnection::SendDebugOutputInterval(uint8_t interval)
-{
-  assert(mOpen);
-
-  // Initialize a buffer for the packet
-  Buffer_t txBuffer;
-  Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);
-
-  MKProtocol_CreateSerialFrame(&txBuffer, TXCMD_DEBUG_OUTPUT, FC_ADDRESS, 1, (uint8_t*)&interval, 1);
-  //cout << "Debug Request Sent" << endl;
-
-  // Send txBuffer to NaviCtrl
-  SendBuffer(txBuffer);
 }
 
 void MKConnection::ProcessIncoming()
@@ -136,20 +74,18 @@ void MKConnection::ProcessIncoming()
         if (msg.Address == FC_ADDRESS) {
           // Messages addressed from FlightCtrl
           switch (msg.CmdID) {
-          case RXCMD_CONTROL_RQST:
-            cout << "Received control request" << endl;
-            HandleControlRqst(msg);
+          case RXCMD_MK_TO_PTAM:
+            HandleMKToPTAM(msg);
             break;
-          case RXCMD_CONTROL_CNFRM:
-            // cout << "Received control receipt confirmation" << endl;
+          case RXCMD_MK_DATA:
+            HandleMKData(msg);
+            break;
+          case RXCMD_MK_DEBUG:
+            HandleMKDebug(msg);
             break;
           case RXCMD_POSITION_HOLD:
             cout << "Received position hold request" << endl;
             mPositionHoldCallback();
-            break;
-          case RXCMD_DEBUG_OUTPUT:
-            // cout << "Received debug data" << endl;
-            HandleDebugOutput(msg);
             break;
           default:
             cerr << "Unknown MK FlightCtrl command received: " << msg.CmdID << endl;
@@ -164,28 +100,77 @@ void MKConnection::ProcessIncoming()
   } while (readBytes == RX_BUFFER_SIZE);
 }
 
-void MKConnection::SendBuffer(const Buffer_t& txBuffer)
+void MKConnection::SendPTAMToMK(const double* control,
+    const TooN::Vector<3>& eulerAngles, uint8_t status)
 {
+  PTAMToMK_t data;
+  data.roll_cmd = control[0];
+  data.pitch_cmd = control[1];
+  data.yaw_cmd = control[2];
+  data.transient_thrust = (int16_t)(control[3] * 512. + 0.5);  // Q9 N [-10, 10]
+  data.hover_thrust = (int16_t)(control[4] * 512. + 0.5);  // Q9 N [-30, 15]
+  for (uint8_t i = 0; i < 3; i++)
+    data.euler_angles[i] = eulerAngles[i];
+  data.status = status;
+
+  SendData(TXCMD_PTAM_TO_MK, sizeof(PTAMToMK_t), (uint8_t*)&data);
+  // TODO: Delivery confirmation
+}
+
+void MKConnection::SendNewTargetNotice()
+{
+  SendData(TXCMD_NEW_TARGET, 0);
+}
+
+void MKConnection::RequestMKDebugInterval(uint8_t interval)
+{
+  SendData(TXCMD_MK_DEBUG_RQST, 1, &interval);
+}
+
+void MKConnection::HandleMKToPTAM(const SerialMsg_t& msg)
+{
+  const MKToPTAM_t *pMKToPTAM = reinterpret_cast<const MKToPTAM_t*>(msg.pData);
+  mMKToPTAMCallback(*pMKToPTAM);
+}
+
+void MKConnection::HandleMKData(const SerialMsg_t& msg)
+{
+  const MKData_t *pMKData = reinterpret_cast<const MKData_t*>(msg.pData);
+  mMKDataCallback(*pMKData);
+}
+
+void MKConnection::HandleMKDebug(const SerialMsg_t& msg)
+{
+  const MKDebug_t *pMKDebug = reinterpret_cast<const MKDebug_t*>(msg.pData);
+  mMKDebugCallback(*pMKDebug);
+}
+
+void MKConnection::SendData(uint8_t cmdID, uint8_t dataLength, ...)  //uint8_t *data
+{
+  va_list ap;
+  Buffer_t txBuffer;  // Initialize a buffer for the packet
+  uint8_t* pdata = NULL;
+
+  assert(mOpen);
+  Buffer_Init(&txBuffer, mTxBufferData, TX_BUFFER_SIZE);  // Initialize buffer
+
+  va_start(ap, dataLength);
+  if(dataLength) {
+    pdata = va_arg(ap, uint8_t*);
+    MKProtocol_CreateSerialFrame(&txBuffer, cmdID, FC_ADDRESS, 1, pdata,
+        dataLength);
+  } else {
+    MKProtocol_CreateSerialFrame(&txBuffer, cmdID, FC_ADDRESS, 0);
+  }
+  va_end(ap);
+
   uint16_t length = txBuffer.DataBytes;
   uint8_t* data = txBuffer.pData;
-
   while (length > 0) {
     int sent = SendBuf(mComPortId, data, length);
     length -= sent;
     data += sent;
   }
-}
-
-void MKConnection::HandleDebugOutput(const SerialMsg_t& msg)
-{
-  const DebugOut_t *pDebugData = reinterpret_cast<const DebugOut_t*>(msg.pData);
-  mDebugOutputCallback(*pDebugData);
-}
-
-void MKConnection::HandleControlRqst(const SerialMsg_t& msg)
-{
-  const ControlRequest_t *pControlRqst = reinterpret_cast<const ControlRequest_t*>(msg.pData);
-  mControlRqstCallback(*pControlRqst);
 }
 
 }

@@ -622,9 +622,9 @@ void System::DrawDebugInfo()
     << mModules.pMikroKopter->GetControl()[3] << " "
     << mModules.pMikroKopter->GetControl()[4] << endl;
   os << "Controller Config: " << (int)mModules.pMikroKopter->GetConfig() << endl << endl;
-  os << "Debug: " << mModules.pMikroKopter->GetDebug(19) << " "
-    << mModules.pMikroKopter->GetDebug(20) << " "
-    << mModules.pMikroKopter->GetDebug(21) << endl << endl;
+  os << "Debug: " << mModules.pMikroKopter->GetMKData()[0] << " "
+    << mModules.pMikroKopter->GetMKData()[1] << " "
+    << mModules.pMikroKopter->GetMKData()[2] << endl << endl;
 
   glColor3f(1,1,0);
   mGLWindow.PrintString( ImageRef( x + nBorder , y + nBorder + 17), os.str() );

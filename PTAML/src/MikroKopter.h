@@ -2,14 +2,15 @@
 #define __MK_CONTROLLER_H
 
 #include "MKConnection.h"
-#include "TargetController.h"
-#include "Timing.h"
+
+#include <chrono>
+#include <fstream>
+#include <mutex>
 
 #include <TooN/se3.h>
 
-#include <fstream>
-#include <chrono>
-#include <mutex>
+#include "TargetController.h"
+#include "Timing.h"
 
 namespace PTAMM {
 
@@ -29,44 +30,46 @@ class MikroKopter {
     void GoToLocation(TooN::Vector<2> v2LocInWorld);
     void SetTargetAltitude(double altitude);
 
+    // To access private data
     const TooN::Vector<3>& GetPosInWorld() const { return mTargetController.GetPosInWorld(); }
     const TooN::Vector<3>& GetEulerAngles() const { return mTargetController.GetEulerAngles(); }
-
     const TooN::Vector<3>& GetTargetOffset() const { return mTargetController.GetTargetOffset(); }
     const TooN::Vector<3>& GetVelocity() const { return mTargetController.GetVelocity(); }
-
     const double* GetControl() const { return mTargetController.GetControl(); }
     double GetTargetAltitude() { return mTargetController.GetTargetAltitude(); }
     uint8_t GetConfig() const { return mTargetController.GetConfig(); }
-    int16_t GetDebug(uint8_t i) { return mMkDebugOutput.Analog[i]; }
+    const float* GetMKData() const { return mMKToPTAM.single; }
 
   private:
     void ConnectToMK(int nComPortId, int nComBaudrate);
-    void LogControlValues();
 
     // MK message handlers
     void RecvPositionHold();
-    void RecvControlRqst(const ControlRequest_t& control);
-    void RecvDebugOutput(const DebugOut_t& debug);
+    void RecvMKToPTAM(const MKToPTAM_t& MKToPTAM);
+    void RecvMKDebug(const MKDebug_t& mkDebug);
+
+    void LogMKData();
+    void LogMKDebug();
+
+    mutable std::mutex mMutex;
 
     bool mbDone;
-
     const Tracker* mpTracker;
     PerformanceMonitor *mpPerfMon;
-
-    std::mutex mMutex;
+    bool mbHasTracking;
+    bool mbUpdateReady;
+    bool mbLogMKData;
+    bool mbLogMKDebug;
+    TimeoutTimer mMKDebugRequestTimeout;
+    MKData_t mMKData;
+    MKDebug_t mMKDebug;
+    MKToPTAM_t mMKToPTAM;
 
     MKConnection mMkConn;
-
     TargetController mTargetController;
 
-    bool mbHasTracking;
-
-    DebugOut_t mMkDebugOutput;
-    TimeoutTimer mSendDebugTimeout;
-
-    bool mbWriteControlValuesLog;
-    std::ofstream mControlValuesFile;
+    std::ofstream mMKDataLogFile;
+    std::ofstream mMKDebugLogFile;
 };
 
 }

@@ -6,9 +6,9 @@
 namespace PTAMM {
 
 template <typename ValueType, int N>
-class MovingAverageFilter {
+class MovingAverage {
   public:
-    MovingAverageFilter()
+    MovingAverage()
       : mFirstUpdate(true)
       , mValue(0)
       , mValueIdx(0)
@@ -43,6 +43,44 @@ class MovingAverageFilter {
     ValueType mValue;
     ValueType mOldValues[N];
     int mValueIdx;
+};
+
+
+template <typename ValueType>
+class RateLimit {
+  public:
+    RateLimit()
+      : mFirstUpdate(true)
+      , mValue(0)
+    {
+    }
+
+    void Reset() {
+      mFirstUpdate = true;
+    }
+
+    void Update(ValueType value, ValueType rateLimit, double dt)
+    {
+      if (mFirstUpdate) {
+        mValue = value;
+        mFirstUpdate = false;
+      } else {
+        if (dt < 0.0001) return;
+        ValueType limit = rateLimit / dt;
+        if (value > (mValue + limit))
+          mValue += limit;
+        else if (value < (mValue - limit))
+          mValue -= limit;
+        else
+          mValue = value;
+      }
+    }
+
+    const ValueType& GetValue() const { return mValue; }
+
+  private:
+    bool mFirstUpdate;
+    ValueType mValue;
 };
 
 }

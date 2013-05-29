@@ -58,8 +58,15 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     const Matrix<3> m33PCamToBody = Data(0.,-1.,0.,1.,0.,0.,0.,0.,1.);
     Matrix<3> m33EarthToBody = m33PCamToBody * m33PEarthToPCam * m33EarthToPEarth;
 
-    mv3EulerAngles[0] = atan2(m33EarthToBody(1,2), m33EarthToBody(2,2));  // Phi (roll angle)
-    mv3EulerAngles[1] = -asin(m33EarthToBody(0,2));  // Theta (pitch angle)
+    if (mReset) {
+      mPhiRL.Reset();
+      mThetaRL.Reset();
+      mAltitudeRL.Reset();
+    }
+    mPhiRL.Update(atan2(m33EarthToBody(1,2), m33EarthToBody(2,2)), M_PI, dt);  // Phi (roll angle)
+    mThetaRL.Update(-asin(m33EarthToBody(0,2)), M_PI, dt);  // Theta (pitch angle)
+    mv3EulerAngles[0] = mPhiRL.GetValue();
+    mv3EulerAngles[1] = mThetaRL.GetValue();
     mv3EulerAngles[2] = atan2(m33EarthToBody(0,1), m33EarthToBody(0,0));  // Psi (heading angle)
 
     double cPsi = cos(mv3EulerAngles[2]);
@@ -67,6 +74,8 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     Matrix<3> m33PEarthToHeading = Data(sPsi,cPsi,0.,cPsi,-sPsi,0.,0.,0.,-1.);
 
     mv3PosInWorld = se3Pose.inverse().get_translation();
+    mAltitudeRL.Update(mv3PosInWorld[2], 2.5, dt);
+    mv3PosInWorld[2] = mAltitudeRL.GetValue();
 
     if (mHoldCurrentLocation) {
       mv3TargetPosInWorld[0] = mv3PosInWorld[0];
@@ -198,7 +207,8 @@ void TargetController::RequestConfig(uint8_t nRequest)
       }
       // NOTE: Intentionally ignoring case where nRequest == (ENGAGED | TAKEOFF)
     } else if (nRequest == (ENGAGED | TAKEOFF)) {
-      if (nEngaged == TAKEOFF) mConfig |= ENGAGED;
+      if (nEngaged == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF)
+        mConfig |= ENGAGED;
       // NOTE: Intentionally ignoring case where nEngaged == ENGAGED
     } else {
       mConfig &= !(ENGAGED | TAKEOFF);

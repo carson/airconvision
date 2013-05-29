@@ -33,12 +33,11 @@ class TargetController {
     const double* GetControl() const { return mControl; }
     double GetTime() const;
 
+    // To access private data
     const TooN::Vector<3>& GetPosInWorld() const { return mv3PosInWorld; }
     const TooN::Vector<3>& GetEulerAngles() const { return mv3EulerAngles; }
-
     const TooN::Vector<3>& GetTargetOffset() const { return mOffsetFilter.GetValue(); }
     const TooN::Vector<3>& GetVelocity() const { return mVelocityFilter.GetValue(); }
-
     double GetTargetAltitude() { return mv3TargetPosInWorld[2]; }
 
 
@@ -70,8 +69,11 @@ class TargetController {
     bool mReset;
     bool mHoldCurrentLocation;
 
-    MovingAverageFilter<TooN::Vector<3>, 4> mOffsetFilter;
-    MovingAverageFilter<TooN::Vector<3>, 4> mVelocityFilter;
+    MovingAverage<TooN::Vector<3>, 4> mOffsetFilter;
+    MovingAverage<TooN::Vector<3>, 4> mVelocityFilter;
+    RateLimit<double> mAltitudeRL;
+    RateLimit<double> mPhiRL;
+    RateLimit<double> mThetaRL;
 };
 
 }

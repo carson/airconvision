@@ -20,25 +20,36 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   , mpTracker(pTracker)
   , mpPerfMon(pPerfMon)
   , mbHasTracking(false)
-  , mSendDebugTimeout(2.0)
-  , mbWriteControlValuesLog(false)
+  , mbUpdateReady(false)
+  , mbLogMKData(false)
+  , mbLogMKDebug(false)
+  , mMKDebugRequestTimeout(2.0)
+  , mMKData()  // zeros the structure
+  , mMKDebug()  // zeros the structure
+  , mMKToPTAM()  // zeros the structure
 {
-  // Set all debug output values to 0
-  mMkDebugOutput = { 0 };
-
-  // Debug output of all the control variables and debug probes sent from the MK
-  mbWriteControlValuesLog = GV3::get<int>("Debug.OutputControlValues", 0, SILENT);
-  if (mbWriteControlValuesLog) {
-    mControlValuesFile.open("mk_control.txt", ios::out | ios::trunc);
-    if (!mControlValuesFile) {
-      cerr << "Failed to open mk_control.txt" << endl;
-    }
-  }
-
   // Read COM port settings
   int nComPortId = GV3::get<int>("MKNaviCtrl.ComPortId", 16, SILENT); // 16 is /dev/ttyUSB0
   int nCcomPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", SILENT);
   ConnectToMK(nComPortId, nCcomPortBaudrate);
+
+  // Log the data stream from the MK
+  mbLogMKData = GV3::get<int>("Debug.LogMKData", 0, SILENT);
+  if (mbLogMKData) {
+    mMKDataLogFile.open("mk_data.txt", ios::out | ios::trunc);
+    if (!mMKDataLogFile) {
+      cerr << "Failed to open mk_data.txt" << endl;
+    }
+  }
+
+  // Log the debug output stream from the MK
+  mbLogMKDebug = GV3::get<int>("Debug.LogMKDebug", 0, SILENT);
+  if (mbLogMKDebug) {
+    mMKDebugLogFile.open("mk_debug.txt", ios::out | ios::trunc);
+    if (!mMKDebugLogFile) {
+      cerr << "Failed to open mk_debug.txt" << endl;
+    }
+  }
 }
 
 void MikroKopter::operator()()
@@ -51,28 +62,23 @@ void MikroKopter::operator()()
       mMkConn.ProcessIncoming();
 
       // Don't try to send two commands on the same frame
-      if (mSendDebugTimeout.HasTimedOut()) {
+      if (mbLogMKDebug && mMKDebugRequestTimeout.HasTimedOut()) {
         // Request debug data being sent from the MK, this has to be done every few seconds or
         // the MK will stop sending the data
-        mMkConn.SendDebugOutputInterval(10);  // Request data every 100ms (10 Hz)
-        mSendDebugTimeout.Reset();
-      }
-      else {
+        mMkConn.RequestMKDebugInterval(10);  // Request data every 100ms (10 Hz)
+        mMKDebugRequestTimeout.Reset();
+      } else if (mbUpdateReady) {
         std::unique_lock<std::mutex> lock(mMutex);
 
-        mMkConn.SendExternControl(mTargetController.GetControl(),
-        mTargetController.GetEulerAngles(), mTargetController.GetConfig());
+        mMkConn.SendPTAMToMK(mTargetController.GetControl(),
+            mTargetController.GetEulerAngles(), mTargetController.GetConfig());
 
-        // Check if the debug values from the MK and position hold code should be written to a log
-        // TODO: move this to a callback or something to avoid weird timing issues
-        if (mbWriteControlValuesLog && !(counter % 5)) { // 5Hz (to match the request above)
-          LogControlValues();
-        }
+        mbUpdateReady = false;
       }
     }
 
-    // Lock rate to 25 Hz
-    rateLimiter.Limit(25.0);
+    // Lock rate to 256 Hz
+    rateLimiter.Limit(256.0);
 
     mpPerfMon->UpdateRateCounter("mk");
     counter++;
@@ -84,6 +90,7 @@ void MikroKopter::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking)
   std::unique_lock<std::mutex> lock(mMutex);
   mbHasTracking = bHasTracking;
   mTargetController.Update(se3Pose, bHasTracking, TargetController::Clock::now());
+  mbUpdateReady = true;
 }
 
 void MikroKopter::GoToLocation(TooN::Vector<2> v2LocInWorld)
@@ -109,31 +116,9 @@ void MikroKopter::ConnectToMK(int nComPortId, int nComBaudrate)
   } else {
     // Hook up all the callback functions
     mMkConn.SetPositionHoldCallback(std::bind(&MikroKopter::RecvPositionHold, this));
-    mMkConn.SetControlRqstCallback(std::bind(&MikroKopter::RecvControlRqst, this, _1));
-    mMkConn.SetDebugOutputCallback(std::bind(&MikroKopter::RecvDebugOutput, this, _1));
-    // Request debug data being sent from the MK to this computer
-    mMkConn.SendDebugOutputInterval(10);  // Request data every 100ms (10 Hz)
+    mMkConn.SetMKToPTAMCallback(std::bind(&MikroKopter::RecvMKToPTAM, this, _1));
+    mMkConn.SetMKDebugCallback(std::bind(&MikroKopter::RecvMKDebug, this, _1));
   }
-}
-
-void MikroKopter::LogControlValues()
-{
-  const double* pControl = mTargetController.GetControl();
-  mControlValuesFile
-    << mTargetController.GetTime() << " "
-    << mTargetController.GetTargetOffset()
-    << mTargetController.GetVelocity()
-    << pControl[0] << " "
-    << pControl[1] << " "
-    << pControl[2] << " "
-    << pControl[3] << " "
-    << pControl[4];
-
-  for (size_t i = 0; i < 32; ++i) {
-    mControlValuesFile << " " << mMkDebugOutput.Analog[i];
-  }
-
-  mControlValuesFile << endl;
 }
 
 void MikroKopter::RecvPositionHold()
@@ -142,15 +127,44 @@ void MikroKopter::RecvPositionHold()
   mTargetController.HoldCurrentLocation();
 }
 
-void MikroKopter::RecvControlRqst(const ControlRequest_t& controlRequest)
+void MikroKopter::RecvMKToPTAM(const MKToPTAM_t& mkToPTAM)
 {
-  mTargetController.SetTargetAltitude((float)controlRequest.altitude * 0.01);
-  mTargetController.RequestConfig(controlRequest.status);
+  mTargetController.SetTargetAltitude((float)mkToPTAM.altitude * 0.01);
+  mTargetController.RequestConfig(mkToPTAM.request);
+  mMKToPTAM = mkToPTAM;
 }
 
-void MikroKopter::RecvDebugOutput(const DebugOut_t& debugData)
+void MikroKopter::RecvMKDebug(const MKDebug_t& mkDebug)
 {
-  mMkDebugOutput = debugData;
+  mMKDebug = mkDebug;
+}
+
+void MikroKopter::LogMKData()
+{
+  const double* pControl = mTargetController.GetControl();
+  mMKDataLogFile
+    << mTargetController.GetTargetOffset()
+    << mTargetController.GetVelocity()
+    << pControl[0] << " "
+    << pControl[1] << " "
+    << pControl[2] << " "
+    << pControl[3] << " "
+    << pControl[4];
+
+  for (size_t i = 0; i < 9; ++i) {
+    mMKDataLogFile << " " << mMKData.int16[i];
+  }
+
+  mMKDataLogFile << endl;
+}
+
+void MikroKopter::LogMKDebug()
+{
+  for (size_t i = 0; i < 32; ++i) {
+    mMKDataLogFile << " " << mMKDebug.int16[i];
+  }
+
+  mMKDataLogFile << endl;
 }
 
 }

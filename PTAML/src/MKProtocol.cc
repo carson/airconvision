@@ -47,7 +47,8 @@ uint8_t Buffer_Copy(Buffer_t* pSrcBuffer, Buffer_t* pDstBuffer)
 /**************************************************************/
 /* Create serial output frame                                 */
 /**************************************************************/
-uint8_t MKProtocol_CreateSerialFrame(Buffer_t* pTxBuff, uint8_t CmdID, uint8_t Address, uint8_t numofbuffers , ...) //uint8_t *data, uint8_t len, ....
+uint8_t MKProtocol_CreateSerialFrame(Buffer_t* pTxBuff, uint8_t CmdID,
+		uint8_t Address, uint8_t numofbuffers , ...) //uint8_t *data, uint8_t len, ....
 {
 	va_list ap;
 

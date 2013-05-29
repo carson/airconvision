@@ -2,41 +2,48 @@
 #define __MKCONNECTION_H
 
 #include "MKProtocol.h"
-#include <TooN/TooN.h>
+
+#include <cstdarg>
 #include <functional>
+
+#include <TooN/TooN.h>
 
 namespace PTAMM {
 
-struct DebugOut_t
+struct PTAMToMK_t {
+  float roll_cmd;  // rad/s^2
+  float pitch_cmd;  // rad/s^2
+  float yaw_cmd;  // rad/s^2
+  int16_t transient_thrust;  // Q9 N
+  int16_t hover_thrust;  // Q9 N
+  float euler_angles[3];  // rad
+  uint8_t status;  // 0x1 = Engaged, 0x2 = Takeoff Mode, 0x4 = Tracking
+} __attribute__((packed));
+
+struct MKToPTAM_t {
+  float single[3];
+  int16_t int16[6];
+  uint8_t request;  // 0x1 = Engaged, 0x2 = Takeoff Mode
+  uint8_t altitude;  // Q6 m [0, 4]
+  uint8_t count;
+} __attribute__((packed));
+
+struct MKData_t {
+  int16_t int16[9];
+} __attribute__((packed));
+
+struct MKDebug_t
 {
-    uint8_t StatusGreen;
-    uint8_t StatusRed;
-    int16_t Analog[32];
+  uint8_t status[2];
+  int16_t int16[32];
 } __attribute__((packed));
-
-
-struct ExternControl_t {
-    float roll;
-    float pitch;
-    float yaw;
-    int16_t transient_thrust;  // Q9 N
-    int16_t hover_thrust;  // Q9 N
-    float euler_angles[3];
-    uint8_t status;  // 0x1 = Engaged, 0x2 = Takeoff Mode, 0x4 = Tracking
-} __attribute__((packed));
-
-
-struct ControlRequest_t {
-    uint8_t status;  // 0x1 = Engaged, 0x2 = Takeoff Mode
-    uint8_t altitude;  // Q6 m [0, 4]
-} __attribute__((packed));
-
 
 class MKConnection {
   public:
     typedef std::function<void()> PositionHoldCallback;
-    typedef std::function<void(const ControlRequest_t&)> ControlRqstCallback;
-    typedef std::function<void(const DebugOut_t&)> DebugOutputCallback;
+    typedef std::function<void(const MKToPTAM_t&)> MKToPTAMCallback;
+    typedef std::function<void(const MKData_t&)> MKDataCallback;
+    typedef std::function<void(const MKDebug_t&)> MKDebugCallback;
 
     MKConnection() : mOpen(false) {}
     MKConnection(int comPortId, int baudrate);
@@ -46,29 +53,31 @@ class MKConnection {
 
     void ProcessIncoming();
 
+    void SendPTAMToMK(const double *control, const TooN::Vector<3> &eulerAngles,
+        uint8_t status);
     void SendNewTargetNotice();
 
-    void SendExternControl(const double *control,
-        const TooN::Vector<3> &eulerAngles, uint8_t status);
+    void RequestMKDebugInterval(uint8_t interval);
 
-    void SendDebugOutputInterval(uint8_t interval);
-
+    void SetMKToPTAMCallback(const MKToPTAMCallback &callback) {
+      mMKToPTAMCallback = callback;
+    }
+    void SetMKDataCallback(const MKDataCallback &callback) {
+      mMKDataCallback = callback;
+    }
+    void SetMKDebugCallback(const MKDebugCallback &callback) {
+      mMKDebugCallback = callback;
+    }
     void SetPositionHoldCallback(const PositionHoldCallback &callback) {
       mPositionHoldCallback = callback;
     }
 
-    void SetControlRqstCallback(const ControlRqstCallback &callback) {
-      mControlRqstCallback = callback;
-    }
-
-    void SetDebugOutputCallback(const DebugOutputCallback &callback) {
-      mDebugOutputCallback = callback;
-    }
-
   private:
-    void SendBuffer(const Buffer_t& txBuffer);
-    void HandleDebugOutput(const SerialMsg_t& msg);
-    void HandleControlRqst(const SerialMsg_t& msg);
+    void HandleMKToPTAM(const SerialMsg_t& msg);
+    void HandleMKData(const SerialMsg_t& msg);
+    void HandleMKDebug(const SerialMsg_t& msg);
+
+    void SendData(uint8_t cmdID, uint8_t dataLength, ...);
 
     bool mOpen;
     int mComPortId;
@@ -81,9 +90,10 @@ class MKConnection {
     Buffer_t mRxBuffer;
 
     // Callbacks
+    MKToPTAMCallback mMKToPTAMCallback;
+    MKDataCallback mMKDataCallback;
+    MKDebugCallback mMKDebugCallback;
     PositionHoldCallback mPositionHoldCallback;
-    ControlRqstCallback mControlRqstCallback;
-    DebugOutputCallback mDebugOutputCallback;
 };
 
 }
