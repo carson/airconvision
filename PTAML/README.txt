@@ -12,14 +12,6 @@ sudo apt-get install build-essential libpng12-dev libblas-dev liblapack-dev free
 
 mkdir airconvision
 
-# Create a symbolic link to videodev.h:
-
-# Note: This might not be best practice but I found it to be the
-# easiest way to get everything compiling without modifying a lot of
-# code.
-
-sudo ln -s /usr/include/libv4l1-videodev.h /usr/include/linux/videodev.h
-
 # Install TooN:
 
 cd airconvision
@@ -49,6 +41,12 @@ sudo make install
 
 # Install ARToolKit:
 
+# Create a symbolic link to videodev.h:
+# Note: This might not be best practice but I found it to be the
+# easiest way to get everything compiling without modifying a lot of
+# code.
+sudo ln -s /usr/include/libv4l1-videodev.h /usr/include/linux/videodev.h
+
 wget http://downloads.sourceforge.net/project/artoolkit/artoolkit/2.72.1/ARToolKit-2.72.1.tgz
 tar -xvf ARToolKit-2.72.1.tgz
 cd ARToolKit
@@ -63,7 +61,10 @@ cd ..
 #Get and build PTAML
 
 git clone git clone https://github.com/carson/airconvision.git
-cd airconvision/PTAML
+cd airconvision
+mv PTAML ..
+cd ..
+rm -rf airconvision
 mkdir BUILD
 cd BUILD
 # specify the correct directory for the ARToolKit
