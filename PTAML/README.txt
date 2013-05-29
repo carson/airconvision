@@ -23,8 +23,8 @@ sudo ln -s /usr/include/libv4l1-videodev.h /usr/include/linux/videodev.h
 # Install TooN:
 
 cd airconvision
-git clone git://git.savannah.nongnu.org/toon.git
-cd toon
+git clone https://github.com/edrosten/TooN.git
+cd TooN
 ./configure
 sudo make install
 cd ..
