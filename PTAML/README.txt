@@ -61,10 +61,12 @@ cd ..
 #Get and build PTAML
 
 git clone git clone https://github.com/carson/airconvision.git
+# clean up nested directories called airconvision
 cd airconvision
 mv PTAML ..
 cd ..
 rm -rf airconvision
+cd PTAML
 mkdir BUILD
 cd BUILD
 # specify the correct directory for the ARToolKit
