@@ -62,7 +62,7 @@ cd ..
 
 #Get and build PTAML
 
-git clone git@github.com:carson/airconvision.git
+git clone git clone https://github.com/carson/airconvision.git
 cd airconvision/PTAML
 mkdir BUILD
 cd BUILD
