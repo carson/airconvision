@@ -68,6 +68,7 @@ cd ..
 rm -rf airconvision
 cd PTAML
 mkdir BUILD
+cp settings_template.cfg BUILD/settings.cfg
 cd BUILD
 # specify the correct directory for the ARToolKit
 cmake -D ARTOOLKIT_DIR=../../../ARToolKit ..
