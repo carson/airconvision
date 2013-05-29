@@ -184,12 +184,11 @@ void System::CreateMenu()
 
   // Create the menus
   GUI.ParseLine("GLWindow.AddMenu Menu Menu");
-  GUI.ParseLine("Menu.ShowMenu Root");
   GUI.ParseLine("Menu.AddMenuButton Root Reset Reset Root");
   GUI.ParseLine("Menu.AddMenuButton Root Realign Realign Root");
   GUI.ParseLine("Menu.AddMenuButton Root Spacebar PokeTracker Root");
   GUI.ParseLine("DrawMap=0");
-  GUI.ParseLine("DrawDebugInfo=1");
+  GUI.ParseLine("DrawDebugInfo=0");
   GUI.ParseLine("Menu.AddMenuToggle Root \"Debug Info\" DrawDebugInfo Root");
   GUI.ParseLine("DrawPerfInfo=0");
   GUI.ParseLine("Menu.AddMenuToggle Root \"Perf. Info\" DrawPerfInfo Root");

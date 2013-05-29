@@ -117,9 +117,11 @@ void Frontend::operator()()
 {
   static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
 
-  std::ofstream coordinateLogFile("coordinates.txt", ios::out | ios::trunc);
-  if (!coordinateLogFile) {
-    cerr << "Failed to open coordinates.txt" << endl;
+  if (*gvnOutputWorldCoordinates) {
+    mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
+    if (!mCoordinateLogFile) {
+      cerr << "Failed to open coordinates.txt" << endl;
+    }
   }
 
   StopWatch stopWatch;
@@ -173,7 +175,7 @@ void Frontend::operator()()
 
           auto timestamp = std::chrono::duration_cast<
               std::chrono::microseconds>(fd.tpCaptureTime.time_since_epoch()).count();
-          coordinateLogFile << timestamp << " " << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
+          mCoordinateLogFile << timestamp << " " << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
         }
       }
 

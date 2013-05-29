@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <mutex>
+#include <fstream>
 
 namespace PTAMM {
 
@@ -112,7 +113,6 @@ class Frontend {
     void ProcessInitialization(bool bUserInvoke);
     void DetermineScaleFromMarker(const FrameData& fd, bool bUserInvoke);
 
-  private:
     bool mbDone;
 
     bool mbInitialTracking;
@@ -138,6 +138,8 @@ class Frontend {
     GVars3::gvar3<int> mgvnFeatureDetector;
 
     OnTrackedPoseUpdated mOnTrackedPoseUpdatedSlot;
+
+    std::ofstream mCoordinateLogFile;
 };
 
 }
