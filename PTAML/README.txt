@@ -23,11 +23,11 @@ cd ..
 
 # Install libCVD:
 
-git clone git://git.savannah.nongnu.org/libcvd.git
+git clone https://github.com/edrosten/libcvd.git
 cd libcvd
 export CXXFLAGS=-D_REENTRANT
 ./configure --without-ffmpeg
-make -j4
+sudo make -j4
 sudo make install
 cd ..
 
