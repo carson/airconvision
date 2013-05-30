@@ -60,6 +60,16 @@ cd /opt/ARToolKit
 make -j4
 cd ..
 
+# Install flycapture
+cd /tmp
+# download flycapture from pointgrey research
+tar -xvf flycapture2-2.4.3.10-amd64-pkg.tar
+cp -R /tmp/flycapture2-2.4.3.10-amd64 /opt/flycapture2-2.4.3.10-amd64
+cd /opt/flycapture2-2.4.3.10-amd64
+# start installation process
+sudo chmod +x install_flycapture.sh
+./install_flycapture.sh
+
 #Get and build PTAML
 
 cd /opt/airconvision
