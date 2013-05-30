@@ -64,13 +64,9 @@ cd ..
 
 git clone git clone https://github.com/carson/airconvision.git
 # clean up nested directories called airconvision
-cd airconvision
-mv PTAML ..
-cd ..
-rm -rf airconvision
+mv airconvision/PTAML && rm -rf airconvision
 cd PTAML
 mkdir BUILD
-cp settings_template.cfg BUILD/settings.cfg
 cd BUILD
 # specify the correct directory for the ARToolKit
 cmake ..
@@ -78,7 +74,8 @@ sudo ldconfig
 make -j4
 
 cd ..
+# configre settings
+cp settings_template.cfg settings.cfg
 # plug in usb camera
 # run PTAML
 ./BUILD/bin/PTAML
-
