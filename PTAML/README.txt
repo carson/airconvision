@@ -10,11 +10,11 @@ sudo apt-get install build-essential libpng12-dev libblas-dev liblapack-dev free
 
 # make project directory called airconvision
 
-mkdir airconvision
+mkdir /opt/airconvision
 
 # Install TooN:
 
-cd airconvision
+cd /opt/airconvision
 git clone https://github.com/edrosten/TooN.git
 cd TooN
 ./configure
@@ -62,6 +62,7 @@ cd ..
 
 #Get and build PTAML
 
+cd /opt/airconvision
 git clone git clone https://github.com/carson/airconvision.git
 # clean up nested directories called airconvision
 mv airconvision/PTAML && rm -rf airconvision
