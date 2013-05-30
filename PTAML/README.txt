@@ -47,9 +47,11 @@ sudo make install
 # code.
 sudo ln -s /usr/include/libv4l1-videodev.h /usr/include/linux/videodev.h
 
+cd /tmp
 wget http://downloads.sourceforge.net/project/artoolkit/artoolkit/2.72.1/ARToolKit-2.72.1.tgz
 tar -xvf ARToolKit-2.72.1.tgz
-cd ARToolKit
+sudo mv ARToolKit /opt
+cd /opt/ARToolKit
 ./Configure
 # select Video4Linux
 # do not use color conversion with x86 assembly
@@ -71,7 +73,7 @@ mkdir BUILD
 cp settings_template.cfg BUILD/settings.cfg
 cd BUILD
 # specify the correct directory for the ARToolKit
-cmake -D ARTOOLKIT_DIR=../../../ARToolKit ..
+cmake ..
 sudo ldconfig
 make -j4
 
