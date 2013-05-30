@@ -1,6 +1,6 @@
 This is a modified variant of PTAM that implements logging and marker-based scaling.
 
-Installation instructions on Ubuntu 12.10
+Installation instructions on Ubuntu 13.04
 -----------------------------------------
 
 # Install prerequisites:
