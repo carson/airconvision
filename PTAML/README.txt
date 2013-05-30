@@ -66,6 +66,7 @@ cd /tmp
 tar -xvf flycapture2-2.4.3.10-amd64-pkg.tar
 cp -R /tmp/flycapture2-2.4.3.10-amd64 /opt/flycapture2-2.4.3.10-amd64
 cd /opt/flycapture2-2.4.3.10-amd64
+sudo apt-get install -f libglade2-0 libglademm-2.4-1c2a libgtkmm-2.4-1c2a libgtkglextmm-x11-1.2-dev libgtkglext1 libgtkglext1-dev libgtkglextmm-x11-1.2-0
 # start installation process
 sudo chmod +x install_flycapture.sh
 ./install_flycapture.sh
