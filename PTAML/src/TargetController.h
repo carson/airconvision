@@ -49,10 +49,9 @@ class TargetController {
     // mControl[3]: transient thrust command (delta from hover)
     // mControl[4]: thrust for hover (integral, delta from thrust stick)
 
-    double mOffsetInt[3];
-    // mOffsetInt[0]: x integral
-    // mOffsetInt[1]: y integral
-    // mOffsetInt[2]: z integral
+    double mOffsetInt[2];
+    // mOffsetInt[0]: x offset integral
+    // mOffsetInt[1]: y offset integral
 
     TimePoint mStartTime;
     TimePoint mLastUpdate;

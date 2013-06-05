@@ -132,17 +132,23 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
+        // TODO: code anti-wind-up
+        // TODO: limit the region around target where the integrator winds
+        mOffsetInt[0] += v3OffsetFiltered[0] * dt;
+        mOffsetInt[1] += v3OffsetFiltered[1] * dt;
 
         // Roll control law
         mControl[0] = min(max(
-            30. * min(max(v3OffsetFiltered[1], -1.), 1.)
-            - 24.8484 * v3VelocityFiltered[1],
+            -26.37 * v3VelocityFiltered[1],
+            + 18.26 * min(max(v3OffsetFiltered[1], -1.), 1.)
+            + 6.25 * mOffsetInt[1]
             -50.), 50.);
 
         // Pitch control law
         mControl[1] = min(max(
-            30. * min(max(v3OffsetFiltered[0], -1.), 1.)
-            - 24.8484 * v3VelocityFiltered[0],
+            -26.37 * v3VelocityFiltered[0],
+            + 18.26 * min(max(v3OffsetFiltered[0], -1.), 1.)
+            + 6.25 * mOffsetInt[0]
             -50.), 50.);
 
 
@@ -198,6 +204,8 @@ void TargetController::RequestConfig(uint8_t nRequest)
       // Currently not engaged in any mode
       if (nRequest == ENGAGED) {
         // Control engagement requested
+        mOffsetInt[0] = 0.;  // Clear the x offset integral
+        mOffsetInt[1] = 0.;  // Clear the y offset integral
         mControl[4] = 0.;  // Clear the hover thrust
         mConfig |= ENGAGED;
       } else if (nRequest == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF) {
