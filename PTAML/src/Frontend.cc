@@ -421,7 +421,7 @@ void Frontend::DetermineScaleFromMarker(const FrameData& fd, bool bUserInvoke)
                                                      mpTracker->GetCurrentPose(),
                                                      se3WorldFromNormWorld, dScale))
   {
-    cout << "SCALE: " << dScale << endl;
+    // cout << "SCALE: " << dScale << endl;
     mse3MarkerPose = se3WorldFromNormWorld;
 
 

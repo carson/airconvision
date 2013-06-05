@@ -223,7 +223,7 @@ void Tracker::ProcessFrame(KeyFrame &keyFrame, bool bRunTracker)
 
     } else { // Tracking is lost
 
-      cout << "Lost tracking..." << endl;
+      // cout << "Lost tracking..." << endl;
       mMessageForUser << "** Attempting recovery **.";
 
       if (AttemptRecovery()) {
