@@ -132,24 +132,21 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
-        // TODO: code anti-wind-up
         // TODO: limit the region around target where the integrator winds
         mOffsetInt[0] += v3OffsetFiltered[0] * dt;
+        mOffsetInt[0] = min(max(mOffsetInt[0], -1.), 1.);
         mOffsetInt[1] += v3OffsetFiltered[1] * dt;
+        mOffsetInt[1] = min(max(mOffsetInt[1], -1.), 1.);
 
         // Roll control law
-        mControl[0] = min(max(
-            -26.37 * v3VelocityFiltered[1],
-            + 18.26 * min(max(v3OffsetFiltered[1], -1.), 1.)
-            + 6.25 * mOffsetInt[1]
-            -50.), 50.);
+        mControl[0] = min(max(-52. * v3VelocityFiltered[1]
+            + 69. * min(max(v3OffsetFiltered[1], -1.), 1.), -70.), 70.)
+            + 40. * mOffsetInt[1];
 
         // Pitch control law
-        mControl[1] = min(max(
-            -26.37 * v3VelocityFiltered[0],
-            + 18.26 * min(max(v3OffsetFiltered[0], -1.), 1.)
-            + 6.25 * mOffsetInt[0]
-            -50.), 50.);
+        mControl[1] = min(max(52. * v3VelocityFiltered[0]
+            - 69. * min(max(v3OffsetFiltered[0], -1.), 1.), -70.), 70.)
+            - 40. * mOffsetInt[0];
 
 
         // Yaw control law
