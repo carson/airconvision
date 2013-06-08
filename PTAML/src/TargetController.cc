@@ -114,8 +114,6 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mv3TargetPosInWorld[1] = mv3PosInWorld[1];
     }
 
-
-
     // Control law
     if (mConfig & ENGAGED) {
       // Control is engaged
@@ -132,22 +130,43 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
-        // TODO: limit the region around target where the integrator winds
-        mOffsetInt[0] += v3OffsetFiltered[0] * dt;
-        mOffsetInt[0] = min(max(mOffsetInt[0], -1.), 1.);
-        mOffsetInt[1] += v3OffsetFiltered[1] * dt;
-        mOffsetInt[1] = min(max(mOffsetInt[1], -1.), 1.);
+        const double kV = 52., kP = 69., kI = 40.;
+        const double kSpeedLimit = 3.;  // Speed limit (m/sec)
+        const double kOffsetLimit = kSpeedLimit * kV / kP;
+        const double kIntegratorRadius = 1.;  // Radius around target where
+                                              // integrator is active (m).
+        double offsetLimited[2];
 
-        // Roll control law
-        mControl[0] = min(max(-52. * v3VelocityFiltered[1]
-            + 69. * min(max(v3OffsetFiltered[1], -1.), 1.), -70.), 70.)
-            + 40. * mOffsetInt[1];
+        // Limit the positional error
+        double distanceToTarget = sqrt(v3OffsetFiltered[0] * v3OffsetFiltered[0]
+            + v3OffsetFiltered[1] * v3OffsetFiltered[1]);
+        if (distanceToTarget > kOffsetLimit) {
+          offsetLimited[0] = v3OffsetFiltered[0] * kOffsetLimit
+              / distanceToTarget;
+          offsetLimited[1] = v3OffsetFiltered[1] * kOffsetLimit
+              / distanceToTarget;
+        } else {
+          offsetLimited[0] = v3OffsetFiltered[0];
+          offsetLimited[1] = v3OffsetFiltered[1];
+        }
 
-        // Pitch control law
-        mControl[1] = min(max(52. * v3VelocityFiltered[0]
-            - 69. * min(max(v3OffsetFiltered[0], -1.), 1.), -70.), 70.)
-            - 40. * mOffsetInt[0];
+        // Integrate error when near the target to remove steady-state error.
+        if (distanceToTarget < kIntegratorRadius) {
+          mOffsetInt[0] += offsetLimited[0] * dt;
+          mOffsetInt[0] = min(max(mOffsetInt[0], -kIntegratorRadius),
+              kIntegratorRadius);
+          mOffsetInt[1] += offsetLimited[1] * dt;
+          mOffsetInt[1] = min(max(mOffsetInt[1], -kIntegratorRadius),
+              kIntegratorRadius);
+        }
 
+        // Roll control law.
+        mControl[0] = min(max(-kV * v3VelocityFiltered[1]
+            + kP * offsetLimited[1] + kI * mOffsetInt[1], -100.), 100.);
+
+        // Pitch control law.
+        mControl[1] = min(max(kV * v3VelocityFiltered[0]
+            - kP * offsetLimited[0] - kI * mOffsetInt[0], -100.), 100.);
 
         // Yaw control law
         // TODO: actually do yaw control
