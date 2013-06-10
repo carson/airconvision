@@ -132,6 +132,7 @@ void MikroKopter::RecvMKToPTAM(const MKToPTAM_t& mkToPTAM)
   mTargetController.SetTargetAltitude((float)mkToPTAM.altitude * 0.01);
   mTargetController.RequestConfig(mkToPTAM.request);
   mMKToPTAM = mkToPTAM;
+  // TODO: Put data logging here.
 }
 
 void MikroKopter::RecvMKDebug(const MKDebug_t& mkDebug)

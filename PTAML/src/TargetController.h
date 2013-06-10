@@ -9,9 +9,21 @@
 namespace PTAMM {
 
 // mode specifiers
-#define ENGAGED  0x01
-#define TAKEOFF  0x02
-#define TRACKING 0x04
+enum {
+  ENGAGED    = 1<<0,
+  TAKEOFF    = 1<<1,
+  TRACKING   = 1<<2,
+  ON_GROUND  = 1<<3,
+  EXPERIMENT = 1<<4,
+};
+
+// experiment mode specifiers
+enum {
+  EXP_OFF,
+  EXP_TAKEOFF,
+  EXP_WAYPOINT,
+  EXP_LANDING,
+};
 
 // height at which the airplane is considered to have taken off (meters)
 #define HTAKEOFF 0.2
@@ -26,7 +38,7 @@ class TargetController {
     void SetTarget(TooN::Vector<3> v3PosInWorld);
     void SetTargetLocation(TooN::Vector<2> v2LocInWorld);
     void HoldCurrentLocation(void) { mHoldCurrentLocation = true; }
-    void SetTargetAltitude(double h) { mv3TargetPosInWorld[2] = h; }
+    void SetTargetAltitude(double h);
 
     void RequestConfig(uint8_t nRequest);
     uint8_t GetConfig() const { return mConfig; }
@@ -62,7 +74,7 @@ class TargetController {
     TooN::Vector<3> mv3Velocity;
     TooN::Vector<3> mv3EulerAngles;
 
-    uint8_t mConfig, mConfigRqst;
+    uint8_t mConfig, mConfigRqst, mExperimentMode;
     int mHoverGas;
 
     bool mReset;

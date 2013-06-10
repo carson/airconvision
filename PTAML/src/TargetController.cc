@@ -42,7 +42,6 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     return;
   }
 
-
   if (bHasTracking) {
 
     mConfig |= TRACKING;
@@ -73,16 +72,10 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     double sPsi = sin(mv3EulerAngles[2]);
     Matrix<3> m33PEarthToHeading = Data(sPsi,cPsi,0.,cPsi,-sPsi,0.,0.,0.,-1.);
 
+    // Current position in PEarth frame
     mv3PosInWorld = se3Pose.inverse().get_translation();
     mAltitudeRL.Update(mv3PosInWorld[2], 2.5, dt);
     mv3PosInWorld[2] = mAltitudeRL.GetValue();
-
-    if (mHoldCurrentLocation) {
-      mv3TargetPosInWorld[0] = mv3PosInWorld[0];
-      mv3TargetPosInWorld[1] = mv3PosInWorld[1];
-      mOffsetFilter.Reset();
-      mHoldCurrentLocation = false;
-    }
 
     // Velocity calculation in heading frame
     if (mReset) {
@@ -98,26 +91,59 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     Vector<3> v3VelocityFiltered = mVelocityFilter.GetValue();
 
     // Positional error (vector to target) in heading frame
+    if (mHoldCurrentLocation) {
+      mv3TargetPosInWorld[0] = mv3PosInWorld[0];
+      mv3TargetPosInWorld[1] = mv3PosInWorld[1];
+      mOffsetFilter.Reset();
+      mHoldCurrentLocation = false;
+    }
+    if (mExperimentMode == EXP_LANDING) mv3TargetPosInWorld[2] -= 0.1 * dt;
     mv3Offset = m33PEarthToHeading * (mv3TargetPosInWorld - mv3PosInWorld);
     if (mReset) mOffsetFilter.Reset();
     mOffsetFilter.Update(mv3Offset);
     Vector<3> v3OffsetFiltered = mOffsetFilter.GetValue();
 
+    // Horizontal distance to target
+    double distanceToTarget = sqrt(v3OffsetFiltered[0] * v3OffsetFiltered[0]
+        + v3OffsetFiltered[1] * v3OffsetFiltered[1]);
 
+    if (mv3PosInWorld[2] < HTAKEOFF)
+      mConfig |= ON_GROUND;
+    else
+      mConfig &= ~ON_GROUND;
 
     // Monitor for takeoff
-    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && mv3PosInWorld[2] > HTAKEOFF) {
+    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && !(mConfig & ON_GROUND)) {
       // The camera has exceeded an altitude of HTAKEOFF meters in takeoff mode
       cout << ", TAKEOFF!!!";
       mConfig = ENGAGED | TRACKING;
-      mv3TargetPosInWorld[0] = mv3PosInWorld[0];
-      mv3TargetPosInWorld[1] = mv3PosInWorld[1];
+    }
+
+    // Monitor for experiment mode triggers
+    if (mExperimentMode == EXP_TAKEOFF && v3OffsetFiltered[2] > -0.1) {
+      static int i = 0;
+      const double waypoints[3][2] = { {1., 0.}, {1., 1.}, {2., 1.} };
+      mExperimentMode = EXP_WAYPOINT;
+      i++;
+      i = i % 3;
+      mv3TargetPosInWorld[0] = waypoints[i][0];
+      mv3TargetPosInWorld[1] = waypoints[i][1];
+      cout << "Going to waypoint " << i << ": (" << waypoints[i][0] << ","
+          << waypoints[i][1] << ")" << endl;
+    }
+    else if (mExperimentMode == EXP_WAYPOINT && distanceToTarget < 0.1) {
+      mExperimentMode = EXP_LANDING;
+      cout << "Landing..." << endl;
+    }
+    else if (mExperimentMode == EXP_LANDING && mControl[4] == -10.) {
+      mExperimentMode = EXP_TAKEOFF;
+      cout << "Taking off..." << endl;
     }
 
     // Control law
     if (mConfig & ENGAGED) {
       // Control is engaged
-      if (mConfig & TAKEOFF) {
+      if ((mConfig & TAKEOFF) || (mExperimentMode & EXP_TAKEOFF)) {
         // Control is engaged in takeoff mode
         mControl[0] = 0.;
         mControl[1] = 0.;
@@ -135,23 +161,22 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         const double kOffsetLimit = kSpeedLimit * kV / kP;
         const double kIntegratorRadius = 1.;  // Radius around target where
                                               // integrator is active (m).
-        double offsetLimited[2];
 
         // Limit the positional error
-        double distanceToTarget = sqrt(v3OffsetFiltered[0] * v3OffsetFiltered[0]
-            + v3OffsetFiltered[1] * v3OffsetFiltered[1]);
+        double offsetLimited[2];
         if (distanceToTarget > kOffsetLimit) {
           offsetLimited[0] = v3OffsetFiltered[0] * kOffsetLimit
               / distanceToTarget;
           offsetLimited[1] = v3OffsetFiltered[1] * kOffsetLimit
               / distanceToTarget;
-        } else {
+        }
+        else {
           offsetLimited[0] = v3OffsetFiltered[0];
           offsetLimited[1] = v3OffsetFiltered[1];
         }
 
         // Integrate error when near the target to remove steady-state error.
-        if (distanceToTarget < kIntegratorRadius) {
+        if ((distanceToTarget < kIntegratorRadius) && !(mConfig & ON_GROUND)) {
           mOffsetInt[0] += offsetLimited[0] * dt;
           mOffsetInt[0] = min(max(mOffsetInt[0], -kIntegratorRadius),
               kIntegratorRadius);
@@ -190,7 +215,6 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       // Reset the integrators
       mOffsetInt[0] = 0.;
       mOffsetInt[1] = 0.;
-      mOffsetInt[2] = 0.;
     }
 
     mv3PrevPosInWorld = mv3PosInWorld;
@@ -212,6 +236,13 @@ void TargetController::RequestConfig(uint8_t nRequest)
 {
   uint8_t nEngaged = mConfig & (ENGAGED | TAKEOFF);
 
+  if (nRequest == (TAKEOFF | EXPERIMENT) && nEngaged == TAKEOFF)
+    mExperimentMode = EXP_TAKEOFF;
+  else if (!(nRequest & EXPERIMENT) || !nEngaged)
+    mExperimentMode = EXP_OFF;
+
+  nRequest &= ~EXPERIMENT;
+
   if (nEngaged != nRequest) {
     cout << " >> Config " << (int)nRequest << " requested from config "
         << (int)nEngaged << endl;
@@ -224,17 +255,20 @@ void TargetController::RequestConfig(uint8_t nRequest)
         mOffsetInt[1] = 0.;  // Clear the y offset integral
         mControl[4] = 0.;  // Clear the hover thrust
         mConfig |= ENGAGED;
-      } else if (nRequest == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF) {
+      }
+      else if (nRequest == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF) {
         // Takeoff mode requested
         mControl[4] = -30.;  // Set hover thrust to idle
         mConfig |= TAKEOFF;
       }
       // NOTE: Intentionally ignoring case where nRequest == (ENGAGED | TAKEOFF)
-    } else if (nRequest == (ENGAGED | TAKEOFF)) {
+    }
+    else if (nRequest == (ENGAGED | TAKEOFF)) {
       if (nEngaged == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF)
         mConfig |= ENGAGED;
       // NOTE: Intentionally ignoring case where nEngaged == ENGAGED
-    } else {
+    }
+    else {
       mConfig &= !(ENGAGED | TAKEOFF);
     }
   }
@@ -250,6 +284,10 @@ void TargetController::SetTargetLocation(TooN::Vector<2> v2LocInWorld) {
   mv3TargetPosInWorld[0] = v2LocInWorld[0];
   mv3TargetPosInWorld[1] = v2LocInWorld[1];
   mOffsetFilter.Reset();
+}
+
+void TargetController::SetTargetAltitude(double h) {
+  if (mExperimentMode != EXP_LANDING) mv3TargetPosInWorld[2] = h;
 }
 
 double TargetController::GetTime() const
