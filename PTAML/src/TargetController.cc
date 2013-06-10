@@ -97,7 +97,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mOffsetFilter.Reset();
       mHoldCurrentLocation = false;
     }
-    if (mExperimentMode == EXP_LANDING) mv3TargetPosInWorld[2] -= 0.1 * dt;
+    if (mExperimentMode == EXP_LANDING) mv3TargetPosInWorld[2] -= 0.3 * dt;
     mv3Offset = m33PEarthToHeading * (mv3TargetPosInWorld - mv3PosInWorld);
     if (mReset) mOffsetFilter.Reset();
     mOffsetFilter.Update(mv3Offset);
@@ -113,29 +113,31 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mConfig &= ~ON_GROUND;
 
     // Monitor for takeoff
-    if ((mConfig == (ENGAGED | TAKEOFF | TRACKING)) && !(mConfig & ON_GROUND)) {
+    if (mConfig == (ENGAGED | TAKEOFF | TRACKING)) {
       // The camera has exceeded an altitude of HTAKEOFF meters in takeoff mode
       cout << ", TAKEOFF!!!";
       mConfig = ENGAGED | TRACKING;
     }
 
     // Monitor for experiment mode triggers
-    if (mExperimentMode == EXP_TAKEOFF && v3OffsetFiltered[2] > -0.1) {
+    if ((mExperimentMode == EXP_TAKEOFF) && !(mConfig & ON_GROUND)
+        && (v3OffsetFiltered[2] > -0.1)) {
       static int i = 0;
-      const double waypoints[3][2] = { {1., 0.}, {1., 1.}, {2., 1.} };
+      const double waypoints[3][2] = { {-0.25, 0.5}, {0., 0.75}, {0.25, 0.5} };
       mExperimentMode = EXP_WAYPOINT;
-      i++;
-      i = i % 3;
       mv3TargetPosInWorld[0] = waypoints[i][0];
       mv3TargetPosInWorld[1] = waypoints[i][1];
+      i++;
+      i = i % 3;
       cout << "Going to waypoint " << i << ": (" << waypoints[i][0] << ","
           << waypoints[i][1] << ")" << endl;
     }
-    else if (mExperimentMode == EXP_WAYPOINT && distanceToTarget < 0.1) {
+    else if ((mExperimentMode == EXP_WAYPOINT) && (distanceToTarget < 0.1)) {
       mExperimentMode = EXP_LANDING;
       cout << "Landing..." << endl;
     }
-    else if (mExperimentMode == EXP_LANDING && mControl[4] == -10.) {
+    else if ((mExperimentMode == EXP_LANDING) && (mConfig & ON_GROUND)
+        && (mv3TargetPosInWorld[2] < -0.5)) {
       mExperimentMode = EXP_TAKEOFF;
       cout << "Taking off..." << endl;
     }
@@ -143,7 +145,8 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     // Control law
     if (mConfig & ENGAGED) {
       // Control is engaged
-      if ((mConfig & TAKEOFF) || (mExperimentMode & EXP_TAKEOFF)) {
+      if (((mConfig & TAKEOFF) || (mExperimentMode == EXP_TAKEOFF))
+          && (mConfig & ON_GROUND)) {
         // Control is engaged in takeoff mode
         mControl[0] = 0.;
         mControl[1] = 0.;
@@ -187,11 +190,11 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
         // Roll control law.
         mControl[0] = min(max(-kV * v3VelocityFiltered[1]
-            + kP * offsetLimited[1] + kI * mOffsetInt[1], -100.), 100.);
+            + kP * offsetLimited[1] + kI * mOffsetInt[1], -50.), 50.);
 
         // Pitch control law.
         mControl[1] = min(max(kV * v3VelocityFiltered[0]
-            - kP * offsetLimited[0] - kI * mOffsetInt[0], -100.), 100.);
+            - kP * offsetLimited[0] - kI * mOffsetInt[0], -50.), 50.);
 
         // Yaw control law
         // TODO: actually do yaw control
