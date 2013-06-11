@@ -123,7 +123,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     if ((mExperimentMode == EXP_TAKEOFF) && !(mConfig & ON_GROUND)
         && (v3OffsetFiltered[2] > -0.1)) {
       static int i = 0;
-      const double waypoints[3][2] = { {-0.25, 0.5}, {0., 0.75}, {0.25, 0.5} };
+      const double waypoints[3][2] = { {0., 1.5}, {0., 1.5}, {0., 1.5} };
       mExperimentMode = EXP_WAYPOINT;
       mv3TargetPosInWorld[0] = waypoints[i][0];
       mv3TargetPosInWorld[1] = waypoints[i][1];
@@ -159,11 +159,11 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
-        const double kV = 52., kP = 69., kI = 40.;
+        const double kV = 26.1, kP = 30., kI = 15.;
         const double kSpeedLimit = 3.;  // Speed limit (m/sec)
         const double kOffsetLimit = kSpeedLimit * kV / kP;
-        const double kIntegratorRadius = 1.;  // Radius around target where
-                                              // integrator is active (m).
+        const double kIntegratorRadius = 0.5;  // Radius around target where
+                                               // integrator is active (m).
 
         // Limit the positional error
         double offsetLimited[2];
@@ -190,11 +190,11 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
         // Roll control law.
         mControl[0] = min(max(-kV * v3VelocityFiltered[1]
-            + kP * offsetLimited[1] + kI * mOffsetInt[1], -50.), 50.);
+            + kP * offsetLimited[1] + kI * mOffsetInt[1], -30.), 30.);
 
         // Pitch control law.
         mControl[1] = min(max(kV * v3VelocityFiltered[0]
-            - kP * offsetLimited[0] - kI * mOffsetInt[0], -50.), 50.);
+            - kP * offsetLimited[0] - kI * mOffsetInt[0], -30.), 30.);
 
         // Yaw control law
         // TODO: actually do yaw control
@@ -257,6 +257,7 @@ void TargetController::RequestConfig(uint8_t nRequest)
         mOffsetInt[0] = 0.;  // Clear the x offset integral
         mOffsetInt[1] = 0.;  // Clear the y offset integral
         mControl[4] = 0.;  // Clear the hover thrust
+        mHoldCurrentLocation = true;   
         mConfig |= ENGAGED;
       }
       else if (nRequest == TAKEOFF && -mv3PosInWorld[2] < HTAKEOFF) {
