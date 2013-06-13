@@ -97,7 +97,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mOffsetFilter.Reset();
       mHoldCurrentLocation = false;
     }
-    if (mExperimentMode == EXP_LANDING) mv3TargetPosInWorld[2] -= 0.3 * dt;
+    if (mExperimentMode == EXP_LANDING) mv3TargetPosInWorld[2] -= 0.25 * dt;
     mv3Offset = m33PEarthToHeading * (mv3TargetPosInWorld - mv3PosInWorld);
     if (mReset) mOffsetFilter.Reset();
     mOffsetFilter.Update(mv3Offset);
@@ -121,9 +121,9 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
     // Monitor for experiment mode triggers
     if ((mExperimentMode == EXP_TAKEOFF) && !(mConfig & ON_GROUND)
-        && (v3OffsetFiltered[2] > -0.1)) {
+        && (v3OffsetFiltered[2] > -0.15)) {
       static int i = 0;
-      const double waypoints[3][2] = { {0., 1.5}, {0., 1.5}, {0., 1.5} };
+      const double waypoints[3][2] = { {0., 1.5}, {-1.2, 1.6}, {0., 2.5} };
       mExperimentMode = EXP_WAYPOINT;
       mv3TargetPosInWorld[0] = waypoints[i][0];
       mv3TargetPosInWorld[1] = waypoints[i][1];
@@ -137,8 +137,9 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       cout << "Landing..." << endl;
     }
     else if ((mExperimentMode == EXP_LANDING) && (mConfig & ON_GROUND)
-        && (mv3TargetPosInWorld[2] < -0.5)) {
+) {
       mExperimentMode = EXP_TAKEOFF;
+      mControl[4] -= 10.;
       cout << "Taking off..." << endl;
     }
 
@@ -159,10 +160,10 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
-        const double kV = 26.1, kP = 30., kI = 15.;
+        const double kV = 18.9, kP = 15., kI = 6.;
         const double kSpeedLimit = 3.;  // Speed limit (m/sec)
         const double kOffsetLimit = kSpeedLimit * kV / kP;
-        const double kIntegratorRadius = 0.5;  // Radius around target where
+        const double kIntegratorRadius = 0.33;  // Radius around target where
                                                // integrator is active (m).
 
         // Limit the positional error

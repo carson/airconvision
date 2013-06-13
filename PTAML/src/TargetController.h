@@ -26,7 +26,7 @@ enum {
 };
 
 // height at which the airplane is considered to have taken off (meters)
-#define HTAKEOFF 0.2
+#define HTAKEOFF 0.25
 
 class TargetController {
   public:
