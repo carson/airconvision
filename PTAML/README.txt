@@ -65,7 +65,7 @@ cd ..
 cd /opt/airconvision
 git clone git clone https://github.com/carson/airconvision.git
 # clean up nested directories called airconvision
-mv airconvision/PTAML && rm -rf airconvision
+mv airconvision/PTAML . && rm -rf airconvision
 cd PTAML
 mkdir BUILD
 cd BUILD
