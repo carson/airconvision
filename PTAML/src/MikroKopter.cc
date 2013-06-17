@@ -21,6 +21,7 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   , mpPerfMon(pPerfMon)
   , mbHasTracking(false)
   , mbUpdateReady(false)
+  , mbLogMKControl(false)
   , mbLogMKData(false)
   , mbLogMKDebug(false)
   , mMKDebugRequestTimeout(2.0)
@@ -33,6 +34,14 @@ MikroKopter::MikroKopter(const Tracker* pTracker, PerformanceMonitor *pPerfMon)
   int nCcomPortBaudrate = GV3::get<int>("MKNaviCtrl.ComPortBaudrate", "57600", SILENT);
   ConnectToMK(nComPortId, nCcomPortBaudrate);
 
+  // Log the control data
+  mbLogMKControl = GV3::get<int>("Debug.LogMKControl", 0, SILENT);
+  if (mbLogMKControl) {
+    mMKControlLogFile.open("mk_control.txt", ios::out | ios::trunc);
+    if (!mMKControlLogFile) {
+      cerr << "Failed to open mk_control.txt" << endl;
+    }
+  }
   // Log the data stream from the MK
   mbLogMKData = GV3::get<int>("Debug.LogMKData", 0, SILENT);
   if (mbLogMKData) {
@@ -91,6 +100,7 @@ void MikroKopter::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking)
   mbHasTracking = bHasTracking;
   mTargetController.Update(se3Pose, bHasTracking, TargetController::Clock::now());
   mbUpdateReady = true;
+  if (mbLogMKControl) LogMKControl();
 }
 
 void MikroKopter::GoToLocation(TooN::Vector<2> v2LocInWorld)
@@ -132,7 +142,7 @@ void MikroKopter::RecvMKToPTAM(const MKToPTAM_t& mkToPTAM)
   mTargetController.SetTargetAltitude((float)mkToPTAM.altitude * 0.01);
   mTargetController.RequestConfig(mkToPTAM.request);
   mMKToPTAM = mkToPTAM;
-  // TODO: Put data logging here.
+  if (mbLogMKData) LogMKData();
 }
 
 void MikroKopter::RecvMKDebug(const MKDebug_t& mkDebug)
@@ -140,32 +150,46 @@ void MikroKopter::RecvMKDebug(const MKDebug_t& mkDebug)
   mMKDebug = mkDebug;
 }
 
+void MikroKopter::LogMKControl()
+{
+  mMKControlLogFile
+      << mTargetController.GetTime()
+      << " " << mTargetController.GetPosInWorld()
+      << mTargetController.GetTarget()
+      << mTargetController.GetTargetOffset()
+      << mTargetController.GetEulerAngles()
+      << mTargetController.GetVelocity()
+      << (int)mTargetController.GetConfig()
+      << " " << (int)mTargetController.GetExperimentMode();
+  for (size_t i = 0; i < 5; ++i) {
+    mMKControlLogFile << " " << mTargetController.GetControl()[i];
+  }
+  mMKControlLogFile << endl;
+}
+
 void MikroKopter::LogMKData()
 {
-  const double* pControl = mTargetController.GetControl();
   mMKDataLogFile
-    << mTargetController.GetTargetOffset()
-    << mTargetController.GetVelocity()
-    << pControl[0] << " "
-    << pControl[1] << " "
-    << pControl[2] << " "
-    << pControl[3] << " "
-    << pControl[4];
+      << (int16_t)mMKToPTAM.count
+      << " " << (int16_t)mMKToPTAM.request
+      << " " << ((float)mMKToPTAM.altitude * 0.01);
 
-  for (size_t i = 0; i < 9; ++i) {
-    mMKDataLogFile << " " << mMKData.int16[i];
+  for (size_t i = 0; i < 6; ++i) {
+    mMKDataLogFile << " " << mMKToPTAM.int16[i];
   }
-
+  for (size_t i = 0; i < 3; ++i) {
+    mMKDataLogFile << " " << mMKToPTAM.single[i];
+  }
   mMKDataLogFile << endl;
 }
 
 void MikroKopter::LogMKDebug()
 {
   for (size_t i = 0; i < 32; ++i) {
-    mMKDataLogFile << " " << mMKDebug.int16[i];
+    mMKDebugLogFile << " " << mMKDebug.int16[i];
   }
 
-  mMKDataLogFile << endl;
+  mMKDebugLogFile << endl;
 }
 
 }

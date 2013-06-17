@@ -35,7 +35,7 @@ class MikroKopter {
     const TooN::Vector<3>& GetEulerAngles() const { return mTargetController.GetEulerAngles(); }
     const TooN::Vector<3>& GetTargetOffset() const { return mTargetController.GetTargetOffset(); }
     const TooN::Vector<3>& GetVelocity() const { return mTargetController.GetVelocity(); }
-    const double* GetControl() const { return mTargetController.GetControl(); }
+    const double(& GetControl() const)[5] { return mTargetController.GetControl(); }
     double GetTargetAltitude() { return mTargetController.GetTargetAltitude(); }
     uint8_t GetConfig() const { return mTargetController.GetConfig(); }
     const float* GetMKData() const { return mMKToPTAM.single; }
@@ -48,6 +48,7 @@ class MikroKopter {
     void RecvMKToPTAM(const MKToPTAM_t& MKToPTAM);
     void RecvMKDebug(const MKDebug_t& mkDebug);
 
+    void LogMKControl();
     void LogMKData();
     void LogMKDebug();
 
@@ -58,6 +59,7 @@ class MikroKopter {
     PerformanceMonitor *mpPerfMon;
     bool mbHasTracking;
     bool mbUpdateReady;
+    bool mbLogMKControl;
     bool mbLogMKData;
     bool mbLogMKDebug;
     TimeoutTimer mMKDebugRequestTimeout;
@@ -68,6 +70,7 @@ class MikroKopter {
     MKConnection mMkConn;
     TargetController mTargetController;
 
+    std::ofstream mMKControlLogFile;
     std::ofstream mMKDataLogFile;
     std::ofstream mMKDebugLogFile;
 };
