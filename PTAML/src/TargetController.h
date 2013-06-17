@@ -26,7 +26,7 @@ enum {
 };
 
 // height at which the airplane is considered to have taken off (meters)
-#define HTAKEOFF 0.25
+#define HTAKEOFF 0.02
 
 class TargetController {
   public:
@@ -39,18 +39,19 @@ class TargetController {
     void SetTargetLocation(TooN::Vector<2> v2LocInWorld);
     void HoldCurrentLocation(void) { mHoldCurrentLocation = true; }
     void SetTargetAltitude(double h);
-
     void RequestConfig(uint8_t nRequest);
-    uint8_t GetConfig() const { return mConfig; }
-    const double* GetControl() const { return mControl; }
-    double GetTime() const;
 
     // To access private data
     const TooN::Vector<3>& GetPosInWorld() const { return mv3PosInWorld; }
     const TooN::Vector<3>& GetEulerAngles() const { return mv3EulerAngles; }
-    const TooN::Vector<3>& GetTargetOffset() const { return mOffsetFilter.GetValue(); }
-    const TooN::Vector<3>& GetVelocity() const { return mVelocityFilter.GetValue(); }
+    const TooN::Vector<3>& GetTargetOffset() const { return mv3Offset; }
+    const TooN::Vector<3>& GetVelocity() const { return mv3Velocity; }
+    const TooN::Vector<3>& GetTarget() const { return mv3TargetPosInWorld; }
     double GetTargetAltitude() { return mv3TargetPosInWorld[2]; }
+    const double(& GetControl() const)[5] { return mControl; }
+    uint8_t GetConfig() const { return mConfig; }
+    uint8_t GetExperimentMode() const { return mExperimentMode; }
+    double GetTime() const;
 
 
   private:
@@ -75,13 +76,13 @@ class TargetController {
     TooN::Vector<3> mv3EulerAngles;
 
     uint8_t mConfig, mConfigRqst, mExperimentMode;
-    int mHoverGas;
+    double mAltitudeOffset;
 
     bool mReset;
     bool mHoldCurrentLocation;
 
-    MovingAverage<TooN::Vector<3>, 4> mOffsetFilter;
     MovingAverage<TooN::Vector<3>, 4> mVelocityFilter;
+    MovingAverage<TooN::Vector<3>, 4> mPositionFilter;
     RateLimit<double> mAltitudeRL;
     RateLimit<double> mPhiRL;
     RateLimit<double> mThetaRL;
