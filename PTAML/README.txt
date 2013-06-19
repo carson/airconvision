@@ -70,11 +70,13 @@ sudo apt-get install -f libglade2-0 libglademm-2.4-1c2a libgtkmm-2.4-1c2a libgtk
 # start installation process
 sudo chmod +x install_flycapture.sh
 ./install_flycapture.sh
+# install CMake package
 
-#Get and build PTAML
+# get and build PTAML
 
 cd /opt/airconvision
-git clone git clone https://github.com/carson/airconvision.git
+# choose flycapture branch
+git clone https://github.com/carson/airconvision/tree/flycapture
 # clean up nested directories called airconvision
 mv airconvision/PTAML . && rm -rf airconvision
 cd PTAML
