@@ -11,10 +11,12 @@ endif()
 # Include paths
 include_directories(
     "${ARTOOLKIT_DIR}/include"
+	"/usr/local/flycapture"
 )
 
 link_directories(
 	"${ARTOOLKIT_DIR}/lib"
+	"/usr/lib"
 )
 
 # Libraries
@@ -110,4 +112,5 @@ set(PTAML_SRC
 
 add_executable(PTAML ${PTAML_SRC})
 target_link_libraries(PTAML ${PTAML_LIBS})
+target_link_libraries(PTAML flycapture)
 
