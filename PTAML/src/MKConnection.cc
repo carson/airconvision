@@ -22,12 +22,14 @@ enum RxCommand : uint8_t {
   RXCMD_MK_DEBUG      = 'D',
   RXCMD_MK_DATA       = 'I',
   RXCMD_POSITION_HOLD = 'H',
+  RXCMD_MK_NAVI       = 'O',
 };
 
 enum TxCommands : uint8_t {
   TXCMD_MK_DEBUG_RQST = 'd',
   TXCMD_PTAM_TO_MK    = 'b',
   TXCMD_MK_DATA_RQST  = 'i',
+  TXCMD_MK_NAVI_RQST  = 'o',
   TXCMD_NEW_TARGET    = 'x',
 };
 
@@ -71,7 +73,10 @@ void MKConnection::ProcessIncoming()
         // Reset the buffer so it can be used for next message
         Buffer_Clear(&mRxBuffer);
 
-        if (msg.Address == FC_ADDRESS) {
+        // cout << "Received CmdID: " << msg.CmdID << " at address: "
+        //     << (int16_t)msg.Address << endl;
+
+        // if (msg.Address == FC_ADDRESS) {
           // Messages addressed from FlightCtrl
           switch (msg.CmdID) {
           case RXCMD_MK_TO_PTAM:
@@ -83,6 +88,9 @@ void MKConnection::ProcessIncoming()
           case RXCMD_MK_DEBUG:
             HandleMKDebug(msg);
             break;
+          case RXCMD_MK_NAVI:
+            HandleMKNavi(msg);
+            break;
           case RXCMD_POSITION_HOLD:
             cout << "Received position hold request" << endl;
             mPositionHoldCallback();
@@ -93,7 +101,7 @@ void MKConnection::ProcessIncoming()
           }
 //      } else {
 //        cerr << "Unknown MK command \'" << msg.CmdID << "\' addresses to: #" << (int)msg.Address << endl;
-        }
+        // }
       }
     }
 
@@ -127,6 +135,11 @@ void MKConnection::RequestMKDebugInterval(uint8_t interval)
   SendData(TXCMD_MK_DEBUG_RQST, 1, &interval);
 }
 
+void MKConnection::RequestMKNaviInterval(uint8_t interval)
+{
+  SendData(TXCMD_MK_NAVI_RQST, 1, &interval);
+}
+
 void MKConnection::HandleMKToPTAM(const SerialMsg_t& msg)
 {
   const MKToPTAM_t *pMKToPTAM = reinterpret_cast<const MKToPTAM_t*>(msg.pData);
@@ -143,6 +156,12 @@ void MKConnection::HandleMKDebug(const SerialMsg_t& msg)
 {
   const MKDebug_t *pMKDebug = reinterpret_cast<const MKDebug_t*>(msg.pData);
   mMKDebugCallback(*pMKDebug);
+}
+
+void MKConnection::HandleMKNavi(const SerialMsg_t& msg)
+{
+  const MKNavi_t *pMKNavi = reinterpret_cast<const MKNavi_t*>(msg.pData);
+  mMKNaviCallback(*pMKNavi);
 }
 
 void MKConnection::SendData(uint8_t cmdID, uint8_t dataLength, ...)  //uint8_t *data

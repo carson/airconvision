@@ -51,7 +51,7 @@ class TargetController {
     const double(& GetControl() const)[5] { return mControl; }
     uint8_t GetConfig() const { return mConfig; }
     uint8_t GetExperimentMode() const { return mExperimentMode; }
-    double GetTime() const;
+    TimePoint GetTime() const;
 
 
   private:

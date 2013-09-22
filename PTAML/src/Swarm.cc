@@ -28,7 +28,7 @@ SwarmLab::SwarmLab()
   , mbPoseUpdated(false)
 {
   // Read COM port settings
-  mnComPortId = GV3::get<int>("SwarmLab.ComPortId", 17, SILENT); // 17 is /dev/ttyUSB1
+  mnComPortId = GV3::get<int>("SwarmLab.ComPortId", 18, SILENT); // 18 is /dev/ttyUSB2
   int nBaudrate = GV3::get<int>("SwarmLab.ComPortBaudrate", "38400", SILENT);
 
   if (OpenComport(mnComPortId, nBaudrate) == 0) {

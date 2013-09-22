@@ -9,6 +9,8 @@ using namespace std;
 using namespace std::chrono;
 
 typedef duration<double> RealSeconds;
+typedef std::chrono::high_resolution_clock Clock;
+typedef std::chrono::time_point<Clock> TimePoint;
 
 void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const TimePoint& t)
 {
@@ -117,7 +119,9 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
     if ((mExperimentMode == EXP_TAKEOFF) && !(mConfig & ON_GROUND)
         && (mv3Offset[2] > -0.1)) {
       static int i = 0;
-      const double waypoints[3][2] = { {0., 1.5}, {-1.2, 1.6}, {0., 2.5} };
+      const double waypoints[3][2] = { {-3.11, -7.95}, {2.14, -3.8}, {0., -0.5} };
+      // const double waypoints[3][2] = { {0.0, -10.0}, {-10.0, -12.0}, {0.0, 0.0} };
+
       mExperimentMode = EXP_WAYPOINT;
       mv3TargetPosInWorld[0] = waypoints[i][0];
       mv3TargetPosInWorld[1] = waypoints[i][1];
@@ -130,7 +134,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
       mExperimentMode = EXP_LANDING;
       cout << "Landing..." << endl;
     }
-    else if ((mExperimentMode == EXP_LANDING) && (mv3Offset[2] > 0.5)
+    else if ((mExperimentMode == EXP_LANDING) && (mv3Offset[2] > 0.75)
         && (mv3Velocity[2] < 0.)) {
       mExperimentMode = EXP_TAKEOFF;
       mConfig |= ON_GROUND;
@@ -148,14 +152,14 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
         mControl[2] = 0.;
         mControl[3] = 0.;
         // Ramp up the throttle
-        mControl[4] += 10. * dt;
+        mControl[4] += 8. * dt;
         if (mControl[4] > 10.) mControl[4] = 10.;
       }
       else {
         // Control is engaged in waypoint-acquire-and-hold mode
 
         const double kV = 18.9, kP = 15., kI = 6.;
-        const double kSpeedLimit = 3.;  // Speed limit (m/sec)
+        const double kSpeedLimit = 0.75;  // Speed limit (m/sec)
         const double kOffsetLimit = kSpeedLimit * kV / kP;
         const double kIntegratorRadius = 0.5;  // Radius around target where
                                                // integrator is active (m).
@@ -197,7 +201,7 @@ void TargetController::Update(const SE3<> &se3Pose, bool bHasTracking, const Tim
 
         // Thrust control law
         mControl[3] = min(max(
-            -8.616 * min(max(mv3Offset[2], -1.), 1.)
+            -8.616 * min(max(mv3Offset[2], -0.25), 0.25)
             + 6.096 * v3VelocityFiltered[2],
             -15.), 15.);
         mControl[4] += 0.2 * mControl[3] * dt;
@@ -288,9 +292,9 @@ void TargetController::SetTargetAltitude(double h) {
   if (mExperimentMode != EXP_LANDING) mv3TargetPosInWorld[2] = h;
 }
 
-double TargetController::GetTime() const
+TimePoint TargetController::GetTime() const
 {
-  return duration_cast<RealSeconds>(mLastUpdate - mStartTime).count();
+  return mLastUpdate;
 }
 
 }
