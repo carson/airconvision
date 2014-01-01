@@ -103,7 +103,7 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
       g_strdup_printf(
         "filesrc location=\"%s\" ! "
         "decodebin ! "
-	"videobalance contrast=%.1f ! "
+        "videobalance contrast=%.1f ! "
         "tee name=%s ! "
         "videoscale ! "
         "ffmpegcolorspace ! "
@@ -116,8 +116,8 @@ VideoSource_Linux_Gstreamer_File::VideoSource_Linux_Gstreamer_File(const std::st
         "queue ! "
         "appsink name=%s max-buffers=2 drop=false",
         videoSourceFile.c_str(),
-	contrast,
-	teeName.c_str(),
+        contrast,
+        teeName.c_str(),
         videoWidth, videoHeight,
         rgbSinkName.c_str(),
         teeName.c_str(),

@@ -173,12 +173,7 @@ void Frontend::operator()()
           coordinateLogFile << timestamp << " " << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
         }
 
-  
-        SE3<> se3PoseCorrection;
-        se3PoseCorrection.get_rotation() = SO3<>(makeVector(0, 1, 0), 
-                                                 makeVector(1, 0, 0));
-
-        SE3<> se3RotatedPose = se3CurrentPose;// * se3PoseCorrection;
+        SE3<> se3RotatedPose = se3CurrentPose;
 
         mOnTrackedPoseUpdatedSlot(se3RotatedPose, 
             !mpTracker->IsLost(), fd.tpCaptureTime);

@@ -1,4 +1,3 @@
-// Copyright 2009 Isis Innovation Limited
 #include "System.h"
 #include "OpenGL.h"
 #include "ATANCamera.h"
@@ -40,43 +39,6 @@ using namespace std::placeholders;
 using namespace CVD;
 using namespace GVars3;
 
-/**
- * Parse and allocate a single integer variable from a string parameter
- * @param nAnswer the result
- * @param sCommand the command (used to display usage info)
- * @param sParams  the parameters to parse
- * @return success or failure.
- */
-bool GetSingleParam(int &nAnswer, string sCommand, string sParams)
-{
-  vector<string> vs = ChopAndUnquoteString(sParams);
-
-  if(vs.size() == 1)
-  {
-    //is param a number?
-    bool bIsNum = true;
-    for( size_t i = 0; i < vs[0].size(); i++ ) {
-      bIsNum = isdigit( vs[0][i] ) && bIsNum;
-    }
-
-    if( !bIsNum )
-    {
-      return false;
-    }
-
-    int *pN = ParseAndAllocate<int>(vs[0]);
-    if( pN )
-    {
-      nAnswer = *pN;
-      delete pN;
-      return true;
-    }
-  }
-
-  cout << sCommand << " usage: " << sCommand << " value" << endl;
-
-  return false;
-}
 
 string FeatureDetector2String(FeatureDetector featureDetector)
 {
@@ -128,7 +90,6 @@ Modules::~Modules()
   delete pSwarmLab;
 }
 
-
 System::System()
   : mGLWindow(ImageRef(640, 480), "PTAML")
   , mbDone(false)
@@ -136,22 +97,8 @@ System::System()
 {
   // Create the on-screen menu and register all the commands
   CreateMenu();
-
-  // Force the program to run on CPU0
-  /*
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(0, &cpuset);
-  pthread_t thread = pthread_self();
-  if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
-    cerr << "pthread_setaffinity_np failed for main thread" << endl;
-  }
-  */
 }
 
-/**
- * Destructor
- */
 System::~System()
 {
   if( mpMap != NULL )  {
@@ -265,20 +212,20 @@ void System::CreateModules()
   mModules.pCamera->SetImageSize(irVideoSize);
 
   if (!mARTracker.Init(irVideoSize)) {
-    cerr << "Failed to init AR toolkit." << std::endl;
-    throw std::runtime_error("Failed to init AR toolkit");
+    cerr << "Failed to initialize AR toolkit." << std::endl;
+    throw std::runtime_error("Failed to initialize AR toolkit");
   }
 
-  //create the first map
+  // Create the first map
   mpMap = new Map();
 
   // Create all the sub-systems
   mModules.pMapMaker = new MapMaker(mpMap);
   mModules.pMapViewer = new MapViewer(mpMap, mGLWindow);
-//  mModules.pMapSerializer = new MapSerializer(mvpMaps);
+  // mModules.pMapSerializer = new MapSerializer(mvpMaps);
 
 
-  // Move these into the frontend
+  // TODO: move these into the frontend
   mModules.pRelocaliser = new Relocaliser(*mModules.pCamera);
   mModules.pTracker = new Tracker(irVideoSize,
                                   *mModules.pCamera,
@@ -309,10 +256,8 @@ void System::CreateModules()
   mModules.pSwarmLab = new SwarmLab();
 }
 
-/**
- * Run the main system thread.
- * This handles the tracker and the map viewer.
- */
+  // Run the main system thread.
+  // This handles the tracker and the map viewer.
 void System::Run()
 {
   static gvar3<int> gvnLockMap("LockMap", 0, HIDDEN|SILENT);
@@ -334,33 +279,12 @@ void System::Run()
   std::thread frameGrabberThread(std::ref(*mModules.pFrameGrabber));
   std::thread swarmThread(std::ref(*mModules.pSwarmLab));
 
+  // System: main loop
   while (!mbDone) {
-    //Check if the map has been locked by another thread, and wait for release.
-    //bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
+    // Check if the map has been locked by another thread, and wait for release.
+    // bool bWasLocked = mpMap->mapLockManager.CheckLockAndWait( this, 0 );
 
     mPerfMonitor.StartTimer("main_loop");
-
-
-/*
-    SE3<> se3DummyPose;
-    se3DummyPose.get_translation() = makeVector(
-      (double)(rand()%10000)/1000.0,
-      (double)(rand()%10000)/1000.0,
-      (double)(rand()%10000)/1000.0);
-
-    auto v1 = makeVector(
-      (double)(rand()%10000)/1000.0,
-      (double)(rand()%10000)/1000.0,
-      (double)(rand()%10000)/1000.0);
-
-    auto v2 = makeVector(
-      (double)(rand()%10000)/1000.0,
-      (double)(rand()%10000)/1000.0,
-      (double)(rand()%10000)/1000.0);
-    se3DummyPose.get_rotation() = SO3<>(v1, v2);
-
-    mModules.pSwarmLab->UpdatePose(se3DummyPose, true, std::chrono::high_resolution_clock::now());
-*/
 
     mpMap->bEditLocked = *gvnLockMap; //sync up the maps edit lock with the gvar bool.
 
@@ -398,12 +322,12 @@ void System::Run()
   swarmThread.join();
 }
 
-/**
- * Parse commands sent via the GVars command system.
- * @param ptr Object callback
- * @param sCommand command string
- * @param sParams parameters
- */
+
+  // Parse commands sent via the GVars command system.
+  // @param ptr Object callback
+  // @param sCommand command string
+  // @param sParams parameters
+
 void System::GUICommandCallBack(void *ptr, string sCommand, string sParams)
 {
   System* pSystem = static_cast<System*>(ptr);
@@ -484,11 +408,10 @@ void System::HandleClick(int nButton, const CVD::ImageRef &irWin)
   }
 }
 
-/**
- * Set up the map serialization thread for saving/loading and the start the thread
- * @param sCommand the function that was called (eg. SaveMap)
- * @param sParams the params string, which may contain a filename and/or a map number
- */
+  // Set up the map serialization thread for saving/loading and the start the thread
+  // @param sCommand the function that was called (eg. SaveMap)
+  // @param sParams the params string, which may contain a filename and/or a map number
+
 void System::StartMapSerialization(std::string sCommand, std::string sParams)
 {
   if (mModules.pMapSerializer->Init(sCommand, sParams, *mpMap)) {
@@ -544,7 +467,8 @@ void System::Draw()
   string sCaption;
 
   if(bDrawMap) {
-    // TODO: This is not thread safe at all... The whole mapviewer thing is in a rather bad state...
+    // TODO: This is not thread safe at all.
+    // The whole mapviewer thing is in a rather bad state...
     mModules.pMapViewer->DrawMap(mse3CurrentPose);
     sCaption = mModules.pMapViewer->GetMessageForUser();
   } else {
@@ -621,13 +545,12 @@ void System::DrawDebugInfo()
 }
 
 
-/**
- * Save the current frame to a FIFO.
- * This function is called on each frame to create a video.
- * The GVar SaveFIFO starts and stops the saving, and the GVar
- * Bitrate sets the quality.
- * Bitrate can only be set before the first call of SaveFIFO.
- */
+  // Save the current frame to a FIFO.
+  // This function is called on each frame to create a video.
+  // The GVar SaveFIFO starts and stops the saving, and the GVar
+  // Bitrate sets the quality.
+  // Bitrate can only be set before the first call of SaveFIFO.
+
 void System::SaveFIFO()
 {
 #ifdef _LINUX

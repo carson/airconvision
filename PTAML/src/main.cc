@@ -1,5 +1,6 @@
-// Copyright 2009 Isis Innovation Limited
-// This is the main extry point for PTAMM
+// This is the main entry point for PTAM
+//
+// This file parses command line arguments and calls System.run()
 
 #include "System.h"
 #include "VideoSource.h"
@@ -34,11 +35,8 @@ void ParseOptions(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-  cout << "  Welcome to PTAML " << endl;
-  cout << "  ---------------- " << endl;
-  cout << "  This program is a modified version of:" << endl;
-  cout << "      Parallel tracking and multiple mapping" << endl;
-  cout << "      Copyright (C) Isis Innovation Limited 2009 " << endl;
+  cout << "  Welcome to PTAM " << endl;
+  cout << "  --------------- " << endl;
   cout << endl;
 
   GUI.parseArguments(argc, argv);

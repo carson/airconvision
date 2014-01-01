@@ -1,6 +1,3 @@
-// -*- c++ -*-
-// Copyright 2009 Isis Innovation Limited
-//
 // System.h
 //
 // Defines the System class
@@ -8,6 +5,7 @@
 // This stores the main functional classes of the system, like the
 // mapmaker, map, tracker etc, and spawns the working threads.
 //
+// The instantiation of the system class creates the GUI
 #ifndef __SYSTEM_H
 #define __SYSTEM_H
 
