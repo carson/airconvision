@@ -1,7 +1,7 @@
 # AR Toolkit   
 find_path(ARTOOLKIT_DIR 
 	NAMES include/AR 
-	HINTS ~/ARToolKit ~/Code/ARToolKit ${CMAKE_SOURCE_DIR}/EXTERNAL/ARToolKit
+	HINTS /opt/ARToolKit ~/ARToolKit ${CMAKE_SOURCE_DIR}/EXTERNAL/ARToolKit
 	DOC "Set the installation directory of AR Toolkit.")
 	
 if(NOT ARTOOLKIT_DIR)
@@ -11,10 +11,12 @@ endif()
 # Include paths
 include_directories(
     "${ARTOOLKIT_DIR}/include"
+	"/usr/local/flycapture"
 )
 
 link_directories(
 	"${ARTOOLKIT_DIR}/lib"
+	"/usr/lib"
 )
 
 # Libraries
@@ -110,4 +112,5 @@ set(PTAML_SRC
 
 add_executable(PTAML ${PTAML_SRC})
 target_link_libraries(PTAML ${PTAML_LIBS})
+target_link_libraries(PTAML flycapture)
 

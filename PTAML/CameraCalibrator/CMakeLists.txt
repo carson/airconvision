@@ -32,4 +32,5 @@ set(CC_SRC
 
 add_executable(CameraCalibrator ${CC_SRC})
 target_link_libraries(CameraCalibrator ${CC_LIBS})
+target_link_libraries(CameraCalibrator flycapture)
 
