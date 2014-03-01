@@ -117,11 +117,9 @@ void Frontend::operator()()
 {
   static gvar3<int> gvnOutputWorldCoordinates("Debug.OutputWorldCoordinates", 0, HIDDEN|SILENT);
 
-  if (*gvnOutputWorldCoordinates) {
-    mCoordinateLogFile.open("coordinates.txt", ios::out | ios::trunc);
-    if (!mCoordinateLogFile) {
-      cerr << "Failed to open coordinates.txt" << endl;
-    }
+  std::ofstream coordinateLogFile("coordinates.txt", ios::out | ios::trunc);
+  if (!coordinateLogFile) {
+    cerr << "Failed to open coordinates.txt" << endl;
   }
 
   StopWatch stopWatch;
@@ -147,11 +145,8 @@ void Frontend::operator()()
     mDrawData.bInitialTracking = mbInitialTracking;
 
     if (bUserResetInvoke) {
-      const SE3<> &se3CurrentPose = SE3<>(makeVector(0., 0., 0., 0., 0., 0.));
       // Go back to initial tracking again
       Reset();
-      mOnTrackedPoseUpdatedSlot(se3CurrentPose, 
-          false, fd.tpCaptureTime);
     }
 
     mpPerfMon->StartTimer("tracking_total");
@@ -175,8 +170,13 @@ void Frontend::operator()()
 
           auto timestamp = std::chrono::duration_cast<
               std::chrono::microseconds>(fd.tpCaptureTime.time_since_epoch()).count();
-          mCoordinateLogFile << timestamp << " " << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
+          coordinateLogFile << timestamp << " " << stopWatch.Elapsed() << " " << mpTracker->RealWorldCoordinate() << std::endl;
         }
+
+        SE3<> se3RotatedPose = se3CurrentPose;
+
+        mOnTrackedPoseUpdatedSlot(se3RotatedPose, 
+            !mpTracker->IsLost(), fd.tpCaptureTime);
       }
 
       mpTracker->GetDrawData(mDrawData.tracker);
@@ -184,9 +184,6 @@ void Frontend::operator()()
       mDrawData.se3MarkerPose = mse3MarkerPose;
       mDrawData.sStatusMessage = mpTracker->GetMessageForUser();
       mDrawData.bInitialTracking = false;
-
-      mOnTrackedPoseUpdatedSlot(se3CurrentPose, 
-          !mpTracker->IsLost() && mbHasDeterminedScale, fd.tpCaptureTime);
     }
 
     monitor.PushDrawData(mDrawData);
