@@ -52,7 +52,8 @@ void SwarmLab::operator()()
       }
     }
 
-    rateLimiter.Limit(100.0); // Limit to 100 Hz
+    // rateLimiter.Limit(100.0); // Limit to 100 Hz
+    rateLimiter.Limit(25.0); // Limit to 0.5 Hz
   }
 }
 
@@ -67,7 +68,13 @@ void SwarmLab::SendPosePacket()
     float Pitch;
     float Roll;
     uint16_t Checksum;
-  };
+  } __attribute__((packed));
+
+  const uint8_t len = sizeof(PoseInfoPacket_t);
+  union bus {
+    PoseInfoPacket_t packet;
+    uint8_t bytes[len];
+  } uot;
 
   SE3<> se3WorldPose = mse3CurrentPose.inverse();
   Vector<3> v3Pos = se3WorldPose.get_translation();
@@ -77,21 +84,19 @@ void SwarmLab::SendPosePacket()
       std::chrono::microseconds>(mtpPoseTime.time_since_epoch()).count();
 
   PoseInfoPacket_t packet;
-  packet.Header = 0xE5;
-  packet.Time = timestamp;
-  packet.Position[0] = v3Pos[0];
-  packet.Position[1] = v3Pos[1];
-  packet.Position[2] = v3Pos[2];
-  packet.Yaw = v3YawPitchRoll[0];
-  packet.Pitch = v3YawPitchRoll[1];
-  packet.Roll = v3YawPitchRoll[2];
-  packet.Checksum = 0;
+  uot.packet.Header = 0xE5;
+  uot.packet.Time = timestamp;
+  uot.packet.Position[0] = v3Pos[0];
+  uot.packet.Position[1] = v3Pos[1];
+  uot.packet.Position[2] = v3Pos[2];
+  uot.packet.Yaw = v3YawPitchRoll[0];
+  uot.packet.Pitch = v3YawPitchRoll[1];
+  uot.packet.Roll = v3YawPitchRoll[2];
+  uot.packet.Checksum = 0;
 
-  packet.Checksum = Checksum(reinterpret_cast<uint8_t*>(&packet),
-                             sizeof(packet));
+  uot.packet.Checksum = Checksum(uot.bytes, sizeof(uot.packet));
 
-  SendBuffer(reinterpret_cast<uint8_t*>(&packet), sizeof(packet));
-  //cout << packet.Time << " " << v3Pos << "  " << v3YawPitchRoll << "  cs: " << packet.Checksum << endl;
+  SendBuffer(uot.bytes, sizeof(uot.packet));
 }
 
 uint16_t SwarmLab::Checksum(const uint8_t* data, size_t length) const
@@ -107,11 +112,14 @@ uint16_t SwarmLab::Checksum(const uint8_t* data, size_t length) const
 
 void SwarmLab::SendBuffer(uint8_t* data, int length)
 {
+  uint8_t count = 0;
   while (length > 0) {
     int sent = SendBuf(mnComPortId, data, length);
     length -= sent;
     data += sent;
+    if (++count == 255) break;
   }
+  cout << "Sent in " << (int)count << " tries" << endl;
 }
 
 void SwarmLab::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking,

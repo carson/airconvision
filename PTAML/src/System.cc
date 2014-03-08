@@ -261,6 +261,8 @@ void System::CreateModules()
 void System::Run()
 {
   static gvar3<int> gvnLockMap("LockMap", 0, HIDDEN|SILENT);
+  static gvar3<int> gvnEnableMikroKopter("EnableMikroKopter", 0, HIDDEN|SILENT);
+  static gvar3<int> gvnEnableSwarmLab("EnableSwarmLab", 0, HIDDEN|SILENT);
 
   CreateModules();
 
