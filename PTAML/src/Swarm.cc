@@ -68,8 +68,8 @@ void SwarmLab::SendPosePacket()
     float Yaw;
     float Pitch;
     float Roll;
-    uint16_t Checksum;
     uint8_t HasTracking;
+    uint16_t Checksum;
   } __attribute__((packed));
 
   const uint8_t len = sizeof(PoseInfoPacket_t);
