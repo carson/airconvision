@@ -25,6 +25,7 @@ SwarmLab::SwarmLab()
   : mbDone(false)
   , mbOpen(false)
   , mtpPoseTime()
+  , mbHasTracking(false)
   , mbPoseUpdated(false)
 {
   // Read COM port settings
@@ -53,7 +54,7 @@ void SwarmLab::operator()()
     }
 
     // rateLimiter.Limit(100.0); // Limit to 100 Hz
-    rateLimiter.Limit(25.0); // Limit to 0.5 Hz
+    rateLimiter.Limit(25.0); // Limit to 25 Hz
   }
 }
 
@@ -68,6 +69,7 @@ void SwarmLab::SendPosePacket()
     float Pitch;
     float Roll;
     uint16_t Checksum;
+    uint8_t HasTracking;
   } __attribute__((packed));
 
   const uint8_t len = sizeof(PoseInfoPacket_t);
@@ -83,7 +85,6 @@ void SwarmLab::SendPosePacket()
   auto timestamp = std::chrono::duration_cast<
       std::chrono::microseconds>(mtpPoseTime.time_since_epoch()).count();
 
-  PoseInfoPacket_t packet;
   uot.packet.Header = 0xE5;
   uot.packet.Time = timestamp;
   uot.packet.Position[0] = v3Pos[0];
@@ -92,6 +93,7 @@ void SwarmLab::SendPosePacket()
   uot.packet.Yaw = v3YawPitchRoll[0];
   uot.packet.Pitch = v3YawPitchRoll[1];
   uot.packet.Roll = v3YawPitchRoll[2];
+  uot.packet.HasTracking = (uint8_t)mbHasTracking;
   uot.packet.Checksum = 0;
 
   uot.packet.Checksum = Checksum(uot.bytes, sizeof(uot.packet));
@@ -125,12 +127,11 @@ void SwarmLab::SendBuffer(uint8_t* data, int length)
 void SwarmLab::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking,
                           const HiResTimePoint &tpTime)
 {
-  if (bHasTracking) {
-    std::unique_lock<std::mutex> lock(mMutex);
-    mse3CurrentPose = se3Pose;
-    mtpPoseTime = tpTime;
-    mbPoseUpdated = true;
-  }
+  std::unique_lock<std::mutex> lock(mMutex);
+  mse3CurrentPose = se3Pose;
+  mbHasTracking = bHasTracking;
+  mtpPoseTime = tpTime;
+  mbPoseUpdated = true;
 }
 
 }

@@ -33,6 +33,7 @@ class SwarmLab {
 
     TooN::SE3<> mse3CurrentPose;
     HiResTimePoint mtpPoseTime;
+    bool mbHasTracking;
     bool mbPoseUpdated;
 };
 
