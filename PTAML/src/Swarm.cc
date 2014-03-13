@@ -54,7 +54,7 @@ void SwarmLab::operator()()
     }
 
     // rateLimiter.Limit(100.0); // Limit to 100 Hz
-    rateLimiter.Limit(25.0); // Limit to 25 Hz
+    rateLimiter.Limit(50.0); // Limit to 50 Hz
   }
 }
 
@@ -121,7 +121,6 @@ void SwarmLab::SendBuffer(uint8_t* data, int length)
     data += sent;
     if (++count == 255) break;
   }
-  cout << "Sent in " << (int)count << " tries" << endl;
 }
 
 void SwarmLab::UpdatePose(const TooN::SE3<> &se3Pose, bool bHasTracking,

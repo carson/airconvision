@@ -4,6 +4,7 @@
 #include "VideoSource.h"
 #include "VideoSource_Linux_V4L.h"
 #include "VideoSource_Linux_Gstreamer_File.h"
+#include "VideoSource_FlyCapture.h"
 #include "VideoSource_Image.h"
 
 #include <gvars3/gvars3.h>
@@ -246,6 +247,12 @@ void FrameGrabber::operator ()()
 
 VideoSource* FrameGrabber::CreateVideoSource(const std::string &sName) const
 {
+  int nFlyCaptureIndex = GV3::get<int>(sName + ".PointGreyIndex", -1);
+  int nFlyCaptureChannel = GV3::get<int>(sName + ".PointGreyMemoryChannel", 0);
+  if (nFlyCaptureIndex >= 0) {
+    return new VideoSource_FlyCapture(nFlyCaptureIndex, nFlyCaptureChannel);
+  }
+
   string sVideoFilename = GV3::get<string>(sName + ".VideoFile", "");
   if (!sVideoFilename.empty()) {
     return new VideoSource_Linux_Gstreamer_File(sVideoFilename);
